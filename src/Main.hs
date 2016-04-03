@@ -66,15 +66,18 @@ decompressAll = go
 
 main :: IO ()
 main = do
-    prog <- newProgressVar :: IO (ProgressVar (Sum Int))
-    pollProgress prog 1 $ \(Sum n) -> show $ realToFrac n / 1024 / 1024
+    compProg <- newProgressVar :: IO (ProgressVar (Sum Int))
+    expProg <- newProgressVar :: IO (ProgressVar (Sum Int))
+    pollProgress compProg 1 $ \(Sum n) -> "Compressed "++show (realToFrac n / 1024 / 1024)
+    pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
     P.S3.fromS3 bucket object $ \resp -> do
         let warc = Warc.parseWarc
+                 $ (>-> progressPipe expProg (Sum . BS.length))
                  $ decompressAll
                  $ hoist liftIO
-                 $ (P.S3.responseBody resp
-                    >-> progressPipe prog (Sum . BS.length))
+                 $ (>-> progressPipe compProg (Sum . BS.length))
+                 $ P.S3.responseBody resp
         postings <- flip execStateT mempty $ do
             r <- Warc.iterRecords handleRecord warc
             liftIO $ putStrLn "That was all. This is left over..."
