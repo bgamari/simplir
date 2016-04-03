@@ -5,5 +5,7 @@ packages:
     zlib/*.cabal
     zlib-bindings/*.cabal
     b-tree/*.cabal
+    /opt/exp/haskell-packages/xml/xml-conduit/*.cabal
+    /opt/exp/haskell-packages/either/*.cabal
     ../*.cabal
     ./*.cabal
