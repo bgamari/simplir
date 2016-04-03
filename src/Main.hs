@@ -13,7 +13,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
 import qualified Data.Text.Encoding as T.E
 import qualified Data.Text.ICU.Convert as ICU
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
 import qualified Data.CaseInsensitive as CI
 
