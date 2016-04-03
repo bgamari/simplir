@@ -1,22 +1,32 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 
+import Control.Exception (evaluate, try)
 import Control.Monad (guard, mzero, when)
 import Control.Monad.Trans.Except
+import Control.Monad.State
+import Control.Monad.Catch
 import Control.Error
+import Data.Foldable
 import Data.Monoid
 import System.IO (stdout)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
+import qualified Data.ByteString.Short as BS.S
+import qualified Data.DList as DList
+import           Data.DList (DList)
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
 import qualified Data.Text.Encoding as T.E
 import qualified Data.Text.ICU.Convert as ICU
-import qualified Data.Map.Strict as M
+import qualified Data.Vector.Unboxed as VU
 
 import qualified Data.CaseInsensitive as CI
 
+import Control.Monad.Morph
 import           Pipes
 import qualified Pipes.Aws.S3 as P.S3
 import qualified Pipes.GZip as P.GZip
@@ -35,12 +45,14 @@ import qualified HTTP.Parse as Http
 import Network.HTTP.Media
 import Text.HTML.Clean as Clean
 import Tokenise
+import Types
 
 bucket = "aws-publicdatasets"
 object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
 
-decompressAll :: Producer BS.ByteString IO r
-              -> Producer BS.ByteString IO r
+decompressAll :: MonadIO m
+              => Producer BS.ByteString m r
+              -> Producer BS.ByteString m r
 decompressAll = go
   where
     go prod = do
@@ -51,12 +63,16 @@ decompressAll = go
 
 main :: IO ()
 main = do
-    r <- P.S3.fromS3 bucket object $ \resp -> do
-        let warc = Warc.parseWarc $ decompressAll $ P.S3.responseBody resp
-        Warc.iterRecords handleRecord warc
-    putStrLn "That was all. This is left over..."
-    runEffect $ r >-> P.BS.stdout
-    return ()
+    P.S3.fromS3 bucket object $ \resp -> do
+        let warc = Warc.parseWarc
+                 $ decompressAll
+                 $ hoist liftIO
+                 $ P.S3.responseBody resp
+        postings <- flip execStateT mempty $ do
+            r <- Warc.iterRecords handleRecord warc
+            liftIO $ putStrLn "That was all. This is left over..."
+            runEffect $ r >-> P.BS.stdout
+        liftIO $ print postings
 
 data MsgType = MsgResponse | MsgRequest
              deriving (Show)
@@ -72,15 +88,26 @@ recordHttpMsgType (Record {..}) = do
         "request"  -> pure MsgRequest
         a          -> mzero
 
-handleRecord :: MonadIO m => Record m r -> m r
+handleRecord :: ( MonadIO m
+                , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
+             => Record m r -> m r
 handleRecord r@(Record {..}) = do
     let msgtype = recordHttpMsgType r
-    liftIO $ print msgtype
     rest <- case msgtype of
         Just MsgResponse -> do
-            (doc, rest) <- P.Parse.runStateT handleResponseRecord recContent
-            let Right Clean.HtmlDocument {..} = doc
-                tokens = tokenise $ T.L.toStrict $ docTitle <> "\n" <> docBody
+            Just recId <- pure $ recHeader ^? Lens.each . Warc._WarcRecordId
+            liftIO $ print recId
+            (docEither, rest) <- P.Parse.runStateT handleRecordBody recContent
+            case docEither of
+                Right Clean.HtmlDocument {..} -> do
+                    let tokens :: [(Term, Position)]
+                        tokens = tokeniseWithPositions $ T.L.toStrict $ docTitle <> "\n" <> docBody
+                        accumd :: M.Map Term (VU.Vector Position)
+                        accumd = foldTokens accumPositions tokens
+
+                        Warc.RecordId (Warc.Uri docName) = recId
+
+                    modify (`DList.snoc` (DocName $ BS.S.toShort docName, M.assocs accumd))
             return rest
         _ -> return recContent
     runEffect $ rest >-> P.P.drain
@@ -90,14 +117,19 @@ decodeTextWithCharSet :: MonadIO m
                       -> ExceptT String m (BS.ByteString -> T.Text)
 decodeTextWithCharSet "utf-8" = return T.E.decodeUtf8
 decodeTextWithCharSet charset = do
-    converter <- fmapLT (\err -> "failed to open converter for "++show charset++": "++show err)
-               $ tryIO $ liftIO $ ICU.open charset Nothing
-    return $ ICU.toUnicode converter
+    mconverter <- liftIO $ handleAll (return . Left)
+                $ fmap Right $ ICU.open charset Nothing
+    case mconverter of
+        Right converter -> return $ ICU.toUnicode converter
+        Left err        -> throwE $ "failed to open converter for "++show charset++": "++show err
 
-handleResponseRecord :: MonadIO m => Parser BS.ByteString m (Either String HtmlDocument)
-handleResponseRecord = runExceptT $ do
-    Right resp <- failWithM "failed to parse HTTP headers"
+handleRecordBody :: (MonadIO m) => Parser BS.ByteString m (Either String HtmlDocument)
+handleRecordBody = runExceptT $ do
+    respEither <- failWithM "unexpected end of response"
                 $ P.Atto.parse Http.response
+
+    resp       <- fmapLT (\err -> "failed to parse HTTP headers: "++ show err)
+                $ hoistEither respEither
 
     ctypeHdr   <- failWith "failed to find Content-Type header"
                 $ Http.hContentType `lookup` Http.respHeaders resp
@@ -111,4 +143,5 @@ handleResponseRecord = runExceptT $ do
     decode     <- decodeTextWithCharSet (BS.unpack $ CI.original charset)
 
     content    <- decode . BS.L.toStrict . BS.L.fromChunks <$> lift P.Parse.drawAll
+
     return $ Clean.clean content

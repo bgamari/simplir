@@ -15,7 +15,7 @@ import Control.Foldl (Fold(..))
 import qualified Data.Text as T
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence as Seq
-import qualified Data.Vector as VU
+import qualified Data.Vector.Unboxed as VU
 import Types
 
 type TermPostings a = [(Term, Posting a)]
@@ -29,8 +29,8 @@ toPostings docId terms =
 tokenise :: T.Text -> [Term]
 tokenise = map Term . T.words . T.toCaseFold
 
-tokeniseWithPos :: T.Text -> [(Term, Position)]
-tokeniseWithPos t = unfoldr f (0,0,0)
+tokeniseWithPositions :: T.Text -> [(Term, Position)]
+tokeniseWithPositions t = unfoldr f (0,0,0)
   where
     f :: (Int, Int, Int) -> Maybe ((Term, Position), (Int, Int, Int))
     f (!tokN, !startChar, !off)
@@ -61,8 +61,8 @@ tokeniseWithPos t = unfoldr f (0,0,0)
       where
         c = t `T.index` off
 
-accumTokens :: Fold a b -> [(Term, a)] -> M.Map Term b
-accumTokens (Fold step initial extract) =
+foldTokens :: Fold a b -> [(Term, a)] -> M.Map Term b
+foldTokens (Fold step initial extract) =
     fmap extract
     . foldl' (\acc (term, x) -> M.alter (f x) term acc) M.empty
   where

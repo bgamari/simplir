@@ -3,20 +3,26 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Types where
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Short as BS.S
 import qualified Data.Text as T
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
 
 newtype DocumentId = DocId Int
-                   deriving (Show, Eq, Ord)
+                   deriving (Show, Eq, Ord, Enum)
 
 derivingUnbox "DocumentId"
   [t| DocumentId -> Int |]
   [| \(DocId n) -> n |]
   [| DocId |]
+
+newtype DocumentName = DocName BS.S.ShortByteString
+                     deriving (Show, Eq, Ord)
 
 -- | An interval within a discrete *.
 data Span = Span { begin, end :: !Int }

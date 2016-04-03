@@ -4,5 +4,6 @@ packages:
     pipes-zlib/*.cabal
     zlib/*.cabal
     zlib-bindings/*.cabal
+    b-tree/*.cabal
     ../*.cabal
     ./*.cabal
