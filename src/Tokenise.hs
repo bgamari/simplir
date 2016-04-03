@@ -32,18 +32,20 @@ tokenise = map Term . T.words . T.toCaseFold
 tokeniseWithPositions :: T.Text -> [(Term, Position)]
 tokeniseWithPositions t = unfoldr f (0,0,0)
   where
+    len = T.length t
+
     f :: (Int, Int, Int) -> Maybe ((Term, Position), (Int, Int, Int))
     f (!tokN, !startChar, !off)
         -- empty token
-      | off < T.length t
+      | off < len
       , isSpace c
       , startChar == off
       = f (tokN, startChar+1, off+1)
 
         -- new token
-      | off == T.length t || (off < T.length t && isSpace c)
-      = let tok = Term $ T.take len $ T.drop startChar t
-            len = off - startChar
+      | off == len || (off < len && isSpace c)
+      = let tok = Term $ T.take tokLen $ T.drop startChar t
+            tokLen = off - startChar
             pos = Position { charOffset  = Span startChar (off-1)
                            , tokenN = tokN
                            }
@@ -51,7 +53,7 @@ tokeniseWithPositions t = unfoldr f (0,0,0)
         in Just ((tok, pos), s')
 
         -- Done, nothing left over
-      | off >= T.length t
+      | off >= len
       = Nothing
 
         -- in a token
