@@ -9,7 +9,6 @@ import System.IO (stdout)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Map as M
-import Debug.Trace
 
 import qualified Data.CaseInsensitive as CI
 
@@ -83,15 +82,20 @@ type Postings = [BS.ByteString]
 
 handleResponseRecord :: MonadIO m => Parser BS.ByteString m (Either String Postings)
 handleResponseRecord = runExceptT $ do
-    Right resp <- noteT "failed to parse HTTP headers" $ MaybeT
+    Right resp <- failWithM "failed to parse HTTP headers"
                 $ P.Atto.parse Http.response
-    liftIO $ print $ resp
-    ctypeHdr   <- noteT "failed to find Content-Type header" $ hoistMaybe
+
+    ctypeHdr   <- failWith "failed to find Content-Type header"
                 $ Http.hContentType `lookup` Http.respHeaders resp
-    ctype      <- noteT "failed to parse HTTP Content-Type" $ hoistMaybe
+
+    ctype      <- failWith "failed to parse HTTP Content-Type"
                 $ parseAccept ctypeHdr
-    charset    <- noteT "failed to find charset" $ hoistMaybe
+
+    charset    <- failWith "failed to find charset"
                 $ "charset" `M.lookup` parameters ctype
-    when (charset /= "utf-8") $ fail "unknown character set"
+
+    failWith ("unknown character set: "++show charset)
+                $ guard (charset /= "utf-8")
+
     content <- lift P.Parse.drawAll
     return content
