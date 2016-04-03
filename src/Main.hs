@@ -94,7 +94,10 @@ handleRecord :: ( MonadIO m
                 , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
              => Record m r -> m r
 handleRecord r@(Record {..}) = do
-    rest <- P.Parse.execStateT (handleRecord' r) recContent
+    (res, rest) <- P.Parse.runStateT (handleRecord' r) recContent
+    case res of
+        Left err -> liftIO $ putStrLn $ "failed:"++err
+        Right () -> return ()
     runEffect $ rest >-> P.P.drain
 
 handleRecord' :: ( MonadIO m
