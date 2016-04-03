@@ -133,10 +133,10 @@ decodeTextWithCharSet charset = do
 
 handleRecordBody :: (MonadIO m) => Parser BS.ByteString m (Either String HtmlDocument)
 handleRecordBody = runExceptT $ do
-    respEither <- failWithM "unexpected end of response"
+    respEither <- failWithM "unexpected end of response body"
                 $ P.Atto.parse Http.response
 
-    resp       <- fmapLT (\err -> "failed to parse HTTP headers: "++ show err)
+    resp       <- fmapLT (\err -> "failed to parse response HTTP headers: "++ show err)
                 $ hoistEither respEither
 
     ctypeHdr   <- failWith "failed to find Content-Type header"
