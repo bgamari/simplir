@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
 
 import Control.Exception (evaluate, try)
 import Control.Monad (guard, mzero, when)
@@ -75,7 +76,7 @@ main = do
         liftIO $ print postings
 
 data MsgType = MsgResponse | MsgRequest
-             deriving (Show)
+             deriving (Show, Eq, Ord, Bounded, Enum)
 
 recordHttpMsgType :: Record m r -> Maybe MsgType
 recordHttpMsgType (Record {..}) = do
@@ -92,25 +93,30 @@ handleRecord :: ( MonadIO m
                 , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
              => Record m r -> m r
 handleRecord r@(Record {..}) = do
-    let msgtype = recordHttpMsgType r
-    rest <- case msgtype of
-        Just MsgResponse -> do
-            Just recId <- pure $ recHeader ^? Lens.each . Warc._WarcRecordId
-            liftIO $ print recId
-            (docEither, rest) <- P.Parse.runStateT handleRecordBody recContent
-            case docEither of
-                Right Clean.HtmlDocument {..} -> do
-                    let tokens :: [(Term, Position)]
-                        tokens = tokeniseWithPositions $ T.L.toStrict $ docTitle <> "\n" <> docBody
-                        accumd :: M.Map Term (VU.Vector Position)
-                        accumd = foldTokens accumPositions tokens
-
-                        Warc.RecordId (Warc.Uri docName) = recId
-
-                    modify (`DList.snoc` (DocName $ BS.S.toShort docName, M.assocs accumd))
-            return rest
-        _ -> return recContent
+    rest <- P.Parse.execStateT (handleRecord' r) recContent
     runEffect $ rest >-> P.P.drain
+
+handleRecord' :: ( MonadIO m
+                 , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
+              => Record m r -> Parser BS.ByteString m (Either String ())
+handleRecord' r@(Record {..}) = runExceptT $ do
+    msgType <- failWith "failed to find message type"
+             $ recordHttpMsgType r
+    when (msgType /= MsgResponse) $ throwE "not a response"
+
+    recId   <- failWith "failed to find record id"
+             $ recHeader ^? Lens.each . Warc._WarcRecordId
+
+    liftIO $ print recId
+    Clean.HtmlDocument {..} <- ExceptT handleRecordBody
+    let tokens :: [(Term, Position)]
+        tokens = tokeniseWithPositions $ T.L.toStrict $ docTitle <> "\n" <> docBody
+        accumd :: M.Map Term (VU.Vector Position)
+        accumd = foldTokens accumPositions tokens
+
+        Warc.RecordId (Warc.Uri docName) = recId
+
+    lift $ lift $ modify (`DList.snoc` (DocName $ BS.S.toShort docName, M.assocs accumd))
 
 decodeTextWithCharSet :: MonadIO m
                       => String  -- ^ character set name
