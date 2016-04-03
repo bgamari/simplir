@@ -1,0 +1,34 @@
+name:                html-clean
+version:             0.1.0.0
+-- synopsis:            
+-- description:         
+homepage:            http://github.com/bgamari/html-clean
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2016 Ben Gamari
+category:            Text
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Text.HTML.Clean
+  other-extensions:    RecordWildCards, OverloadedStrings
+  build-depends:       base >=4.8 && <4.9,
+                       text >=1.2 && <1.3,
+                       deepseq >=1.4 && <1.5,
+                       unordered-containers >=0.2 && <0.3,
+                       tagsoup >=0.13 && <0.14
+  default-language:    Haskell2010
+
+executable html-clean
+  main-is:             Main.hs
+  build-depends:       base,
+                       text,
+                       text-icu,
+                       bytestring,
+                       deepseq,
+                       unordered-containers,
+                       tagsoup

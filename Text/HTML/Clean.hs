@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module HtmlClean (clean, HtmlDocument(..)) where
+module Text.HTML.Clean (clean, HtmlDocument(..)) where
 
 import Data.Maybe (listToMaybe, fromMaybe, mapMaybe)
 import Data.List (unfoldr)
