@@ -1,0 +1,8 @@
+packages:
+    http-parsers/*.cabal
+    html-clean/*.cabal
+    pipes-zlib/*.cabal
+    zlib/*.cabal
+    zlib-bindings/*.cabal
+    ../*.cabal
+    ./*.cabal
