@@ -55,6 +55,11 @@ executable laura
       text-icu >=0.7 && <0.8,
       deepseq >=1.4 && <1.5,
       unordered-containers >=0.2 && <0.3,
+      dlist >= 0.7,
+      profunctors >= 5.1,
+      foldl >= 1.1,
+      vector >= 0.11,
+      vector-th-unbox >= 0.2,
       html-clean
   hs-source-dirs:      src
   build-tools:         hsc2hs

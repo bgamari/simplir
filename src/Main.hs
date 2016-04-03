@@ -34,6 +34,7 @@ import qualified Network.HTTP.Types as Http
 import qualified HTTP.Parse as Http
 import Network.HTTP.Media
 import Text.HTML.Clean as Clean
+import Tokenise
 
 bucket = "aws-publicdatasets"
 object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
@@ -78,7 +79,7 @@ handleRecord r@(Record {..}) = do
     rest <- case msgtype of
         Just MsgResponse -> do
             (doc, rest) <- P.Parse.runStateT handleResponseRecord recContent
-            let Clean.HtmlDocument {..} = doc
+            let Right Clean.HtmlDocument {..} = doc
                 tokens = tokenise $ T.L.toStrict $ docTitle <> "\n" <> docBody
             return rest
         _ -> return recContent
