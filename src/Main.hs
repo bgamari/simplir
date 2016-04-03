@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -6,7 +7,7 @@
 import Control.Exception (evaluate, try)
 import Control.Monad (guard, mzero, when)
 import Control.Monad.Trans.Except
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Catch
 import Control.Error
 import Data.Foldable
@@ -111,12 +112,13 @@ handleRecord' r@(Record {..}) = runExceptT $ do
     Clean.HtmlDocument {..} <- ExceptT handleRecordBody
     let tokens :: [(Term, Position)]
         tokens = tokeniseWithPositions $ T.L.toStrict $ docTitle <> "\n" <> docBody
+
         accumd :: M.Map Term (VU.Vector Position)
-        accumd = foldTokens accumPositions tokens
+        !accumd = foldTokens accumPositions tokens
 
-        Warc.RecordId (Warc.Uri docName) = recId
-
-    lift $ lift $ modify (`DList.snoc` (DocName $ BS.S.toShort docName, M.assocs accumd))
+        Warc.RecordId (Warc.Uri docUri) = recId
+        !docName = DocName $ BS.S.toShort docUri
+    lift $ lift $ modify (`DList.snoc` (docName, M.assocs accumd))
 
 decodeTextWithCharSet :: MonadIO m
                       => String  -- ^ character set name
