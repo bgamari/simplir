@@ -4,10 +4,15 @@
 import Control.Monad (guard, mzero, when)
 import Control.Monad.Trans.Except
 import Control.Error
+import Data.Monoid
 import System.IO (stdout)
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as T.L
+import qualified Data.Text.Encoding as T.E
+import qualified Data.Text.ICU.Convert as ICU
 import qualified Data.Map as M
 
 import qualified Data.CaseInsensitive as CI
@@ -28,6 +33,7 @@ import Data.Warc.Header as Warc
 import qualified Network.HTTP.Types as Http
 import qualified HTTP.Parse as Http
 import Network.HTTP.Media
+import Text.HTML.Clean as Clean
 
 bucket = "aws-publicdatasets"
 object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
@@ -67,20 +73,27 @@ recordHttpMsgType (Record {..}) = do
 
 handleRecord :: MonadIO m => Record m r -> m r
 handleRecord r@(Record {..}) = do
-    liftIO $ print recHeader
     let msgtype = recordHttpMsgType r
     liftIO $ print msgtype
     rest <- case msgtype of
         Just MsgResponse -> do
-            (postings, rest) <- P.Parse.runStateT handleResponseRecord recContent
-            liftIO $ print postings
+            (doc, rest) <- P.Parse.runStateT handleResponseRecord recContent
+            let Clean.HtmlDocument {..} = doc
+                tokens = tokenise $ T.L.toStrict $ docTitle <> "\n" <> docBody
             return rest
         _ -> return recContent
     runEffect $ rest >-> P.P.drain
 
-type Postings = [BS.ByteString]
+decodeTextWithCharSet :: MonadIO m
+                      => String  -- ^ character set name
+                      -> ExceptT String m (BS.ByteString -> T.Text)
+decodeTextWithCharSet "utf-8" = return T.E.decodeUtf8
+decodeTextWithCharSet charset = do
+    converter <- fmapLT (\err -> "failed to open converter for "++show charset++": "++show err)
+               $ tryIO $ liftIO $ ICU.open charset Nothing
+    return $ ICU.toUnicode converter
 
-handleResponseRecord :: MonadIO m => Parser BS.ByteString m (Either String Postings)
+handleResponseRecord :: MonadIO m => Parser BS.ByteString m (Either String HtmlDocument)
 handleResponseRecord = runExceptT $ do
     Right resp <- failWithM "failed to parse HTTP headers"
                 $ P.Atto.parse Http.response
@@ -94,8 +107,7 @@ handleResponseRecord = runExceptT $ do
     charset    <- failWith "failed to find charset"
                 $ "charset" `M.lookup` parameters ctype
 
-    failWith ("unknown character set: "++show charset)
-                $ guard (charset /= "utf-8")
+    decode     <- decodeTextWithCharSet (BS.unpack $ CI.original charset)
 
-    content <- lift P.Parse.drawAll
-    return content
+    content    <- decode . BS.L.toStrict . BS.L.fromChunks <$> lift P.Parse.drawAll
+    return $ Clean.clean content
