@@ -62,6 +62,7 @@ tokeniseWithPositions t = unfoldr f (0,0,0)
 
       where
         c = t `T.index` off
+{-# INLINEABLE tokeniseWithPositions #-}
 
 foldTokens :: Fold a b -> [(Term, a)] -> M.Map Term b
 foldTokens (Fold step initial extract) =
@@ -70,6 +71,7 @@ foldTokens (Fold step initial extract) =
   where
     f x Nothing   = Just $ step initial x
     f x (Just !x0) = Just $ step x0 x
+{-# INLINEABLE foldTokens #-}
 
 data Pair a b = Pair !a !b
 
@@ -82,3 +84,4 @@ accumPositions =
     dimap (\pos -> Pair (Sum 1) (DList.singleton pos))
           (\(Pair (Sum n) xs) -> VU.fromListN n $ toList xs)
     Foldl.mconcat
+{-# INLINEABLE accumPositions #-}
