@@ -48,6 +48,7 @@ import Network.HTTP.Media
 import Text.HTML.Clean as Clean
 import Tokenise
 import Types
+import Progress
 
 bucket = "aws-publicdatasets"
 object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
@@ -65,11 +66,15 @@ decompressAll = go
 
 main :: IO ()
 main = do
+    prog <- newProgressVar :: IO (ProgressVar (Sum Int))
+    pollProgress prog 1 $ \(Sum n) -> show $ realToFrac n / 1024 / 1024
+
     P.S3.fromS3 bucket object $ \resp -> do
         let warc = Warc.parseWarc
                  $ decompressAll
                  $ hoist liftIO
-                 $ P.S3.responseBody resp
+                 $ (P.S3.responseBody resp
+                    >-> progressPipe prog (Sum . BS.length))
         postings <- flip execStateT mempty $ do
             r <- Warc.iterRecords handleRecord warc
             liftIO $ putStrLn "That was all. This is left over..."
