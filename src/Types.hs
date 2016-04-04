@@ -59,6 +59,9 @@ toCaseFold (Term t) = Term $ T.toCaseFold t
 data Posting a = Posting !DocumentId !a
                deriving (Show, Functor)
 
+instance NFData a => NFData (Posting a) where
+    rnf (Posting _ x) = rnf x
+
 derivingUnbox "Posting"
   [t| forall a. VU.Unbox a => Posting a -> (DocumentId, a) |]
   [| \(Posting a b) -> (a, b) |]
