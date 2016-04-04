@@ -11,7 +11,8 @@ import Data.Foldable
 import Data.Monoid
 
 import qualified Data.ByteString.Char8 as BS
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
+import qualified Data.Map.Lazy as M.Lazy
 import qualified Data.HashSet as HS
 
 import Control.Monad.Morph
@@ -50,7 +51,8 @@ main = do
     pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
     let sink = (filterTerms . caseNorm) `contramap` accumPostingsSink
-        caseNorm = M.mapKeysWith mappend toCaseFold
+        -- Avoid concatenating vectors unless necessary
+        caseNorm = M.Lazy.mapKeysWith mappend toCaseFold
         filterTerms = M.filterWithKey (\k _ -> k `HS.member` takeTerms)
         takeTerms = HS.fromList [ "concert", "always", "musician", "beer", "watch", "table" ]
 
@@ -67,4 +69,3 @@ main = do
             liftIO $ putStrLn "That was all. This is left over..."
             runEffect $ r >-> P.BS.stdout
         liftIO $ print postings
-
