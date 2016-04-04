@@ -7,8 +7,9 @@
 
 module Types where
 
+import Data.String
+import Data.Hashable
 import Control.DeepSeq
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Text as T
 import Data.Vector.Unboxed.Deriving
@@ -49,7 +50,11 @@ derivingUnbox "Position"
   [| \(a, b) -> Position a b |]
 
 newtype Term = Term T.Text
-             deriving (Eq, Ord, Show, NFData)
+             deriving (Eq, Ord, Show, NFData, Hashable, IsString)
+
+toCaseFold :: Term -> Term
+toCaseFold (Term t) = Term $ T.toCaseFold t
+{-# INLINE toCaseFold #-}
 
 data Posting a = Posting !DocumentId !a
                deriving (Show, Functor)

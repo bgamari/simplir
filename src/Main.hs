@@ -6,10 +6,13 @@
 
 import Control.Monad.Trans.Except
 import Control.Monad.State.Strict
+import Data.Functor.Contravariant
 import Data.Foldable
 import Data.Monoid
 
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Map as M
+import qualified Data.HashSet as HS
 
 import Control.Monad.Morph
 import           Pipes
@@ -20,6 +23,7 @@ import qualified Pipes.ByteString as P.BS
 import Data.Warc as Warc
 import qualified Network.HTTP.Types as Http
 
+import Types (toCaseFold)
 import Progress
 import WarcDocSource
 import AccumPostings
@@ -45,6 +49,11 @@ main = do
     pollProgress compProg 1 $ \(Sum n) -> "Compressed "++show (realToFrac n / 1024 / 1024)
     pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
+    let sink = (filterTerms . caseNorm) `contramap` accumPostingsSink
+        caseNorm = M.mapKeysWith mappend toCaseFold
+        filterTerms = M.filterWithKey (\k _ -> k `HS.member` takeTerms)
+        takeTerms = HS.fromList [ "concert", "always", "musician", "beer", "watch", "table" ]
+
     P.S3.fromS3 bucket object $ \resp -> do
         let warc = Warc.parseWarc
                  $ (>-> progressPipe expProg (Sum . BS.length))
@@ -54,7 +63,7 @@ main = do
                  $ P.S3.responseBody resp
 
         ((), postings) <- runAccumPostingsSink $ do
-            r <- Warc.iterRecords (handleRecord accumPostingsSink) warc
+            r <- Warc.iterRecords (handleRecord sink) warc
             liftIO $ putStrLn "That was all. This is left over..."
             runEffect $ r >-> P.BS.stdout
         liftIO $ print postings
