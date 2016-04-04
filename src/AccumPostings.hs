@@ -11,7 +11,7 @@ import Data.Monoid
 import qualified Data.Map as M
 import qualified Data.DList as DList
 import           Data.DList (DList)
-import           Control.Monad.Trans.State
+import           Control.Monad.Trans.State.Strict
 import           Control.Monad.IO.Class
 
 import WarcDocSource
