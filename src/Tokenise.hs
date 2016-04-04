@@ -13,6 +13,8 @@ import qualified Control.Foldl as Foldl
 import Control.Foldl (Fold(..))
 
 import qualified Data.Text as T
+import qualified Data.Text.Internal as T.I
+import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
 import qualified Data.Sequence as Seq
 import qualified Data.Vector.Unboxed as VU
@@ -30,38 +32,39 @@ tokenise :: T.Text -> [Term]
 tokenise = map Term . T.words . T.toCaseFold
 
 tokeniseWithPositions :: T.Text -> [(Term, Position)]
-tokeniseWithPositions t = unfoldr f (0,0,0)
+tokeniseWithPositions t = unfoldr f (0,0,0,0)
   where
     len = T.length t
 
-    f :: (Int, Int, Int) -> Maybe ((Term, Position), (Int, Int, Int))
-    f (!tokN, !startChar, !off)
+    f :: (Int, Int, Int, Int) -> Maybe ((Term, Position), (Int, Int, Int, Int))
+    f (!off, !tokN, !startChar, !curChar)
         -- empty token
       | off < len
       , isSpace c
       , startChar == off
-      = f (tokN, startChar+1, off+1)
+      = f (off', tokN, startChar+1, curChar+1)
 
         -- new token
-      | off == len || (off < len && isSpace c)
-      = let tok = Term $ T.take tokLen $ T.drop startChar t
-            tokLen = off - startChar
-            pos = Position { charOffset  = Span startChar (off-1)
-                           , tokenN = tokN
-                           }
-            s'  = (tokN+1, off+1, off+1)
+      | curChar == len || (curChar < len && isSpace c)
+      = let !tok = Term $ T.Unsafe.takeWord16 tokLen $ T.Unsafe.dropWord16 startChar t
+            !tokLen = curChar - startChar
+            !pos = Position { charOffset  = Span startChar (curChar-1)
+                            , tokenN = tokN
+                            }
+            !s'  = (off', tokN+1, curChar+1, curChar+1)
         in Just ((tok, pos), s')
 
         -- Done, nothing left over
-      | off >= len
+      | curChar >= len
       = Nothing
 
         -- in a token
       | otherwise
-      = f (tokN, startChar, off+1)
+      = f (off', tokN, startChar, curChar+1)
 
       where
-        c = t `T.index` off
+        T.Unsafe.Iter c delta = T.Unsafe.iter t off
+        off' = off + delta
 {-# INLINEABLE tokeniseWithPositions #-}
 
 foldTokens :: Fold a b -> [(Term, a)] -> M.Map Term b
