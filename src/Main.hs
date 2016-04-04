@@ -173,7 +173,7 @@ handleRecord' docSink r@(Record {..}) = runExceptT $ do
     liftIO $ print recId
     Clean.HtmlDocument {..} <- ExceptT handleRecordBody
     let tokens :: [(Term, Position)]
-        tokens = tokeniseWithPositions $ T.L.toStrict $ docTitle <> "\n" <> docBody
+        tokens = tokeniseWithPositions $ {-# SCC "rawContent" #-}T.L.toStrict $ docTitle <> "\n" <> docBody
 
         accumd :: M.Map Term (VU.Vector Position)
         !accumd = foldTokens accumPositions tokens
@@ -214,4 +214,4 @@ handleRecordBody = runExceptT $ do
 
     content    <- decode . BS.L.toStrict . BS.L.fromChunks <$> lift P.Parse.drawAll
 
-    return $ Clean.clean content
+    return $ {-# SCC clean #-} Clean.clean content
