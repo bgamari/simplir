@@ -3,13 +3,11 @@
 
 module Text.HTML.Clean (clean, HtmlDocument(..)) where
 
-import Data.Maybe (listToMaybe, fromMaybe, mapMaybe)
-import Data.List (unfoldr)
+import Data.Maybe (listToMaybe, fromMaybe)
 import Control.Applicative
 
 import Control.DeepSeq
 import qualified Data.HashSet as HS
-import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Text (Text)
 import Text.HTML.TagSoup
