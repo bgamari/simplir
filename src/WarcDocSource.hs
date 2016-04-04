@@ -49,10 +49,10 @@ import Types
 
 -- | The @p@ argument represents what sits "inside" a posting (e.g. @()@ for a boolean retrieval index
 -- and positional information for a positional index).
-newtype DocumentSink m p = DocSink { pushDocument :: DocumentName -> M.Map Term p -> m () }
+newtype DocumentSink m p = DocSink { pushDocument :: DocumentName -> p -> m () }
 
 instance Contravariant (DocumentSink m) where
-    contramap f (DocSink g) = DocSink (\docName postings -> g docName (fmap f postings))
+    contramap f (DocSink g) = DocSink (\docName postings -> g docName (f postings))
 
 data MsgType = MsgResponse | MsgRequest
              deriving (Show, Eq, Ord, Bounded, Enum)
@@ -69,7 +69,7 @@ recordHttpMsgType (Record {..}) = do
         a          -> mzero
 
 handleRecord :: (MonadIO m)
-             => DocumentSink m (VU.Vector Position)
+             => DocumentSink m (M.Map Term (VU.Vector Position))
              -> Record m r
              -> m r
 handleRecord docSink r@(Record {..}) = do
@@ -80,7 +80,7 @@ handleRecord docSink r@(Record {..}) = do
     runEffect $ rest >-> P.P.drain
 
 handleRecord' :: (MonadIO m)
-              => DocumentSink m (VU.Vector Position)
+              => DocumentSink m (M.Map Term (VU.Vector Position))
               -> Record m r
               -> Parser BS.ByteString m (Either String ())
 handleRecord' docSink r@(Record {..}) = runExceptT $ do

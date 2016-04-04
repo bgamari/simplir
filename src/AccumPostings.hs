@@ -50,7 +50,7 @@ insertPostings termPostings = APM $
     insert acc (term, posting) =
         M.insertWith (<>) term (DList.singleton posting) acc
 
-accumPostingsSink :: (Monad m, Monoid p) => DocumentSink (AccumPostingsM p m) p
+accumPostingsSink :: (Monad m, Monoid p) => DocumentSink (AccumPostingsM p m) (M.Map Term p)
 accumPostingsSink = DocSink $ \docName postings -> do
     docId <- assignDocId docName
     insertPostings $ toPostings docId (M.assocs postings)
