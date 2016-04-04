@@ -13,6 +13,7 @@ import qualified Data.DList as DList
 import           Data.DList (DList)
 import           Control.Monad.Trans.State.Strict
 import           Control.Monad.IO.Class
+import System.Logging.Facade
 
 import WarcDocSource
 import Types
@@ -23,7 +24,7 @@ data AccumPostingsState p = APS { apsDocIds      :: !(M.Map DocumentId DocumentN
                                 }
 
 newtype AccumPostingsM p m a = APM (StateT (AccumPostingsState p) m a)
-                             deriving (Functor, Applicative, Monad, MonadIO)
+                             deriving (Functor, Applicative, Monad, MonadIO, Logging)
 
 runAccumPostingsSink :: Monad m => AccumPostingsM p m a -> m (a, M.Map Term (DList (Posting p)))
 runAccumPostingsSink (APM action) = do

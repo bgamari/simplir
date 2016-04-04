@@ -16,6 +16,7 @@ import Control.Error
 import Data.Foldable
 import Data.Monoid
 import Data.Functor.Contravariant
+import Prelude hiding (log)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
@@ -34,6 +35,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Pipes.Parse as P.Parse
 import           Pipes.Parse (Parser)
 import qualified Pipes.Attoparsec as P.Atto
+import System.Logging.Facade
 
 import Control.Lens as Lens
 
@@ -68,30 +70,32 @@ recordHttpMsgType (Record {..}) = do
         "request"  -> pure MsgRequest
         a          -> mzero
 
-handleRecord :: (MonadIO m)
+data LogMesg = LogMesg !LogLevel String
+
+handleRecord :: (MonadIO m, Logging m)
              => DocumentSink m (M.Map Term (VU.Vector Position))
              -> Record m r
              -> m r
 handleRecord docSink r@(Record {..}) = do
     (res, rest) <- P.Parse.runStateT (handleRecord' docSink r) recContent
     case res of
-        Left err -> liftIO $ putStrLn $ "failed:"++err
+        Left (LogMesg level msg) -> liftIO $ log level $ "failed: "++msg
         Right () -> return ()
     runEffect $ rest >-> P.P.drain
 
-handleRecord' :: (MonadIO m)
+handleRecord' :: (MonadIO m, Logging m)
               => DocumentSink m (M.Map Term (VU.Vector Position))
               -> Record m r
-              -> Parser BS.ByteString m (Either String ())
+              -> Parser BS.ByteString m (Either LogMesg ())
 handleRecord' docSink r@(Record {..}) = runExceptT $ do
-    msgType <- failWith "failed to find message type"
+    msgType <- failWith (LogMesg DEBUG "failed to find message type")
              $ recordHttpMsgType r
-    when (msgType /= MsgResponse) $ throwE "not a response"
+    when (msgType /= MsgResponse) $ throwE (LogMesg DEBUG "not a response")
 
-    recId   <- failWith "failed to find record id"
+    recId   <- failWith (LogMesg WARN "failed to find record id")
              $ recHeader ^? Lens.each . Warc._WarcRecordId
 
-    liftIO $ print recId
+    info $ "Processed "++show recId
     Clean.HtmlDocument {..} <- ExceptT handleRecordBody
     let tokens :: [(Term, Position)]
         tokens = tokeniseWithPositions $ {-# SCC "rawContent" #-}T.L.toStrict $ docTitle <> "\n" <> docBody
@@ -105,30 +109,30 @@ handleRecord' docSink r@(Record {..}) = runExceptT $ do
 
 decodeTextWithCharSet :: MonadIO m
                       => String  -- ^ character set name
-                      -> ExceptT String m (BS.ByteString -> T.Text)
+                      -> ExceptT LogMesg m (BS.ByteString -> T.Text)
 decodeTextWithCharSet "utf-8" = return T.E.decodeUtf8
 decodeTextWithCharSet charset = do
     mconverter <- liftIO $ handleAll (return . Left)
                 $ fmap Right $ ICU.open charset Nothing
     case mconverter of
         Right converter -> return $ ICU.toUnicode converter
-        Left err        -> throwE $ "failed to open converter for "++show charset++": "++show err
+        Left err        -> throwE $ LogMesg INFO $ "failed to open converter for "++show charset++": "++show err
 
-handleRecordBody :: (MonadIO m) => Parser BS.ByteString m (Either String HtmlDocument)
+handleRecordBody :: (MonadIO m) => Parser BS.ByteString m (Either LogMesg HtmlDocument)
 handleRecordBody = runExceptT $ do
-    respEither <- failWithM "unexpected end of response body"
+    respEither <- failWithM (LogMesg WARN "unexpected end of response body")
                 $ P.Atto.parse Http.response
 
-    resp       <- fmapLT (\err -> "failed to parse response HTTP headers: "++ show err)
+    resp       <- fmapLT (\err -> LogMesg WARN $ "failed to parse response HTTP headers: "++ show err)
                 $ hoistEither respEither
 
-    ctypeHdr   <- failWith "failed to find Content-Type header"
+    ctypeHdr   <- failWith (LogMesg WARN "failed to find Content-Type header")
                 $ Http.hContentType `lookup` Http.respHeaders resp
 
-    ctype      <- failWith "failed to parse HTTP Content-Type"
+    ctype      <- failWith (LogMesg WARN "failed to parse HTTP Content-Type")
                 $ parseAccept ctypeHdr
 
-    charset    <- failWith "failed to find charset"
+    charset    <- failWith (LogMesg INFO "failed to find charset")
                 $ "charset" `M.lookup` parameters ctype
 
     decode     <- decodeTextWithCharSet (BS.unpack $ CI.original charset)
