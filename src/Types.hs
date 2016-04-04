@@ -7,6 +7,7 @@
 
 module Types where
 
+import Control.DeepSeq
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Text as T
@@ -39,14 +40,16 @@ data Position = Position { charOffset :: !Span
                          }
               deriving (Eq, Ord, Show)
 
+instance NFData Position where
+    rnf (Position {}) = ()
+
 derivingUnbox "Position"
   [t| Position -> (Span, Int) |]
   [| \(Position a b) -> (a, b) |]
   [| \(a, b) -> Position a b |]
 
 newtype Term = Term T.Text
-             deriving (Eq, Ord, Show)
-
+             deriving (Eq, Ord, Show, NFData)
 
 data Posting a = Posting !DocumentId !a
                deriving (Show, Functor)
