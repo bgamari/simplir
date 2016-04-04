@@ -32,3 +32,4 @@ executable html-clean
                        deepseq,
                        unordered-containers,
                        tagsoup
+  default-language:    Haskell2010
