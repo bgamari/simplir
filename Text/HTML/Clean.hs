@@ -3,7 +3,7 @@
 
 module Text.HTML.Clean (clean, HtmlDocument(..)) where
 
-import Data.Maybe (listToMaybe, fromMaybe)
+import Data.Maybe (fromMaybe)
 import Control.Applicative
 
 import Control.DeepSeq
