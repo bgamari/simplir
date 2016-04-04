@@ -121,9 +121,11 @@ assignDocId docName = APM $ do
 
 insertPostings :: (Monad m, Monoid p) => TermPostings p -> AccumPostingsM p m ()
 insertPostings termPostings = APM $
-    modify $ \s -> s { apsPostings = foldl' (\acc (term, postings) -> M.insertWith (<>) term (DList.singleton postings) acc)
-                                            (apsPostings s)
-                                            termPostings }
+    modify' $ \s -> s { apsPostings = foldl' insert (apsPostings s) termPostings }
+  where
+    insert :: M.Map Term (DList (Posting p)) -> (Term, Posting p) -> M.Map Term (DList (Posting p))
+    insert acc (term, posting) =
+        M.insertWith (<>) term (DList.singleton posting) acc
 
 accumPostingsSink :: (Monad m, Monoid p) => DocumentSink (AccumPostingsM p m) p
 accumPostingsSink = DocSink $ \docName postings -> do
