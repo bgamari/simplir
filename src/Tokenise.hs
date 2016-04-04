@@ -13,20 +13,10 @@ import qualified Control.Foldl as Foldl
 import Control.Foldl (Fold(..))
 
 import qualified Data.Text as T
-import qualified Data.Text.Internal as T.I
 import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
-import qualified Data.Sequence as Seq
 import qualified Data.Vector.Unboxed as VU
 import Types
-
-type TermPostings a = [(Term, Posting a)]
-
-toPostings :: DocumentId -> [(Term, a)] -> TermPostings a
-toPostings docId terms =
-    [ (term, Posting docId pos)
-    | (term, pos) <- terms
-    ]
 
 tokenise :: T.Text -> [Term]
 tokenise = map Term . T.words . T.toCaseFold
