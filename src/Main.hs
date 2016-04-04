@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 import Control.Exception (evaluate, try)
 import Control.Monad (guard, mzero, when)
@@ -12,6 +13,7 @@ import Control.Monad.Catch
 import Control.Error
 import Data.Foldable
 import Data.Monoid
+import Data.Functor.Contravariant
 import System.IO (stdout)
 
 import qualified Data.ByteString.Char8 as BS
@@ -78,11 +80,56 @@ main = do
                  $ hoist liftIO
                  $ (>-> progressPipe compProg (Sum . BS.length))
                  $ P.S3.responseBody resp
-        postings <- flip execStateT mempty $ do
-            r <- Warc.iterRecords handleRecord warc
+
+        ((), postings) <- runAccumPostingsSink $ do
+            r <- Warc.iterRecords (handleRecord accumPostingsSink) warc
             liftIO $ putStrLn "That was all. This is left over..."
             runEffect $ r >-> P.BS.stdout
         liftIO $ print postings
+
+-- | The @p@ argument represents what sits "inside" a posting (e.g. @()@ for a boolean retrieval index
+-- and positional information for a positional index).
+newtype DocumentSink m p = DocSink { pushDocument :: DocumentName -> M.Map Term p -> m () }
+
+instance Contravariant (DocumentSink m) where
+    contramap f (DocSink g) = DocSink (\docName postings -> g docName (fmap f postings))
+
+data AccumPostingsState p = APS { apsDocIds      :: !(M.Map DocumentId DocumentName)
+                                , apsFreshDocIds :: ![DocumentId]
+                                , apsPostings    :: !(M.Map Term (DList (Posting p)))
+                                }
+
+newtype AccumPostingsM p m a = APM (StateT (AccumPostingsState p) m a)
+                             deriving (Functor, Applicative, Monad, MonadIO)
+
+runAccumPostingsSink :: Monad m => AccumPostingsM p m a -> m (a, M.Map Term (DList (Posting p)))
+runAccumPostingsSink (APM action) = do
+    (r, s) <- runStateT action s0
+    return (r, apsPostings s)
+  where
+    s0 = APS { apsDocIds = M.empty
+             , apsFreshDocIds = [DocId i | i <- [0..]]
+             , apsPostings = M.empty
+             }
+
+assignDocId :: Monad m => DocumentName -> AccumPostingsM p m DocumentId
+assignDocId docName = APM $ do
+    docId:rest <- apsFreshDocIds <$> get
+    modify' $ \s -> s { apsFreshDocIds = rest
+                      , apsDocIds = M.insert docId docName (apsDocIds s) }
+    return docId
+
+insertPostings :: (Monad m, Monoid p) => TermPostings p -> AccumPostingsM p m ()
+insertPostings termPostings = APM $
+    modify $ \s -> s { apsPostings = foldl' (\acc (term, postings) -> M.insertWith (<>) term (DList.singleton postings) acc)
+                                            (apsPostings s)
+                                            termPostings }
+
+accumPostingsSink :: (Monad m, Monoid p) => DocumentSink (AccumPostingsM p m) p
+accumPostingsSink = DocSink $ \docName postings -> do
+    docId <- assignDocId docName
+    insertPostings $ toPostings docId (M.assocs postings)
+
 
 data MsgType = MsgResponse | MsgRequest
              deriving (Show, Eq, Ord, Bounded, Enum)
@@ -98,20 +145,22 @@ recordHttpMsgType (Record {..}) = do
         "request"  -> pure MsgRequest
         a          -> mzero
 
-handleRecord :: ( MonadIO m
-                , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
-             => Record m r -> m r
-handleRecord r@(Record {..}) = do
-    (res, rest) <- P.Parse.runStateT (handleRecord' r) recContent
+handleRecord :: (MonadIO m)
+             => DocumentSink m (VU.Vector Position)
+             -> Record m r
+             -> m r
+handleRecord docSink r@(Record {..}) = do
+    (res, rest) <- P.Parse.runStateT (handleRecord' docSink r) recContent
     case res of
         Left err -> liftIO $ putStrLn $ "failed:"++err
         Right () -> return ()
     runEffect $ rest >-> P.P.drain
 
-handleRecord' :: ( MonadIO m
-                 , MonadState (DList (DocumentName, [(Term, VU.Vector Position)] )) m)
-              => Record m r -> Parser BS.ByteString m (Either String ())
-handleRecord' r@(Record {..}) = runExceptT $ do
+handleRecord' :: (MonadIO m)
+              => DocumentSink m (VU.Vector Position)
+              -> Record m r
+              -> Parser BS.ByteString m (Either String ())
+handleRecord' docSink r@(Record {..}) = runExceptT $ do
     msgType <- failWith "failed to find message type"
              $ recordHttpMsgType r
     when (msgType /= MsgResponse) $ throwE "not a response"
@@ -129,7 +178,7 @@ handleRecord' r@(Record {..}) = runExceptT $ do
 
         Warc.RecordId (Warc.Uri docUri) = recId
         !docName = DocName $ BS.S.toShort docUri
-    lift $ lift $ modify (`DList.snoc` (docName, M.assocs accumd))
+    lift $ lift $ pushDocument docSink docName accumd
 
 decodeTextWithCharSet :: MonadIO m
                       => String  -- ^ character set name
