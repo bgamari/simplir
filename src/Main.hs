@@ -27,9 +27,6 @@ import qualified Control.Foldl as Foldl
 
 import Control.Monad.Morph
 import           Pipes
-import qualified Pipes.Aws.S3 as P.S3
-import qualified Pipes.GZip as P.GZip
-import qualified Pipes.ByteString as P.BS
 import qualified Pipes.Prelude as P.P
 
 import Data.Warc as Warc
@@ -41,20 +38,16 @@ import Progress
 import Tokenise
 import WarcDocSource
 import AccumPostings
+import DataSource
 
-bucket = "aws-publicdatasets"
-object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
+{-
+dsrc = S3Object { s3Bucket = "aws-publicdatasets"
+                , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
+                }
+-}
 
-decompressAll :: MonadIO m
-              => Producer BS.ByteString m r
-              -> Producer BS.ByteString m r
-decompressAll = go
-  where
-    go prod = do
-        res <- P.GZip.decompress' prod
-        case res of
-            Left prod' -> go prod'
-            Right r    -> return r
+dsrc = LocalFile "../0000tw-00.warc"
+compression = Nothing
 
 main :: IO ()
 main = do
@@ -71,11 +64,10 @@ main = do
             filterTerms = M.filterWithKey (\k _ -> k `HS.member` takeTerms)
             takeTerms = HS.fromList [ "concert", "always", "musician", "beer", "watch", "table" ]
 
-    P.S3.fromS3 bucket object $ \resp -> do
+    withDataSource dsrc $ \src -> do
         let warc :: Warc.Warc IO ()
             warc = Warc.parseWarc
-                   $ decompressAll ( hoist liftIO (P.S3.responseBody resp)
-                                 >-> progressPipe compProg (Sum . BS.length) )
+                   $ decompress compression (src >-> progressPipe compProg (Sum . BS.length))
                    >-> progressPipe expProg (Sum . BS.length)
 
         (docIds, postings) <-
