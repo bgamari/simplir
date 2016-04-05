@@ -32,6 +32,8 @@ import qualified Pipes.Prelude as P.P
 import Data.Warc as Warc
 import qualified Network.HTTP.Types as Http
 import qualified Text.HTML.Clean as Clean
+import qualified BTree.BinaryList as BTree.BL
+import Data.Binary (Binary)
 
 import Types
 import Progress
@@ -91,8 +93,7 @@ main = do
                            $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-        liftIO $ print postings
-        savePostings postings
+        savePostings "out" $ fmap (map $ fmap VU.toList) postings
 
 zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
 zipWithList = go
@@ -105,8 +106,9 @@ zipWithList = go
 cat' :: forall a m r. Monad m => Pipe a a m r
 cat' = cat
 
-savePostings :: MonadIO m => M.Map Term (DList (Posting p)) -> m ()
-savePostings = undefined
+savePostings :: (Binary p, MonadIO m) => FilePath -> M.Map Term [Posting p] -> m ()
+savePostings path terms =
+    void $ BTree.BL.toBinaryList path (Pipes.each $ M.toAscList terms)
 
 foldProducer :: Monad m => Foldl.FoldM m a b -> Producer a m () -> m b
 foldProducer (Foldl.FoldM step initial extract) =
@@ -114,13 +116,13 @@ foldProducer (Foldl.FoldM step initial extract) =
 
 consumePostings :: Monad m
                 => Producer ((DocumentId, DocumentName), TermPostings p) m ()
-                -> m (M.Map DocumentId DocumentName, M.Map Term (DList (Posting p)))
+                -> m (M.Map DocumentId DocumentName, M.Map Term [Posting p])
 consumePostings =
     foldProducer ((,) <$> lmap fst docIds
                       <*> lmap snd postings)
   where
-    postings = Foldl.generalize foldPostings
     docIds   = Foldl.generalize $ lmap (uncurry M.singleton) Foldl.mconcat
+    postings = Foldl.generalize $ fmap (fmap toList) foldPostings
 
 cleanHtml :: T.Text -> T.Text
 cleanHtml content =

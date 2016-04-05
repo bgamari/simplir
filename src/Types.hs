@@ -4,11 +4,14 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Types where
 
 import Data.String
 import Data.Hashable
+import Data.Binary
+import GHC.Generics
 import Control.DeepSeq
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Text as T
@@ -16,7 +19,7 @@ import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
 
 newtype DocumentId = DocId Int
-                   deriving (Show, Eq, Ord, Enum)
+                   deriving (Show, Eq, Ord, Enum, Binary)
 
 derivingUnbox "DocumentId"
   [t| DocumentId -> Int |]
@@ -24,11 +27,13 @@ derivingUnbox "DocumentId"
   [| DocId |]
 
 newtype DocumentName = DocName BS.S.ShortByteString
-                     deriving (Show, Eq, Ord)
+                     deriving (Show, Eq, Ord, Binary)
 
 -- | An interval within a discrete *.
 data Span = Span { begin, end :: !Int }
-          deriving (Eq, Ord, Show)
+          deriving (Eq, Ord, Show, Generic)
+
+instance Binary Span
 
 derivingUnbox "Span"
   [t| Span -> (Int, Int) |]
@@ -39,8 +44,9 @@ derivingUnbox "Span"
 data Position = Position { charOffset :: !Span
                          , tokenN     :: !Int
                          }
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Generic)
 
+instance Binary Position
 instance NFData Position where
     rnf (Position {}) = ()
 
@@ -50,15 +56,16 @@ derivingUnbox "Position"
   [| \(a, b) -> Position a b |]
 
 newtype Term = Term T.Text
-             deriving (Eq, Ord, Show, NFData, Hashable, IsString)
+             deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary)
 
 toCaseFold :: Term -> Term
 toCaseFold (Term t) = Term $ T.toCaseFold t
 {-# INLINE toCaseFold #-}
 
 data Posting a = Posting !DocumentId !a
-               deriving (Show, Functor)
+               deriving (Show, Functor, Generic)
 
+instance Binary a => Binary (Posting a)
 instance NFData a => NFData (Posting a) where
     rnf (Posting _ x) = rnf x
 
