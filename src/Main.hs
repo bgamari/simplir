@@ -9,6 +9,7 @@
 import Control.Monad.Trans.Except
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Functor.Contravariant
+import Data.Bifunctor
 import Data.Foldable
 import Data.Profunctor
 import Data.Monoid
@@ -58,12 +59,11 @@ main = do
     pollProgress compProg 1 $ \(Sum n) -> "Compressed "++show (realToFrac n / 1024 / 1024)
     pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
-    let normTerms :: Monoid p => M.Map Term p -> M.Map Term p
+    let normTerms :: [(Term, p)] -> [(Term, p)]
         normTerms = filterTerms . caseNorm
           where
-            -- Avoid concatenating vectors unless necessary
-            caseNorm = M.Lazy.mapKeysWith mappend toCaseFold
-            filterTerms = M.filterWithKey (\k _ -> k `HS.member` takeTerms)
+            caseNorm = map (first toCaseFold)
+            filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
             takeTerms = HS.fromList [ "concert", "always", "musician", "beer", "watch", "table" ]
 
     withDataSource dsrc $ \src -> do
@@ -82,7 +82,7 @@ main = do
             >-> cat'                                          @(DocumentName, T.Text)
             >-> P.P.map (fmap tokeniseWithPositions)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
-            -- >-> P.P.map (fmap $ M.toList . normTerms . M.fromList)
+            >-> P.P.map (fmap normTerms)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
             >-> zipWithList [DocId 0..]
             >-> cat'                                          @(DocumentId, (DocumentName, [(Term, Position)]))
