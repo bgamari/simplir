@@ -5,8 +5,8 @@
 {-# LANGUAGE RankNTypes #-}
 
 module WarcDocSource
-    ( DocumentSink(..)
-    , handleRecord
+    ( readRecord
+    , decodeDocuments
     ) where
 
 import Control.Monad.Trans.Except
@@ -32,9 +32,8 @@ import qualified Data.CaseInsensitive as CI
 
 import           Pipes
 import qualified Pipes.Prelude as P.P
-import qualified Pipes.Parse as P.Parse
-import           Pipes.Parse (Parser)
-import qualified Pipes.Attoparsec as P.Atto
+import qualified Pipes.ByteString as P.BS
+import qualified Data.Attoparsec.ByteString.Lazy as Atto
 import System.Logging.Facade
 
 import Control.Lens as Lens
@@ -48,20 +47,57 @@ import Text.HTML.Clean as Clean
 import Tokenise
 import Types
 
-
--- | The @p@ argument represents what sits "inside" a posting (e.g. @()@ for a boolean retrieval index
--- and positional information for a positional index).
-newtype DocumentSink m p = DocSink { pushDocument :: DocumentName -> p -> m () }
-
-instance Contravariant (DocumentSink m) where
-    contramap f (DocSink g) = DocSink (\docName postings -> g docName (f postings))
-
 data MsgType = MsgResponse | MsgRequest
              deriving (Show, Eq, Ord, Bounded, Enum)
 
-recordHttpMsgType :: Record m r -> Maybe MsgType
-recordHttpMsgType (Record {..}) = do
-    ctypeStr <- recHeader ^? Lens.each . Warc._ContentType
+readRecord :: Monad m
+           => RecordHeader
+           -> Producer BS.ByteString m b
+           -> Producer (RecordHeader, BS.L.ByteString) m b
+readRecord hdr prod = do
+    (body, rest) <- lift $ P.P.toListM' prod
+    yield (hdr, BS.L.fromChunks body)
+    return rest
+
+decodeDocuments :: MonadIO m
+                => Pipe (RecordHeader, BS.L.ByteString) (DocumentName, T.Text) m r
+decodeDocuments =
+    mapFoldableM (runExceptT . decodeDocument)
+  where
+    logError (docName, Right x)                  = return $ Just x
+    logError (docName, Left (LogMesg level msg)) = do log level $ "failed: "++msg
+                                                      return Nothing
+
+decodeDocument :: MonadIO m
+               => (RecordHeader, BS.L.ByteString)
+               -> ExceptT LogMesg m (DocumentName, T.Text)
+decodeDocument (hdr, content) = do
+    msgType <- failWith (LogMesg DEBUG "failed to find message type")
+             $ recordHttpMsgType hdr
+
+    when (msgType /= MsgResponse) $ throwE (LogMesg DEBUG "not a response")
+
+    recId   <- failWith (LogMesg WARN "failed to find record id")
+             $ hdr ^? recHeaders . Lens.each . Warc._WarcRecordId
+
+    (respHeaders, body)
+            <- case Atto.parse Http.response content of
+                   Atto.Done rest respHeaders -> return (respHeaders, rest)
+                   Atto.Fail err _ _          ->
+                       throwE $ LogMesg WARN $ "failed to parse response HTTP headers: "++ show err
+
+    decode  <- findDecoder respHeaders
+
+    let Warc.RecordId (Warc.Uri docUri) = recId
+        !docName = DocName $ BS.S.toShort docUri
+    return (docName, decode $ BS.L.toStrict body)
+
+mapFoldableM :: (Monad m, Foldable f)  => (a -> m (f b)) -> Pipe a b m r
+mapFoldableM f = P.P.mapM f >-> P.P.concat
+
+recordHttpMsgType :: RecordHeader -> Maybe MsgType
+recordHttpMsgType hdr = do
+    ctypeStr <- hdr ^? Warc.recHeaders . Lens.each . Warc._ContentType
     ctype <- parseAccept ctypeStr
     guard $ ctype `matches` ("application" // "http")
     msgtype <- "msgtype" `M.lookup` parameters ctype
@@ -71,41 +107,6 @@ recordHttpMsgType (Record {..}) = do
         a          -> mzero
 
 data LogMesg = LogMesg !LogLevel String
-
-handleRecord :: (MonadIO m, Logging m)
-             => DocumentSink m (M.Map Term (VU.Vector Position))
-             -> Record m r
-             -> m r
-handleRecord docSink r@(Record {..}) = do
-    (res, rest) <- P.Parse.runStateT (handleRecord' docSink r) recContent
-    case res of
-        Left (LogMesg level msg) -> liftIO $ log level $ "failed: "++msg
-        Right () -> return ()
-    runEffect $ rest >-> P.P.drain
-
-handleRecord' :: (MonadIO m, Logging m)
-              => DocumentSink m (M.Map Term (VU.Vector Position))
-              -> Record m r
-              -> Parser BS.ByteString m (Either LogMesg ())
-handleRecord' docSink r@(Record {..}) = runExceptT $ do
-    msgType <- failWith (LogMesg DEBUG "failed to find message type")
-             $ recordHttpMsgType r
-    when (msgType /= MsgResponse) $ throwE (LogMesg DEBUG "not a response")
-
-    recId   <- failWith (LogMesg WARN "failed to find record id")
-             $ recHeader ^? Lens.each . Warc._WarcRecordId
-
-    info $ "Processed "++show recId
-    Clean.HtmlDocument {..} <- ExceptT handleRecordBody
-    let tokens :: [(Term, Position)]
-        tokens = tokeniseWithPositions $ {-# SCC "rawContent" #-}T.L.toStrict $ docTitle <> "\n" <> docBody
-
-        accumd :: M.Map Term (VU.Vector Position)
-        !accumd = foldTokens accumPositions tokens
-
-        Warc.RecordId (Warc.Uri docUri) = recId
-        !docName = DocName $ BS.S.toShort docUri
-    lift $ lift $ pushDocument docSink docName accumd
 
 decodeTextWithCharSet :: MonadIO m
                       => String  -- ^ character set name
@@ -118,14 +119,8 @@ decodeTextWithCharSet charset = do
         Right converter -> return $ ICU.toUnicode converter
         Left err        -> throwE $ LogMesg INFO $ "failed to open converter for "++show charset++": "++show err
 
-handleRecordBody :: (MonadIO m) => Parser BS.ByteString m (Either LogMesg HtmlDocument)
-handleRecordBody = runExceptT $ do
-    respEither <- failWithM (LogMesg WARN "unexpected end of response body")
-                $ P.Atto.parse Http.response
-
-    resp       <- fmapLT (\err -> LogMesg WARN $ "failed to parse response HTTP headers: "++ show err)
-                $ hoistEither respEither
-
+findDecoder :: MonadIO m => Http.Response -> ExceptT LogMesg m (BS.ByteString -> T.Text)
+findDecoder resp = do
     ctypeHdr   <- failWith (LogMesg WARN "failed to find Content-Type header")
                 $ Http.hContentType `lookup` Http.respHeaders resp
 
@@ -137,6 +132,4 @@ handleRecordBody = runExceptT $ do
 
     decode     <- decodeTextWithCharSet (BS.unpack $ CI.original charset)
 
-    content    <- decode . BS.L.toStrict . BS.L.fromChunks <$> lift P.Parse.drawAll
-
-    return $ {-# SCC "clean" #-} Clean.clean content
+    return decode
