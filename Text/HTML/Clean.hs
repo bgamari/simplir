@@ -9,20 +9,36 @@ import Control.Applicative
 import Control.DeepSeq
 import qualified Data.HashSet as HS
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text as T
 import Data.Text (Text)
-import Text.HTML.TagSoup
+import Text.HTML.Parser
+
+isTagOpenName :: TagName -> Token -> Bool
+isTagOpenName name (TagOpen name' _) = name == name'
+isTagOpenName _    _                 = False
+
+isTagCloseName :: TagName -> Token -> Bool
+isTagCloseName name (TagClose name') = name == name'
+isTagCloseName _    _                = False
+
+canonicalizeTags :: [Token] -> [Token]
+canonicalizeTags = map f
+  where
+    f (TagOpen name attrs) = TagOpen (T.toLower name) attrs
+    f (TagClose name)      = TagClose (T.toLower name)
+    f other                = other
 
 -- | Take the children of the first occurrence of the given tag.
-insideTag :: Text -> [Tag Text] -> [Tag Text]
+insideTag :: Text -> [Token] -> [Token]
 insideTag name =
       takeWhile (not . isTagCloseName name)
     . dropWhile (not . isTagOpenName name)
 
 -- | Drop all instances of the given tag.
-dropTag :: Text -> [Tag Text] -> [Tag Text]
+dropTag :: Text -> [Token] -> [Token]
 dropTag name = taking
   where
-    taking :: [Tag Text] -> [Tag Text]
+    taking :: [Token] -> [Token]
     taking []                  = []
     taking (x:xs)
       | isTagOpenName name x   = dropping xs
@@ -33,18 +49,18 @@ dropTag name = taking
       | isTagCloseName name x  = taking xs
     dropping (_:xs)            = dropping xs
 
-extractTitle :: [Tag Text] -> TL.Text
+extractTitle :: [Token] -> TL.Text
 extractTitle =
     innerText' . insideTag "title"
 
 -- | Take the inner text of the first occurrence of the given tag
-tagInnerText :: Text -> [Tag Text] -> Maybe TL.Text
+tagInnerText :: Text -> [Token] -> Maybe TL.Text
 tagInnerText name tags =
     case insideTag name tags of
         []       -> Nothing
         children -> Just $ innerText' children
 
-extractBody :: [Tag Text] -> TL.Text
+extractBody :: [Token] -> TL.Text
 extractBody tags =
     let tags' = foldr (dropTag) tags
                 [ "style" , "nav" , "video"
@@ -54,10 +70,11 @@ extractBody tags =
       <|> tagInnerText "main" tags'
       <|> tagInnerText "body" tags'
 
-innerText' :: [Tag Text] -> TL.Text
+innerText' :: [Token] -> TL.Text
 innerText' = TL.fromChunks . map takeText
   where
-    takeText (TagText t)                = t
+    takeText (ContentChar t)            = T.singleton t
+    takeText (ContentText t)            = t
     takeText (TagClose tag)
       | tag `HS.member` needsWhitespace = " "
     takeText (TagOpen tag _)
@@ -109,7 +126,7 @@ needsWhitespace = HS.fromList
 clean :: Text -> HtmlDocument
 clean content =
     let tags = canonicalizeTags
-             $ parseTagsOptions parseOptionsFast content
+             $ tagStream content
         docTitle = extractTitle tags
         docBody = extractBody tags
     in HtmlDocument {..}

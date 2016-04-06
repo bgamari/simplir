@@ -20,7 +20,7 @@ library
                        text >=1.2 && <1.3,
                        deepseq >=1.4 && <1.5,
                        unordered-containers >=0.2 && <0.3,
-                       tagsoup >=0.13 && <0.14
+                       html-parse
   default-language:    Haskell2010
 
 executable html-clean
@@ -31,5 +31,5 @@ executable html-clean
                        bytestring,
                        deepseq,
                        unordered-containers,
-                       tagsoup
+                       html-parse
   default-language:    Haskell2010
