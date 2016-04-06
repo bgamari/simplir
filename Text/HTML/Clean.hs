@@ -5,6 +5,7 @@ module Text.HTML.Clean (clean, HtmlDocument(..)) where
 
 import Data.Maybe (fromMaybe)
 import Control.Applicative
+import Data.List (mapAccumL)
 
 import Control.DeepSeq
 import qualified Data.HashSet as HS
@@ -36,18 +37,16 @@ insideTag name =
 
 -- | Drop all instances of the given tag.
 dropTag :: Text -> [Token] -> [Token]
-dropTag name = taking
+dropTag name = filterAccumL f True
   where
-    taking :: [Token] -> [Token]
-    taking []                  = []
-    taking (x:xs)
-      | isTagOpenName name x   = dropping xs
-      | otherwise              = x : taking xs
+    f take x
+      | isTagOpenName name  x = (False, False)
+      | isTagCloseName name x = (True,  False)
+      | otherwise             = (take,  take)
 
-    dropping []                = []
-    dropping (x:xs)
-      | isTagCloseName name x  = taking xs
-    dropping (_:xs)            = dropping xs
+filterAccumL :: (acc -> a -> (acc, Bool)) -> acc -> [a] -> [a]
+filterAccumL f z =
+    map fst . filter snd . snd . mapAccumL (\acc x -> case f acc x of (acc', take) -> (acc', (x, take))) z
 
 extractTitle :: [Token] -> TL.Text
 extractTitle =
