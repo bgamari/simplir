@@ -51,7 +51,7 @@ dropTag name = taking
 
 extractTitle :: [Token] -> TL.Text
 extractTitle =
-    innerText' . insideTag "title"
+    innerText' . insideTag "title" . takeWhile (not . isTagCloseName "head")
 
 -- | Take the inner text of the first occurrence of the given tag
 tagInnerText :: Text -> [Token] -> Maybe TL.Text
