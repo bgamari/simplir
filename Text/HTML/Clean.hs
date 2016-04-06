@@ -35,18 +35,25 @@ insideTag name =
       takeWhile (not . isTagCloseName name)
     . dropWhile (not . isTagOpenName name)
 
--- | Drop all instances of the given tag.
-dropTag :: Text -> [Token] -> [Token]
-dropTag name = filterAccumL f True
+dropTags :: HS.HashSet Text -> [Token] -> [Token]
+dropTags names = filterAccumL f Nothing
   where
-    f take x
-      | isTagOpenName name  x = (False, False)
-      | isTagCloseName name x = (True,  False)
-      | otherwise             = (take,  take)
+    f Nothing (TagOpen name _)
+      | name `HS.member` names  = (Just name, False)
+      | otherwise               = (Nothing,   True)
+    f (Just open) (TagClose name)
+      | open == name            = (Nothing,   False)
+    f open@(Just _) _           = (open,      False)
+    f open  _                   = (open,      True)
+{-# INLINE dropTags #-}
 
 filterAccumL :: (acc -> a -> (acc, Bool)) -> acc -> [a] -> [a]
 filterAccumL f z =
-    map fst . filter snd . snd . mapAccumL (\acc x -> case f acc x of (acc', take) -> (acc', (x, take))) z
+      map fst
+    . filter snd
+    . snd
+    . mapAccumL (\acc x -> case f acc x of (acc', take) -> (acc', (x, take))) z
+{-# INLINE filterAccumL #-}
 
 extractTitle :: [Token] -> TL.Text
 extractTitle =
@@ -61,9 +68,9 @@ tagInnerText name tags =
 
 extractBody :: [Token] -> TL.Text
 extractBody tags =
-    let tags' = foldr (dropTag) tags
-                [ "style" , "nav" , "video"
-                , "canvas" , "script" ]
+    let tags' = dropTags droppedTags tags
+        droppedTags = HS.fromList [ "style" , "nav" , "video"
+                                  , "canvas" , "script" ]
     in fromMaybe ""
        $  tagInnerText "article" tags'
       <|> tagInnerText "main" tags'
