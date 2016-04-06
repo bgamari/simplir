@@ -1,10 +1,12 @@
 packages:
     http-parsers/*.cabal
+    html-parse/*.cabal
     html-clean/*.cabal
     pipes-zlib/*.cabal
     zlib/*.cabal
     zlib-bindings/*.cabal
     b-tree/*.cabal
+    /home/ben/code/maintaining/pipes-interleave/*.cabal
     /opt/exp/haskell-packages/xml/xml-conduit/*.cabal
     /opt/exp/haskell-packages/either/*.cabal
     ../*.cabal
