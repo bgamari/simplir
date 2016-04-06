@@ -5,6 +5,7 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Types where
 
@@ -62,8 +63,12 @@ toCaseFold :: Term -> Term
 toCaseFold (Term t) = Term $ T.toCaseFold t
 {-# INLINE toCaseFold #-}
 
-data Posting a = Posting !DocumentId !a
+data Posting a = Posting { postingDocId :: !DocumentId, postingBody :: !a }
                deriving (Show, Functor, Generic)
+
+-- | Comparing first on the 'DocumentId'
+deriving instance Ord a => Ord (Posting a)
+deriving instance Eq a => Eq (Posting a)
 
 instance Binary a => Binary (Posting a)
 instance NFData a => NFData (Posting a) where
