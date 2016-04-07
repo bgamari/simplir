@@ -1,19 +1,18 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module CollectPostings
     ( collectPostings
+    , test
     ) where
 
-import Data.Foldable
 import Data.Monoid
 import Data.Function (on)
 
 import qualified Data.Heap as H
-import qualified Data.Map.Strict as M
 
 import Pipes
-
 import Types
 
 data ActivePosting m p = AP { apPosting   :: !(Posting p)
@@ -35,7 +34,7 @@ collectPostings = start
     start prods = do
         -- request one element from each producer
         s0 <- lift $ mapM nextPosting prods
-        go M.empty (fold s0)
+        go (mconcat s0)
 
     -- | Request a posting
     nextPosting :: (Term, Producer (Posting p) m ())
@@ -46,55 +45,32 @@ collectPostings = start
             Right (posting, actives) -> return $ H.singleton $ AP posting term actives
             Left ()                  -> return H.empty
 
-    go :: M.Map DocumentId [(Term, p)]
-       -> H.Heap (ActivePosting m p)
+    go :: H.Heap (ActivePosting m p)
        -> Producer (DocumentId, [(Term, p)]) m ()
-    go acc actives = do
-        let -- pop off minimal active postings
-            (mins, actives') = takeMins actives
+    go actives
+      | H.null actives     = return ()
+      | otherwise          = do
+        -- pop off minimal active postings
+        let minDocId = H.minimum actives
+            (postings, actives') = H.span (== minDocId) actives
 
-            -- fold them into our accumulator
-            accumPosting :: M.Map DocumentId [(Term, p)]
-                         -> ActivePosting m p
-                         -> M.Map DocumentId [(Term, p)]
-            accumPosting acc' (AP (Posting docid posting) term _) =
-                M.insertWith (<>) docid [(term, posting)] acc'
-            acc' = foldl' accumPosting acc mins
+            docPostings :: [(Term, p)]
+            docPostings =
+                [ (apTerm, postingBody apPosting)
+                | AP {..} <- H.toUnsortedList postings ]
+
+        yield (postingDocId $ apPosting minDocId, docPostings)
 
         -- pull in new postings
-        new <- lift $ mapM (\ap -> nextPosting (apTerm ap, apRemaining ap)) mins
-        finishDocs acc' (actives' <> mconcat new)
+        new <- lift $ mapM (\ap -> nextPosting (apTerm ap, apRemaining ap))
+                    $ H.toUnsortedList postings
+        go (actives' <> mconcat new)
 
-    finishDocs :: M.Map DocumentId [(Term, p)]
-               -> H.Heap (ActivePosting m p)
-               -> Producer (DocumentId, [(Term, p)]) m ()
-    finishDocs acc actives
-      | H.null actives     = mapM_ yield (M.assocs acc)
-    finishDocs acc actives = do
-        -- see if we have finished any documents
-        let minDocId = postingDocId $ apPosting $ H.minimum actives
-
-            finished, rest :: M.Map DocumentId [(Term, p)]
-            (finished, rest) = splitRBiased minDocId acc
-
-        mapM_ yield (M.assocs finished)
-        go rest actives
-
-splitRBiased :: Ord k => k -> M.Map k a -> (M.Map k a, M.Map k a)
-splitRBiased k xs =
-    case M.splitLookup k xs of
-        (l, x, r)  -> (l, r <> maybe mempty (M.singleton k) x)
-
-takeMins :: Ord a => H.Heap a -> ([a], H.Heap a)
-takeMins heap =
-    let (mins, rest) = H.span (== H.minimum heap) heap
-    in (H.toUnsortedList mins, rest)
-
-tests :: Monad m => [(Term, Producer (Posting ()) m ())]
-tests =
+test :: Monad m => [(Term, Producer (Posting ()) m ())]
+test =
     [ ("cat",    each [p 1, p 3, p 4, p 7])
     , ("turtle", each [p 2, p 3, p 7, p 9])
-    , ("dog",    each [p 2000, p 3000])
+    , ("dog",    each [p 5, p 100, p 3000])
     ]
   where
     p :: Int -> Posting ()
