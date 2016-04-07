@@ -66,6 +66,8 @@ executable laura
       vector-th-unbox >= 0.2,
       mmorph >= 1.0,
       b-tree,
+      heaps,
+      vector-binary-instances >= 0.2,
       warc >=0.1 && <0.2,
       html-clean
   hs-source-dirs:      src

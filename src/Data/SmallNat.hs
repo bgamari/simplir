@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Data.SmallNat where
 
@@ -8,7 +9,7 @@ import Test.QuickCheck hiding ((.&.))
 
 -- | Efficiently encode natural numbers from 0 to 2^62 - 1
 newtype SmallNat = SmallNat Word
-                 deriving (Eq, Ord, Show, Read)
+                 deriving (Eq, Ord, Show, Read, Integral, Num, Real)
 
 instance Bounded SmallNat where
     minBound = SmallNat 0
