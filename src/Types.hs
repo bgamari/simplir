@@ -18,9 +18,13 @@ import qualified Data.ByteString.Short as BS.S
 import qualified Data.Text as T
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
+import Test.QuickCheck
 
 newtype DocumentId = DocId Int
                    deriving (Show, Eq, Ord, Enum, Binary)
+
+instance Arbitrary DocumentId where
+    arbitrary = DocId . getPositive <$> arbitrary
 
 derivingUnbox "DocumentId"
   [t| DocumentId -> Int |]
@@ -59,12 +63,18 @@ derivingUnbox "Position"
 newtype Term = Term T.Text
              deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary)
 
+instance Arbitrary Term where
+    arbitrary = Term . T.pack <$> vectorOf 3 (choose ('a','e'))
+
 toCaseFold :: Term -> Term
 toCaseFold (Term t) = Term $ T.toCaseFold t
 {-# INLINE toCaseFold #-}
 
 data Posting a = Posting { postingDocId :: !DocumentId, postingBody :: !a }
                deriving (Show, Functor, Generic)
+
+instance Arbitrary p => Arbitrary (Posting p) where
+    arbitrary = Posting <$> arbitrary <*> arbitrary
 
 -- | Comparing first on the 'DocumentId'
 deriving instance Ord a => Ord (Posting a)
