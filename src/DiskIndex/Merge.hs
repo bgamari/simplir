@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DiskPostings.Merge where
+module DiskIndex.Merge where
 
 import Data.Bifunctor
 import qualified Data.Heap as H
@@ -9,20 +9,20 @@ import qualified Data.Vector as V
 import Data.Binary
 
 import Pipes
-import DiskPostings
+import DiskIndex
 import Types
 import qualified Encoded as E
 import qualified EncodedList as EL
 import BTree (BLeaf(..))
 
-mergePostings :: (Binary p)
-              => FilePath     -- ^ Merged output
-              -> Int          -- ^ Chunk size
-              -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
-              -- ^ a set of posting sources, along with their 'DocumentId' offsets
-              -> IO ()
-mergePostings outFile chunkSize =
-    writePostings outFile chunkSize
+merge :: (Binary p)
+      => FilePath     -- ^ Merged output
+      -> Int          -- ^ Chunk size
+      -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
+      -- ^ a set of posting sources, along with their 'DocumentId' offsets
+      -> IO ()
+merge outFile chunkSize =
+    writeIndex outFile chunkSize
     . each
     . map (\(term, chunks) -> BLeaf term (EL.fromList chunks))
     . mergeTermPostings

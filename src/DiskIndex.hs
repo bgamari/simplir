@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module DiskPostings where
+module DiskIndex where
 
 import GHC.Generics
 import Control.Exception (assert)
@@ -26,16 +26,16 @@ import qualified Encoded as E
 import Data.SmallNat
 import Types
 
-fromPostingsMap :: forall p. (Binary p)
-                => Int                       -- ^ chunk size
-                -> FilePath                  -- ^ file path
-                -> M.Map Term [Posting p]    -- ^ postings
-                -> IO ()
-fromPostingsMap chunkSize path postings =
+fromTermPostings :: forall p. (Binary p)
+                 => Int                       -- ^ chunk size
+                 -> FilePath                  -- ^ file path
+                 -> M.Map Term [Posting p]    -- ^ postings
+                 -> IO ()
+fromTermPostings chunkSize path postings =
     let chunks :: [BTree.BLeaf Term (EL.EncodedList (PostingsChunk p))]
         chunks = map (toBLeaf . fmap (EL.fromList . chunkPostings chunkSize))
                  $ M.assocs postings
-    in writePostings path (M.size postings) (each chunks)
+    in writeIndex path (M.size postings) (each chunks)
   where
     toBLeaf (a,b) = BTree.BLeaf a b
 
@@ -80,32 +80,32 @@ data PostingsChunk p = Chunk DocumentId (E.Encoded (V.Vector (DocIdDelta, p)))
 
 instance Binary p => Binary (PostingsChunk p)
 
-newtype DiskPostings p = DiskPostings (BTree.LookupTree Term (EL.EncodedList (PostingsChunk p)))
+newtype DiskIndex p = DiskIndex (BTree.LookupTree Term (EL.EncodedList (PostingsChunk p)))
 
-openPostings :: FilePath -> IO (Either String (DiskPostings p))
-openPostings path = liftIO $ fmap (fmap DiskPostings) (BTree.open path)
+openIndex :: FilePath -> IO (Either String (DiskIndex p))
+openIndex path = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
 
-lookupPostings :: (Binary p)
-               => DiskPostings p -> Term -> Maybe [Posting p]
-lookupPostings (DiskPostings btree) term =
+lookup :: (Binary p)
+               => DiskIndex p -> Term -> Maybe [Posting p]
+lookup (DiskIndex btree) term =
     foldMap decodeChunk . EL.toList <$> BTree.lookup btree term
 
-walkPostings :: (Binary p)
-             => DiskPostings p
-             -> [(Term, [Posting p])]
-walkPostings = map (fmap (foldMap decodeChunk)) . walkPostings'
+walk :: (Binary p)
+     => DiskIndex p
+     -> [(Term, [Posting p])]
+walk = map (fmap (foldMap decodeChunk)) . walk'
 
-walkPostings' :: (Binary p)
-              => DiskPostings p
-              -> [(Term, [PostingsChunk p])]
-walkPostings' (DiskPostings btree) =
+walk' :: (Binary p)
+      => DiskIndex p
+      -> [(Term, [PostingsChunk p])]
+walk' (DiskIndex btree) =
     map (fmap EL.toList . fromBLeaf) $ PP.toList $ void $ BTree.walkLeaves btree
   where
     fromBLeaf (BTree.BLeaf k v) = (k, v)
 
-writePostings :: MonadIO m
-              => FilePath -> Int
-              -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
-              -> m ()
-writePostings path size =
+writeIndex :: MonadIO m
+           => FilePath -> Int
+           -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
+           -> m ()
+writeIndex path size =
     BTree.fromOrderedToFile 32 (fromIntegral size) path
