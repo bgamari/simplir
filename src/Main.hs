@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+import Data.List (sort)
 import Control.Monad.Trans.Except
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Functor.Contravariant
@@ -42,6 +43,7 @@ import Tokenise
 import WarcDocSource
 import AccumPostings
 import DataSource
+import DiskIndex
 
 {-}
 dsrc = S3Object { s3Bucket = "aws-publicdatasets"
@@ -92,7 +94,7 @@ main = do
                            $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-        savePostings "postings" (fmap (map $ fmap VU.toList) postings :: SavedPostings [Position])
+        savePostings "postings" (fmap (sort . map (fmap VU.toList)) postings :: SavedPostings [Position])
         saveDocIds "docids" docIds
 
 type SavedPostings p = M.Map Term [Posting p]
@@ -108,9 +110,9 @@ zipWithList = go
 cat' :: forall a m r. Monad m => Pipe a a m r
 cat' = cat
 
-savePostings :: (Binary p, MonadIO m) => FilePath -> M.Map Term [Posting p] -> m ()
-savePostings path terms =
-    void $ BTree.BL.toBinaryList path (Pipes.each $ M.toAscList terms)
+savePostings :: (Binary p, MonadIO m)
+             => FilePath -> M.Map Term [Posting p] -> m ()
+savePostings path = void . liftIO . fromTermPostings 10000 path
 
 saveDocIds :: (MonadIO m) => FilePath -> M.Map DocumentId DocumentName -> m ()
 saveDocIds path docids =

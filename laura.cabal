@@ -125,6 +125,8 @@ executable dump-postings
       vector-th-unbox >= 0.2,
       mmorph >= 1.0,
       b-tree,
+      heaps,
+      vector-binary-instances,
       warc >=0.1 && <0.2,
       html-clean
   hs-source-dirs:      src

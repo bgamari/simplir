@@ -9,12 +9,13 @@ import qualified Pipes.Prelude as PP
 
 import qualified BTree.BinaryList as BList
 import BTree.BinaryList (BinaryList)
+import DiskIndex
 import Types
 
 main :: IO ()
 main = do
-    let postings = BList.open "postings" :: BinaryList (Term, [Posting [Position]])
-    dumpBList postings
+    Right postings <- openIndex "postings" :: IO (Either String (DiskIndex [Position]))
+    mapM_ print $ walk postings
 
     let docIds = BList.open "docids" :: BinaryList (DocumentId, DocumentName)
     dumpBList docIds

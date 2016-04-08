@@ -26,6 +26,7 @@ import qualified Encoded as E
 import Data.SmallNat
 import Types
 
+-- | Postings should be sorted
 fromTermPostings :: forall p. (Binary p)
                  => Int                       -- ^ chunk size
                  -> FilePath                  -- ^ file path
