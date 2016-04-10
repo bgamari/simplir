@@ -26,6 +26,22 @@ instance Eq p => Eq (ActivePosting m p) where
 instance Ord p => Ord (ActivePosting m p) where
     compare = compare `on` apPosting
 
+-- | Given a set of terms and their sorted postings, collect the postings for
+-- all documents.
+--
+-- >>> let p docId :: Int -> Posting ()
+-- >>>     p i = Posting (DocId i) ()
+-- >>>
+-- >>> Pipes.Prelude.toList $ collectPostings
+-- >>>      [ ("cat", each $ map p [1, 3])
+-- >>>      , ("dog", each $ map p [1, 2, 4])
+-- >>>      , ("rat", each $ map p [2, 3])
+-- >>>      ]
+-- [ (DocId 1, [("cat", ()), ("dog", ())])
+-- , (DocId 2, [("rat", ()), ("dog", ())])
+-- , (DocId 3, [("cat", ()), ("dog", ())])
+-- , (DocId 4, [("dog", ())])
+-- ]
 collectPostings :: forall m p. (Ord p, Monad m)
                 => [(Term, Producer (Posting p) m ())]
                 -> Producer (DocumentId, [(Term, p)]) m ()
