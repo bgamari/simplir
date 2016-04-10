@@ -1,3 +1,4 @@
+allow-newer: base, transformers, ghc-boot, template-haskell, time
 packages:
     http-parsers/*.cabal
     html-parse/*.cabal
@@ -6,8 +7,12 @@ packages:
     zlib/*.cabal
     zlib-bindings/*.cabal
     b-tree/*.cabal
+    attoparsec/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
     /opt/exp/haskell-packages/xml/xml-conduit/*.cabal
     /opt/exp/haskell-packages/either/*.cabal
+    /opt/exp/haskell-packages/log-domain/*.cabal
+    /opt/exp/haskell-packages/safecopy/*.cabal
+    /opt/exp/haskell-packages/lens-action/*.cabal
     ../*.cabal
     ./*.cabal
