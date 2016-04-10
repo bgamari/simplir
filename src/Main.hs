@@ -23,6 +23,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Map.Lazy as M.Lazy
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import qualified Data.Text.Lazy as T.L
 import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
@@ -45,13 +46,11 @@ import AccumPostings
 import DataSource
 import DiskIndex
 
-{-}
 dsrc = S3Object { s3Bucket = "aws-publicdatasets"
                 , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
                 }
--}
-dsrc = LocalFile "../0000tw-00.warc"
-compression = Nothing
+--dsrc = LocalFile "../0000tw-00.warc"
+compression = Just GZip
 
 main :: IO ()
 main = do
@@ -60,12 +59,12 @@ main = do
     pollProgress compProg 1 $ \(Sum n) -> "Compressed "++show (realToFrac n / 1024 / 1024)
     pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
+    takeTerms <- HS.fromList . map (Term . T.toCaseFold) . T.words <$> TIO.readFile "terms"
     let normTerms :: [(Term, p)] -> [(Term, p)]
         normTerms = filterTerms . caseNorm
           where
             caseNorm = map (first toCaseFold)
             filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
-            takeTerms = HS.fromList [ "concert", "always", "musician", "beer", "watch", "table" ]
 
     withDataSource dsrc $ \src -> do
         let warc :: Warc.Warc IO ()
