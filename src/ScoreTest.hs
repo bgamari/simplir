@@ -32,7 +32,7 @@ main = do
     let termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
         termPostings = map (\term -> (term, each $ fromJust $ DiskIndex.lookup postings term)) query
 
-    results <- foldProducer (topK 20)
+    results <- foldProducer (Fold.generalize $ topK 20)
         $ collectPostings termPostings
        >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> lookupDoc docId docIndex)
        >-> PP.map (swap . queryLikelihood query')
