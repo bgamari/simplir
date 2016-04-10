@@ -94,6 +94,7 @@ main = do
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
         savePostings "postings" (fmap (sort . map (fmap VU.toList)) postings :: SavedPostings [Position])
+        -- FIXME: better interface, sort elsewhere?
         saveDocIds "docids" docIds
 
 type SavedPostings p = M.Map Term [Posting p]
