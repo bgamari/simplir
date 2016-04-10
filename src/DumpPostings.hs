@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 import Data.Binary
 import qualified Data.Map as M
@@ -19,6 +20,8 @@ main = do
 
     let docIds = BList.open "docids" :: BinaryList (DocumentId, DocumentName)
     dumpBList docIds
+
+    print $ DiskIndex.lookup postings "beer"
 
     return ()
 
