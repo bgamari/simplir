@@ -41,7 +41,7 @@ import Control.Lens as Lens
 import Data.Warc as Warc
 import Data.Warc.Header as Warc
 import qualified Network.HTTP.Types as Http
-import qualified HTTP.Parse as Http
+import qualified Network.HTTP.Parse as Http
 import Network.HTTP.Media
 import Text.HTML.Clean as Clean
 import Tokenise
