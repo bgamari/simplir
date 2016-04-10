@@ -4,7 +4,14 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module DiskIndex.TermFreq where
+module DiskIndex.TermFreq
+    ( DiskIndex
+    , fromTermPostings
+    , openIndex
+    , lookup
+    , writeIndex
+    , walk
+    ) where
 
 import GHC.Generics
 import Control.Exception (assert)
@@ -25,6 +32,8 @@ import qualified EncodedList as EL
 import qualified Encoded as E
 import Data.SmallNat
 import Types
+
+import Prelude hiding (lookup)
 
 -- | Postings should be sorted
 fromTermPostings :: forall p. (Binary p)
