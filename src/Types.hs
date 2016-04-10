@@ -92,3 +92,7 @@ derivingUnbox "Posting"
 type BoolPosting = Posting ()
 type TermFreqPosting = Posting Int
 type PositionalPosting = Posting (VU.Vector Position)
+
+-- | The length of a document in tokens.
+newtype DocumentLength = DocLength Int
+                       deriving (Eq, Ord, Show, Binary)

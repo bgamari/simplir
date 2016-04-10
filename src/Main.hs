@@ -38,6 +38,7 @@ import qualified Text.HTML.Clean as Clean
 import qualified BTree.BinaryList as BTree.BL
 import Data.Binary (Binary)
 
+import Utils
 import Types
 import Progress
 import Tokenise
@@ -45,6 +46,7 @@ import WarcDocSource
 import AccumPostings
 import DataSource
 import DiskIndex.TermFreq
+import qualified DiskIndex.Document as DocIdx
 
 dsrc = S3Object { s3Bucket = "aws-publicdatasets"
                 , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
@@ -95,7 +97,7 @@ main = do
 
         savePostings "postings" (fmap (sort . map (fmap VU.toList)) postings :: SavedPostings [Position])
         -- FIXME: better interface, sort elsewhere?
-        saveDocIds "docids" docIds
+        DocIdx.write "documents.idx" docIds
 
 type SavedPostings p = M.Map Term [Posting p]
 
@@ -107,9 +109,6 @@ zipWithList = go
         yield (i, x)
         go is
 
-cat' :: forall a m r. Monad m => Pipe a a m r
-cat' = cat
-
 savePostings :: (Binary p, MonadIO m)
              => FilePath -> M.Map Term [Posting p] -> m ()
 savePostings path = void . liftIO . fromTermPostings 10000 path
@@ -118,18 +117,16 @@ saveDocIds :: (MonadIO m) => FilePath -> M.Map DocumentId DocumentName -> m ()
 saveDocIds path docids =
     void $ BTree.BL.toBinaryList path (Pipes.each $ M.toAscList docids)
 
-foldProducer :: Monad m => Foldl.FoldM m a b -> Producer a m () -> m b
-foldProducer (Foldl.FoldM step initial extract) =
-    P.P.foldM step initial extract
-
 consumePostings :: Monad m
                 => Producer ((DocumentId, DocumentName), TermPostings p) m ()
-                -> m (M.Map DocumentId DocumentName, M.Map Term [Posting p])
+                -> m (M.Map DocumentId (DocumentName, DocumentLength), M.Map Term [Posting p])
 consumePostings =
-    foldProducer ((,) <$> lmap fst docIds
+    foldProducer ((,) <$> docMeta
                       <*> lmap snd postings)
   where
-    docIds   = Foldl.generalize $ lmap (uncurry M.singleton) Foldl.mconcat
+    docMeta  = Foldl.generalize
+               $ lmap (\((docId, docName), postings) -> M.singleton docId (docName, DocLength $ sum $ fmap length postings))
+                      Foldl.mconcat
     postings = Foldl.generalize $ fmap (fmap toList) foldPostings
 
 cleanHtml :: T.Text -> T.Text
