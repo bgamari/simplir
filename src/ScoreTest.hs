@@ -10,7 +10,7 @@ import Control.Monad.Trans.Except
 import Pipes
 import qualified Pipes.Prelude as PP
 
-import DiskIndex
+import DiskIndex.TermFreq as DiskIndex
 import CollectPostings
 import Types
 import RetrievalModels.QueryLikelihood

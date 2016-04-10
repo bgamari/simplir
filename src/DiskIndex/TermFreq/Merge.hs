@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DiskIndex.Merge where
+module DiskIndex.TermFreq.Merge where
 
 import Data.Bifunctor
 import qualified Data.Heap as H

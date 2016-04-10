@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module DiskIndex where
+module DiskIndex.TermFreq where
 
 import GHC.Generics
 import Control.Exception (assert)
