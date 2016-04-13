@@ -68,7 +68,7 @@ executable laura
       b-tree,
       heaps,
       vector-binary-instances >= 0.2,
-      warc >=0.1 && <0.2,
+      warc >=0.2 && <0.3,
       html-clean
   hs-source-dirs:      src
   build-tools:         hsc2hs
@@ -127,7 +127,7 @@ executable dump-postings
       b-tree,
       heaps,
       vector-binary-instances,
-      warc >=0.1 && <0.2,
+      warc,
       html-clean
   hs-source-dirs:      src
   build-tools:         hsc2hs
@@ -186,7 +186,7 @@ executable score-query
       b-tree,
       heaps,
       vector-binary-instances,
-      warc >=0.1 && <0.2,
+      warc,
       html-clean,
       log-domain
   hs-source-dirs:      src
