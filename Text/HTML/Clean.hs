@@ -132,7 +132,7 @@ needsWhitespace = HS.fromList
 clean :: Text -> HtmlDocument
 clean content =
     let tags = canonicalizeTags
-             $ tagStream content
+             $ parseTokens content
         docTitle = extractTitle tags
         docBody = extractBody tags
     in HtmlDocument {..}
