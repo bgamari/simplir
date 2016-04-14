@@ -1,8 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
+ 
 module DiskIndex.Posting.Merge where
 
 import Data.Bifunctor
+import Data.Foldable
+import Data.Monoid
+import Data.Ord
+import Data.List (sortBy)
 import qualified Data.Heap as H
 import qualified Data.Vector as V
 
@@ -16,73 +23,78 @@ import qualified Encoded as E
 import qualified EncodedList as EL
 import BTree (BLeaf(..))
 
-merge :: (Binary p)
+merge :: forall p. (Binary p)
       => FilePath     -- ^ Merged output
       -> Int          -- ^ Chunk size
       -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
       -- ^ a set of posting sources, along with their 'DocumentId' offsets
       -> IO ()
 merge outFile chunkSize =
-    PostingIdx.write outFile chunkSize
+    PostingIdx.write outFile 64
     . each
     . map (\(term, chunks) -> BLeaf term (EL.fromList chunks))
-    . mergeTermPostings
+    . map (fmap $ mergeChunks chunkSize)
+    . mergePostings
 
-data SrcTerm p = SrcTerm { srcTerm   :: !Term
-                         , srcDelta  :: !DocIdDelta
-                         , srcChunks :: [PostingsChunk p]
-                         }
-
-instance Ord (SrcTerm p) where
-    a `compare` b = (srcTerm a, srcDelta a) `compare` (srcTerm b, srcDelta b)
-
-instance Eq (SrcTerm p) where
-    a == b = a `compare` b == EQ
-
-mergeTermPostings :: [(DocIdDelta, [(Term, [PostingsChunk p])])]
-                  -> [(Term, [PostingsChunk p])]
-mergeTermPostings = \srcs ->
-    go $ H.fromList [ SrcTerm term delta chunks
-                    | (delta, terms) <- srcs
-                    , (term, chunks) <- terms
-                    ]
+mergePostings :: forall p. (Binary p)
+              => [(DocIdDelta, [(Term, [PostingsChunk p])])]
+              -> [(Term, [PostingsChunk p])]
+mergePostings =
+      id @([(Term, [PostingsChunk p])])
+    . interleavePostings
+    . id @[[(Term, [PostingsChunk p])]]
+    . map applyDocIdDelta
+    . id @([(DocIdDelta, [(Term, [PostingsChunk p])])])
   where
-    go :: H.Heap (SrcTerm p) -> [(Term, [PostingsChunk p])]
-    go srcs
-      | Just (term, postingLists, srcs') <- popTerm srcs =
-        let postingLists' =
-                [ chunk `advanceDelta` delta
-                | (delta, chunks) <- postingLists
-                , chunk <- chunks
-                ]
+    applyDocIdDelta :: (DocIdDelta, [(Term, [PostingsChunk p])])
+                    -> ([(Term, [PostingsChunk p])])
+    applyDocIdDelta (delta, terms) =
+        map (fmap $ map $ applyDocIdDeltaToChunk delta) terms
 
-            advanceDelta :: PostingsChunk p -> DocIdDelta -> PostingsChunk p
-            advanceDelta (Chunk docId chunks) delta =
-                Chunk (docId `applyDocIdDelta` delta) chunks
+-- | Merge small chunks
+mergeChunks :: Int -> [PostingsChunk p] -> [PostingsChunk p]
+mergeChunks chunkSize = id -- TODO
 
-        in (term, postingLists') : go srcs'
+-- | Given a set of $n$ sorted @[Entry p a]@s, lazily interleave them in sorted
+-- order.
+heapMerge :: forall p a. Ord p
+      => [[H.Entry p a]] -> [H.Entry p a]
+heapMerge = go . foldMap takeFirst
+  where
+    takeFirst :: [H.Entry p a] -> H.Heap (H.Entry p (a, [H.Entry p a]))
+    takeFirst (H.Entry p x : rest) = H.singleton $ H.Entry p (x, rest)
+    takeFirst []                   = H.empty
 
-      | otherwise   = []
+    go :: H.Heap (H.Entry p (a, [H.Entry p a]))
+       -> [H.Entry p a]
+    go xs
+      | Just (H.Entry p (x, rest), xs') <- H.viewMin xs
+      = H.Entry p x : go (xs' <> takeFirst rest)
 
-popTerm :: H.Heap (SrcTerm p)
-        -> Maybe (Term, [(DocIdDelta, [PostingsChunk p])], H.Heap (SrcTerm p))
-popTerm srcs
-  | H.null srcs = Nothing
-  | otherwise   =
-    let term = srcTerm $ H.minimum srcs
-        (popped, rest) = H.span (\x -> srcTerm x == term) srcs
-        postingLists = map (\x -> (srcDelta x, srcChunks x)) $ H.toUnsortedList popped
-    in Just (term, postingLists, rest)
+      | otherwise = []
+
+interleavePostings :: [[(Term, [PostingsChunk p])]]
+                   -> [(Term, [PostingsChunk p])]
+interleavePostings = mergeTerms . heapMerge . map (map (uncurry H.Entry))
+  where
+    -- Merge chunks belonging to the same term
+    mergeTerms :: [H.Entry Term [PostingsChunk p]] -> [(Term, [PostingsChunk p])]
+    mergeTerms [] = []
+    mergeTerms xs@(H.Entry term chunks : _) =
+        let (postingsOfTerm, rest) = span (\(H.Entry term' _) -> term == term') xs
+        in ( term
+           , fold $ sortBy (comparing $ startDocId . head) $ map H.payload postingsOfTerm
+           ) : mergeTerms rest
 
 test :: [(DocIdDelta, [(Term, [PostingsChunk ()])])]
 test =
     [ (DocIdDelta 0,
-       [ ("turtle", [chunk [0,1,4], chunk [10, 15, 18]])
-       , ("cat",    [chunk [0,4],   chunk [11, 15, 19]])
+       [ ("cat",    [chunk [0,4],   chunk [11, 15, 19]])
+       , ("turtle", [chunk [0,1,4], chunk [10, 15, 18]])
        ])
     , (DocIdDelta 100,
-       [ ("turtle", [chunk [0,1,4], chunk [10, 15, 18]])
-       , ("dog",    [chunk [0,4],   chunk [11, 18, 19]])
+       [ ("dog",    [chunk [0,4],   chunk [11, 18, 19]])
+       , ("turtle", [chunk [0,1,4], chunk [10, 15, 18]])
        ])
     ]
   where

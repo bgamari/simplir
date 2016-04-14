@@ -77,50 +77,5 @@ merge dest idxs = do
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
-        mergeChunks = id -- TODO: Merge small chunks
-
     PostingIdx.Merge.merge (dest </> "term-freqs") chunkSize
                    (zip docIds0 allPostings)
-
-    --writeIndex (dest </> "term-freqs") chunkSize
-    --    $ mergeChunks
-    --    $ interleavePostings
-    --    $ zipWith (\delta terms -> map . fmap . map . applyDocIdDeltaToChunk delta $ terms)
-    --              docIds0 allPostings
-
-
-{-
-
-
--- | Given a set of $n$ sorted @[Entry p a]@s, lazily interleave them in sorted
--- order.
-heapMerge :: forall p a. Ord p
-      => [[H.Entry p a]] -> [H.Entry p a]
-heapMerge = go . foldMap takeFirst
-  where
-    takeFirst :: [H.Entry p a] -> H.Heap (H.Entry p (a, [H.Entry p a]))
-    takeFirst (H.Entry p x : rest) = H.singleton $ H.Entry p (x : rest)
-    takeFirst []                   = H.empty
-
-    go :: H.Heap (H.Entry p (a, [H.Entry p a]))
-       -> [H.Entry p (a, [H.Entry p a])]
-    go xs
-      | H.null xs = []
-      | otherwise =
-        let (H.Entry p (x, rest), xs') = H.viewMin xs
-        in H.Entry p x : go (xs' <> takeFirst rest)
-
-interleavePostings :: [[(Term, [PostingsChunk p])]]
-                   -> [(Term, [PostingsChunk p])]
-interleavePostings = mergeTerms . heapMerge . map (map (curry H.Entry))
-  where
-    -- Merge chunks belonging to the same term
-    mergeTerms :: [H.Entry Term [PostingsChunk p]] -> [(Term, [PostingsChunk p])]
-    mergeTerms [] = []
-    mergeTerms xs@(H.Entry term chunks : _) =
-        let (postingsOfTerm, rest) = span (\(H.Entry term' _) -> term == term') xs
-        in ( term
-           , map chunkPostings
-             $ sortBy (comparing chunkInitialDocId) postingsOfTerm
-           )
--}

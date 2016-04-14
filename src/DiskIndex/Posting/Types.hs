@@ -36,8 +36,8 @@ docIdDelta (DocId a) (DocId b)
 applyDocIdDelta :: DocumentId -> DocIdDelta -> DocumentId
 applyDocIdDelta (DocId n) (DocIdDelta d) = DocId (n + fromIntegral d)
 
-applyDocIdDeltaToChunk :: PostingsChunk p -> DocIdDelta -> PostingsChunk p
-applyDocIdDeltaToChunk (Chunk did postings) delta =
+applyDocIdDeltaToChunk :: DocIdDelta -> PostingsChunk p -> PostingsChunk p
+applyDocIdDeltaToChunk delta (Chunk did postings) =
     Chunk (did `applyDocIdDelta` delta) postings
 
 data PostingsChunk p = Chunk { startDocId     :: !DocumentId
