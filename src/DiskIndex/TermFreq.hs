@@ -96,7 +96,7 @@ openIndex :: FilePath -> IO (Either String (DiskIndex p))
 openIndex path = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
 
 lookup :: (Binary p)
-               => DiskIndex p -> Term -> Maybe [Posting p]
+       => DiskIndex p -> Term -> Maybe [Posting p]
 lookup (DiskIndex btree) term =
     foldMap decodeChunk . EL.toList <$> BTree.lookup btree term
 
