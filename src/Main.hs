@@ -45,6 +45,7 @@ import Tokenise
 import WarcDocSource
 import AccumPostings
 import DataSource
+import DiskIndex
 import DiskIndex.TermFreq
 import qualified DiskIndex.Document as DocIdx
 
