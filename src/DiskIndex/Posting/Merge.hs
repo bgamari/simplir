@@ -40,14 +40,10 @@ mergePostings :: forall p. (Binary p)
               => [(DocIdDelta, [(Term, [PostingsChunk p])])]
               -> [(Term, [PostingsChunk p])]
 mergePostings =
-      id @([(Term, [PostingsChunk p])])
-    . interleavePostings
-    . id @[[(Term, [PostingsChunk p])]]
-    . map applyDocIdDelta
-    . id @([(DocIdDelta, [(Term, [PostingsChunk p])])])
+      interleavePostings . map applyDocIdDelta
   where
     applyDocIdDelta :: (DocIdDelta, [(Term, [PostingsChunk p])])
-                    -> ([(Term, [PostingsChunk p])])
+                    -> [(Term, [PostingsChunk p])]
     applyDocIdDelta (delta, terms) =
         map (fmap $ map $ applyDocIdDeltaToChunk delta) terms
 
