@@ -5,10 +5,11 @@
 module DiskIndex.TermFreq
     ( DiskIndex
     , fromTermPostings
-    , openIndex
+    , open
     , lookup
-    , writeIndex
+    , write
     , walk
+    , walkChunks
     ) where
 
 import GHC.Generics
@@ -43,7 +44,7 @@ fromTermPostings chunkSize path postings =
     let chunks :: [BTree.BLeaf Term (EL.EncodedList (PostingsChunk p))]
         chunks = map (toBLeaf . fmap (EL.fromList . chunkPostings chunkSize))
                  $ M.assocs postings
-    in writeIndex path (M.size postings) (each chunks)
+    in write path (M.size postings) (each chunks)
   where
     toBLeaf (a,b) = BTree.BLeaf a b
 
@@ -70,8 +71,8 @@ decodeChunk (Chunk firstDocId encPostings) =
 
 newtype DiskIndex p = DiskIndex (BTree.LookupTree Term (EL.EncodedList (PostingsChunk p)))
 
-openIndex :: FilePath -> IO (Either String (DiskIndex p))
-openIndex path = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
+open :: FilePath -> IO (Either String (DiskIndex p))
+open path = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
 
 lookup :: (Binary p)
        => DiskIndex p -> Term -> Maybe [Posting p]
@@ -81,19 +82,19 @@ lookup (DiskIndex btree) term =
 walk :: (Binary p)
      => DiskIndex p
      -> [(Term, [Posting p])]
-walk = map (fmap (foldMap decodeChunk)) . walk'
+walk = map (fmap (foldMap decodeChunk)) . walkChunks
 
-walk' :: (Binary p)
-      => DiskIndex p
-      -> [(Term, [PostingsChunk p])]
-walk' (DiskIndex btree) =
+walkChunks :: (Binary p)
+           => DiskIndex p
+           -> [(Term, [PostingsChunk p])]
+walkChunks (DiskIndex btree) =
     map (fmap EL.toList . fromBLeaf) $ PP.toList $ void $ BTree.walkLeaves btree
   where
     fromBLeaf (BTree.BLeaf k v) = (k, v)
 
-writeIndex :: MonadIO m
-           => FilePath -> Int
-           -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
-           -> m ()
-writeIndex path size =
+write :: MonadIO m
+      => FilePath -> Int
+      -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
+      -> m ()
+write path size =
     BTree.fromOrderedToFile 32 (fromIntegral size) path

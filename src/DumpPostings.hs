@@ -15,8 +15,8 @@ import Types
 
 main :: IO ()
 main = do
-    Right postings <- openIndex "postings" :: IO (Either String (DiskIndex [Position]))
-    mapM_ print $ walk postings
+    Right postings <- DiskIndex.open "postings" :: IO (Either String (DiskIndex [Position]))
+    mapM_ print $ DiskIndex.walk postings
 
     let docIds = BList.open "docids" :: BinaryList (DocumentId, DocumentName)
     dumpBList docIds

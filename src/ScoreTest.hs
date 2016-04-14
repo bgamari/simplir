@@ -14,8 +14,8 @@ import Pipes
 import qualified Pipes.Prelude as PP
 
 import Utils
-import DiskIndex.TermFreq as DiskIndex
-import DiskIndex.Document as DocIndex
+import DiskIndex.TermFreq as PostingIdx
+import DiskIndex.Document as DocIdx
 import CollectPostings
 import Types
 import RetrievalModels.QueryLikelihood
@@ -23,18 +23,18 @@ import TopK
 
 main :: IO ()
 main = do
-    Right postings <- openIndex "postings" :: IO (Either String (DiskIndex [Position]))
-    docIndex <- DocIndex.open "documents.idx" :: IO (DocIndex (DocumentName, DocumentLength))
+    Right postings <- PostingIdx.open "postings" :: IO (Either String (DiskIndex [Position]))
+    docIndex <- DocIdx.open "documents.idx" :: IO (DocIndex (DocumentName, DocumentLength))
 
     let query = ["beer", "concert"]
         query' = map (,1) query
 
     let termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
-        termPostings = map (\term -> (term, each $ fromJust $ DiskIndex.lookup postings term)) query
+        termPostings = map (\term -> (term, each $ fromJust $ PostingIdx.lookup postings term)) query
 
     results <- foldProducer (Fold.generalize $ topK 20)
         $ collectPostings termPostings
-       >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> lookupDoc docId docIndex)
+       >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> DocIdx.lookupDoc docId docIndex)
        >-> PP.map (swap . queryLikelihood query')
        >-> cat'                            @(Score, DocumentId)
 
