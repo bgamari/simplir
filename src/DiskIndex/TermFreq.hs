@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
@@ -22,7 +20,6 @@ import qualified Data.Heap as H
 
 import qualified Data.Map as M
 import qualified Data.Vector as V
-import Data.Vector.Binary () -- for instances
 
 import Pipes
 import qualified Pipes.Prelude as PP
@@ -30,6 +27,7 @@ import qualified BTree
 import BTree (BLeaf(..))
 import qualified EncodedList as EL
 import qualified Encoded as E
+import DiskIndex.TermFreq.Types
 import Data.SmallNat
 import Types
 
@@ -48,22 +46,6 @@ fromTermPostings chunkSize path postings =
     in writeIndex path (M.size postings) (each chunks)
   where
     toBLeaf (a,b) = BTree.BLeaf a b
-
-newtype DocIdDelta = DocIdDelta SmallNat
-                   deriving (Show, Binary, Enum, Bounded, Ord, Eq)
-
-instance Monoid DocIdDelta where
-    mempty = DocIdDelta 0
-    DocIdDelta a `mappend` DocIdDelta b = DocIdDelta (a + b)
-
-docIdDelta :: DocumentId -> DocumentId -> DocIdDelta
-docIdDelta (DocId a) (DocId b)
-  | delta < 0  = error "negative DocIdDelta"
-  | otherwise  = DocIdDelta $ fromIntegral delta
-  where delta = a - b
-
-applyDocIdDelta :: DocumentId -> DocIdDelta -> DocumentId
-applyDocIdDelta (DocId n) (DocIdDelta d) = DocId (n + fromIntegral d)
 
 chunkPostings :: Binary p => Int -> [Posting p] -> [PostingsChunk p]
 chunkPostings n = go
@@ -85,10 +67,6 @@ decodeChunk (Chunk firstDocId encPostings) =
             Posting (firstDocId `applyDocIdDelta` delta) p
     in map unDelta $ V.toList $ E.decode encPostings
 
-data PostingsChunk p = Chunk DocumentId (E.Encoded (V.Vector (DocIdDelta, p)))
-                     deriving (Show, Generic)
-
-instance Binary p => Binary (PostingsChunk p)
 
 newtype DiskIndex p = DiskIndex (BTree.LookupTree Term (EL.EncodedList (PostingsChunk p)))
 
