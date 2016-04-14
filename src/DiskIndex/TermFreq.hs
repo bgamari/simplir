@@ -35,11 +35,11 @@ import Types
 
 import Prelude hiding (lookup)
 
--- | Postings should be sorted
+-- | Build an inverted index from a set of postings.
 fromTermPostings :: forall p. (Binary p)
                  => Int                       -- ^ chunk size
                  -> FilePath                  -- ^ file path
-                 -> M.Map Term [Posting p]    -- ^ postings
+                 -> M.Map Term [Posting p]    -- ^ postings, must be sorted by term
                  -> IO ()
 fromTermPostings chunkSize path postings =
     let chunks :: [BTree.BLeaf Term (EL.EncodedList (PostingsChunk p))]
