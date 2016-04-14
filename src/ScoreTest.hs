@@ -14,7 +14,7 @@ import Pipes
 import qualified Pipes.Prelude as PP
 
 import Utils
-import DiskIndex.TermFreq as PostingIdx
+import DiskIndex.Posting as PostingIdx
 import DiskIndex.Document as DocIdx
 import CollectPostings
 import Types

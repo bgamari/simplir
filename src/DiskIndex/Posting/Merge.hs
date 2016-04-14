@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DiskIndex.TermFreq.Merge where
+module DiskIndex.Posting.Merge where
 
 import Data.Bifunctor
 import qualified Data.Heap as H
@@ -9,8 +9,8 @@ import qualified Data.Vector as V
 import Data.Binary
 
 import Pipes
-import DiskIndex.TermFreq as TF
-import DiskIndex.TermFreq.Types
+import DiskIndex.Posting as PostingIdx
+import DiskIndex.Posting.Types
 import Types
 import qualified Encoded as E
 import qualified EncodedList as EL
@@ -23,7 +23,7 @@ merge :: (Binary p)
       -- ^ a set of posting sources, along with their 'DocumentId' offsets
       -> IO ()
 merge outFile chunkSize =
-    TF.write outFile chunkSize
+    PostingIdx.write outFile chunkSize
     . each
     . map (\(term, chunks) -> BLeaf term (EL.fromList chunks))
     . mergeTermPostings

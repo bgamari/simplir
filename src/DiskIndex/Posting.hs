@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module DiskIndex.TermFreq
+module DiskIndex.Posting
     ( DiskIndex
     , fromTermPostings
     , open
@@ -28,7 +28,7 @@ import qualified BTree
 import BTree (BLeaf(..))
 import qualified EncodedList as EL
 import qualified Encoded as E
-import DiskIndex.TermFreq.Types
+import DiskIndex.Posting.Types
 import Data.SmallNat
 import Types
 

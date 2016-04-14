@@ -10,7 +10,7 @@ import qualified Pipes.Prelude as PP
 
 import qualified BTree.BinaryList as BList
 import BTree.BinaryList (BinaryList)
-import DiskIndex.TermFreq as DiskIndex
+import DiskIndex.Posting as DiskIndex
 import Types
 
 main :: IO ()

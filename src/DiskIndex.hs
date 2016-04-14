@@ -20,15 +20,15 @@ import qualified Data.Heap as H
 import qualified Data.Map as M
 
 import Types
-import qualified DiskIndex.TermFreq as TF
-import qualified DiskIndex.TermFreq.Types as TF
-import qualified DiskIndex.TermFreq.Merge as TF.Merge
+import qualified DiskIndex.Posting as PostingIdx
+import qualified DiskIndex.Posting.Types as PostingIdx
+import qualified DiskIndex.Posting.Merge as PostingIdx.Merge
 import qualified DiskIndex.Document as Doc
 
 -- | @DiskIndex docmeta p@ is an on-disk index with document metadata @docmeta@
 -- and posting-type @p@.
 data DiskIndex docmeta p
-    = DiskIndex { tfIdx  :: TF.DiskIndex p
+    = DiskIndex { tfIdx  :: PostingIdx.DiskIndex p
                 , docIdx :: Doc.DocIndex docmeta
                 }
 
@@ -38,7 +38,7 @@ data DiskIndex docmeta p
 open :: (Binary docmeta, Binary p) => FilePath -> IO (DiskIndex docmeta p)
 open path = do
     doc <- Doc.open $ path </> "documents"
-    Right tf <- TF.open $ path </> "term-freq" -- TODO: Error handling
+    Right tf <- PostingIdx.open $ path </> "term-freq" -- TODO: Error handling
     return $ DiskIndex tf doc
 
 -- | Build an on-disk index from a set of documents and their postings.
@@ -48,7 +48,7 @@ fromDocuments :: (Binary docmeta, Binary p)
               -> M.Map Term [Posting p]
               -> IO ()
 fromDocuments dest docs postings = do
-   TF.fromTermPostings chunkSize (dest </> "term-freq") postings
+   PostingIdx.fromTermPostings chunkSize (dest </> "term-freq") postings
    Doc.write (dest </> "documents") (M.fromList docs)
 
 -- | Lookup the metadata of a document.
@@ -61,7 +61,7 @@ lookupPostings :: (Binary p)
                -> DiskIndex docmeta p
                -> Maybe [Posting p]     -- ^ the postings of the term
 lookupPostings term idx =
-    TF.lookup (tfIdx idx) term
+    PostingIdx.lookup (tfIdx idx) term
 
 chunkSize = 10000
 
@@ -71,15 +71,15 @@ merge :: forall docmeta p. Binary p
       -> IO ()
 merge dest idxs = do
     -- First merge the document ids
-    let docIds0 :: [TF.DocIdDelta]
-        (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> TF.toDocIdDelta (Doc.size $ docIdx idx), docId0))
-                            (TF.DocIdDelta 0) idxs
-    let allPostings :: [[(Term, [TF.PostingsChunk p])]]
-        allPostings = map (TF.walkChunks . tfIdx) idxs
+    let docIds0 :: [PostingIdx.DocIdDelta]
+        (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> PostingIdx.toDocIdDelta (Doc.size $ docIdx idx), docId0))
+                            (PostingIdx.DocIdDelta 0) idxs
+    let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
+        allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
         mergeChunks = id -- TODO: Merge small chunks
 
-    TF.Merge.merge (dest </> "term-freqs") chunkSize
+    PostingIdx.Merge.merge (dest </> "term-freqs") chunkSize
                    (zip docIds0 allPostings)
 
     --writeIndex (dest </> "term-freqs") chunkSize

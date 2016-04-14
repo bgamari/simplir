@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module DiskIndex.TermFreq.Types where
+module DiskIndex.Posting.Types where
 
 import Data.Binary
 import GHC.Generics

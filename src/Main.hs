@@ -46,7 +46,7 @@ import WarcDocSource
 import AccumPostings
 import DataSource
 import DiskIndex
-import DiskIndex.TermFreq
+import DiskIndex.Posting
 import qualified DiskIndex.Document as DocIdx
 
 dsrc = S3Object { s3Bucket = "aws-publicdatasets"
