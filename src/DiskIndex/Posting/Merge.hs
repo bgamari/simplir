@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
  
 module DiskIndex.Posting.Merge where
 
@@ -9,9 +10,10 @@ import Data.Bifunctor
 import Data.Foldable
 import Data.Monoid
 import Data.Ord
-import Data.List (sortBy)
+import Data.List (sort, sortBy)
 import qualified Data.Heap as H
 import qualified Data.Vector as V
+import Test.QuickCheck
 
 import Data.Binary
 
@@ -54,7 +56,7 @@ mergeChunks chunkSize = id -- TODO
 -- | Given a set of $n$ sorted @[Entry p a]@s, lazily interleave them in sorted
 -- order.
 heapMerge :: forall p a. Ord p
-      => [[H.Entry p a]] -> [H.Entry p a]
+          => [[H.Entry p a]] -> [H.Entry p a]
 heapMerge = go . foldMap takeFirst
   where
     takeFirst :: [H.Entry p a] -> H.Heap (H.Entry p (a, [H.Entry p a]))
@@ -68,6 +70,18 @@ heapMerge = go . foldMap takeFirst
       = H.Entry p x : go (xs' <> takeFirst rest)
 
       | otherwise = []
+
+prop_heapMerge_length :: (Ord p) => [OrderedList (H.Entry p a)] -> Property
+prop_heapMerge_length (map getOrdered -> ents) =
+    property $ sum (map length ents) == length (heapMerge ents)
+
+prop_heapMerge_sorted :: (Ord p, Eq a, Show p, Show a) => [OrderedList (H.Entry p a)] -> Property
+prop_heapMerge_sorted (map getOrdered -> ents) =
+    let merged = heapMerge ents
+    in counterexample (show merged) (sort merged == merged)
+
+instance (Arbitrary p, Arbitrary a) => Arbitrary (H.Entry p a) where
+    arbitrary = H.Entry <$> arbitrary <*> arbitrary
 
 interleavePostings :: [[(Term, [PostingsChunk p])]]
                    -> [(Term, [PostingsChunk p])]
