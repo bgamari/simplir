@@ -2,5 +2,6 @@
 *.o
 *.dyn_hi
 *.dyn_o
+*.dump-*
 dist
 dist-newstyle
