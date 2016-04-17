@@ -1,5 +1,3 @@
-import Text.HTML.Clean
-
 import Control.Monad (msum)
 import Control.Exception (evaluate)
 import qualified Data.Text as T
@@ -7,6 +5,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.Lazy.IO as TLIO
 import qualified Data.ByteString as BS
 import qualified Data.Text.ICU.Convert as Conv
+import SimplIR.HTML.Clean
 
 decodeIso8859 :: BS.ByteString -> IO T.Text
 decodeIso8859 bs = do
