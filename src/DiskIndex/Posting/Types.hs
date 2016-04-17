@@ -31,7 +31,7 @@ docIdDelta :: DocumentId -> DocumentId -> DocIdDelta
 docIdDelta (DocId a) (DocId b)
   | delta < 0  = error "negative DocIdDelta"
   | otherwise  = DocIdDelta $ fromIntegral delta
-  where delta = a - b
+  where delta = b - a
 
 applyDocIdDelta :: DocumentId -> DocIdDelta -> DocumentId
 applyDocIdDelta (DocId n) (DocIdDelta d) = DocId (n + fromIntegral d)
