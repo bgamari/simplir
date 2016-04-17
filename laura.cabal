@@ -21,8 +21,6 @@ library
       DiskIndex.Posting.Merge
       DiskIndex.Posting.Types
       Data.SmallNat
-      Pipes.Conduit
-      Pipes.Aws.S3
 
   exposed-modules:
       DiskIndex
@@ -56,15 +54,12 @@ library
       containers >=0.5 && <0.6,
       case-insensitive >=1.2 && <1.3,
       pipes-zlib >= 0.4.3 && <0.5,
+      pipes-s3,
       lens >=4.13 && <4.14,
       http-types >=0.9 && <0.10,
       http-media >=0.6 && <0.7,
       http-parsers >= 0.1 && <0.2,
       QuickCheck >=2.8 && <2.9,
-      pipes-http >=1.0 && <1.1,
-      conduit >= 1.2,
-      resourcet >=1.1 && <1.2,
-      aws >=0.13 && <0.14,
       attoparsec >=0.13 && <0.14,
       filepath >=1.4 && <1.5,
       directory,

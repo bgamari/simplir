@@ -3,6 +3,7 @@ packages:
     simplir-*/*.cabal
     http-parsers/*.cabal
     /home/ben/code/maintaining/html-parse/*.cabal
+    pipes-s3/*.cabal
     b-tree/*.cabal
     attoparsec/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
