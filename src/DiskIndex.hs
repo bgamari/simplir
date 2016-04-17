@@ -78,4 +78,4 @@ merge dest idxs = do
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
     PostingIdx.Merge.merge (dest </> "term-freqs") chunkSize
-                   (zip docIds0 allPostings)
+                           (zip docIds0 allPostings)
