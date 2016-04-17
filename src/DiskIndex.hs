@@ -10,6 +10,7 @@ module DiskIndex
       -- * Queries
     , lookupDoc
     , lookupPostings
+    , documents
     ) where
 
 import System.FilePath
@@ -52,6 +53,9 @@ fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
     PostingIdx.fromTermPostings chunkSize (dest </> "term-freq") postings
     Doc.write (dest </> "documents") (M.fromList docs)
+
+documents :: DiskIndex docmeta p -> [(DocumentId, docmeta)]
+documents = Doc.documents . docIdx
 
 -- | Lookup the metadata of a document.
 lookupDoc :: DocumentId -> DiskIndex docmeta p -> Maybe docmeta

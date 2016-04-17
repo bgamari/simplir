@@ -2,7 +2,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Document metadata index
-module DiskIndex.Document where
+module DiskIndex.Document
+    ( DocIndex
+    , open
+    , write
+      -- * Queries
+    , lookupDoc
+    , size
+    , documents
+    ) where
 
 import Data.Binary
 import qualified Data.Map as M
@@ -25,3 +33,6 @@ lookupDoc docId (DocIndex idx) = M.lookup docId idx
 
 size :: DocIndex meta -> Int
 size (DocIndex idx) = M.size idx
+
+documents :: DocIndex meta -> [(DocumentId, meta)]
+documents (DocIndex idx) = M.assocs idx
