@@ -28,8 +28,6 @@ import qualified Pipes.Prelude as P.P
 
 import Data.Warc as Warc
 import qualified SimplIR.HTML.Clean as Clean
-import qualified BTree.BinaryList as BTree.BL
-import Data.Binary (Binary)
 
 import Utils
 import Types
