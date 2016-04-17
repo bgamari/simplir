@@ -3,12 +3,19 @@
 
 module TREC where
 
+import Control.Monad (unless)
+import Control.Monad.Trans.Class
 import Data.Maybe (mapMaybe)
 
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.CaseInsensitive as CI
+import Pipes
+import qualified Pipes.Prelude as P.P
+import Pipes.Attoparsec as P.A
+import qualified Pipes.Parse as Parse
+import Control.Lens
 
 import Text.HTML.Parser
 
@@ -19,6 +26,16 @@ data Document = Document { docNo       :: Text
                          }
               deriving (Show)
 
+trecDocuments' :: Monad m => Producer T.Text m a -> Producer Document m ()
+trecDocuments' = go . P.A.parsed token
+  where
+    go :: Monad m => Producer Token m a -> Producer Document m ()
+    go xs = do
+        prefix <- xs ^. Parse.span (not . isOpenTag "DOC") >-> P.P.drain
+        (toks, rest) <- lift $ P.P.toListM' $ prefix ^. Parse.span (not . isCloseTag "DOC")
+        unless (null toks) $ do yield $ tokensToDocument toks
+                                go rest
+
 trecDocuments :: TL.Text -> [Document]
 trecDocuments = go . parseTokensLazy
   where
@@ -27,15 +44,16 @@ trecDocuments = go . parseTokensLazy
     go xs =
       let (tags, rest) = span (not . isCloseTag "DOC")
                        $ dropWhile (not . isOpenTag "DOC") xs
+      in tokensToDocument tags : go rest
 
-          tagContent name = takeContent $ takeInsideTag name tags
-          docNo = tagContent "DOCNO"
-          docDate = tagContent "DATE"
-          docHeadline = tagContent "HEADLINE"
-          docText = tagContent "TEXT"
-      in if T.null docNo
-            then go rest
-            else Document {..} : go rest
+tokensToDocument :: [Token] -> Document
+tokensToDocument toks =
+  let tagContent name = takeContent $ takeInsideTag name toks
+      docNo = tagContent "DOCNO"
+      docDate = tagContent "DATE"
+      docHeadline = tagContent "HEADLINE"
+      docText = tagContent "TEXT"
+  in Document {..}
 
 takeContent :: [Token] -> Text
 takeContent = T.concat . mapMaybe getContent
