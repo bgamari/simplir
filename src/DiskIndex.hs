@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 module DiskIndex
-    ( DiskIndex
+    ( DiskIndex(..)
       -- * Creation
     , open
     , fromDocuments
