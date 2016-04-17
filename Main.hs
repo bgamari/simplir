@@ -7,20 +7,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Data.List (sort)
-import Control.Monad.Trans.Except
 import Control.Monad.State.Strict hiding ((>=>))
-import Data.Functor.Contravariant
 import Data.Bifunctor
 import Data.Foldable
 import Data.Profunctor
 import Data.Monoid
 
-import qualified Data.DList as DList
-import           Data.DList (DList)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
-import qualified Data.Map.Lazy as M.Lazy
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -28,12 +23,10 @@ import qualified Data.Text.Lazy as T.L
 import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
 
-import Control.Monad.Morph
 import           Pipes
 import qualified Pipes.Prelude as P.P
 
 import Data.Warc as Warc
-import qualified Network.HTTP.Types as Http
 import qualified SimplIR.HTML.Clean as Clean
 import qualified BTree.BinaryList as BTree.BL
 import Data.Binary (Binary)
@@ -45,7 +38,6 @@ import Tokenise
 import WarcDocSource
 import AccumPostings
 import DataSource
-import DiskIndex
 import DiskIndex.Posting
 import qualified DiskIndex.Document as DocIdx
 
