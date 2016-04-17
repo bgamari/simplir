@@ -3,14 +3,10 @@ packages:
     simplir-*/*.cabal
     http-parsers/*.cabal
     /home/ben/code/maintaining/html-parse/*.cabal
-    pipes-zlib/*.cabal
-    zlib/*.cabal
-    zlib-bindings/*.cabal
     b-tree/*.cabal
     attoparsec/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
     /home/ben/code/maintaining/warc/*.cabal
-    /opt/exp/haskell-packages/xml/xml-conduit/*.cabal
     /opt/exp/haskell-packages/either/*.cabal
     /opt/exp/haskell-packages/log-domain/*.cabal
     /opt/exp/haskell-packages/safecopy/*.cabal
