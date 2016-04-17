@@ -52,6 +52,7 @@ executable laura
       aws >=0.13 && <0.14,
       attoparsec >=0.13 && <0.14,
       filepath >=1.4 && <1.5,
+      directory,
       tasty-golden >=2.3 && <2.4,
       pretty-show >=1.6 && <1.7,
       criterion >=1.1 && <1.2,

@@ -13,6 +13,7 @@ module DiskIndex
     ) where
 
 import System.FilePath
+import System.Directory
 import Data.Binary
 import Data.Monoid
 import Data.List (mapAccumL)
@@ -48,8 +49,9 @@ fromDocuments :: (Binary docmeta, Binary p)
               -> M.Map Term [Posting p]
               -> IO ()
 fromDocuments dest docs postings = do
-   PostingIdx.fromTermPostings chunkSize (dest </> "term-freq") postings
-   Doc.write (dest </> "documents") (M.fromList docs)
+    createDirectoryIfMissing True dest
+    PostingIdx.fromTermPostings chunkSize (dest </> "term-freq") postings
+    Doc.write (dest </> "documents") (M.fromList docs)
 
 -- | Lookup the metadata of a document.
 lookupDoc :: DocumentId -> DiskIndex docmeta p -> Maybe docmeta
