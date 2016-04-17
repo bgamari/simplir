@@ -70,7 +70,7 @@ executable laura
       heaps,
       vector-binary-instances >= 0.2,
       warc >=0.2 && <0.3,
-      html-clean,
+      simplir-html-clean,
       html-parse
   hs-source-dirs:      src
   build-tools:         hsc2hs
@@ -130,7 +130,7 @@ executable dump-postings
       heaps,
       vector-binary-instances,
       warc,
-      html-clean
+      simplir-html-clean
   hs-source-dirs:      src
   build-tools:         hsc2hs
   default-language:    Haskell2010
@@ -189,7 +189,7 @@ executable score-query
       heaps,
       vector-binary-instances,
       warc,
-      html-clean,
+      simplir-html-clean,
       log-domain
   hs-source-dirs:      src
   build-tools:         hsc2hs

@@ -1,8 +1,8 @@
-name:                html-clean
+name:                simplir-html-clean
 version:             0.1.0.0
 -- synopsis:            
 -- description:         
-homepage:            http://github.com/bgamari/html-clean
+homepage:            http://github.com/bgamari/simplir
 license:             BSD3
 license-file:        LICENSE
 author:              Ben Gamari
@@ -14,7 +14,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Text.HTML.Clean
+  exposed-modules:     SimplIR.HTML.Clean
   other-extensions:    RecordWildCards, OverloadedStrings
   build-depends:       base >=4.9 && <5.0,
                        text >=1.2 && <1.3,

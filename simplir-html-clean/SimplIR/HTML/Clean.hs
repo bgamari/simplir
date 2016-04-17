@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Text.HTML.Clean (clean, HtmlDocument(..)) where
+module SimplIR.HTML.Clean (clean, HtmlDocument(..)) where
 
 import Data.Maybe (fromMaybe)
 import Control.Applicative
