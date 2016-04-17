@@ -9,7 +9,6 @@ module DataSource
    , withCompressedSource
    ) where
 
-import qualified Data.Text as T
 import           Data.ByteString (ByteString)
 import           System.IO
 
