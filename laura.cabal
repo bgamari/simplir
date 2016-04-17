@@ -88,7 +88,6 @@ executable laura
   build-depends:
       base >=4.8 && <4.9,
       unordered-containers >= 0.2,
-      mmorph,
       pipes-bytestring >=2.1 && <2.2,
       pipes >=4.1 && <4.2,
       bytestring >=0.10 && <0.11,

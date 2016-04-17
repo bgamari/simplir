@@ -38,8 +38,7 @@ import Tokenise
 import WarcDocSource
 import AccumPostings
 import DataSource
-import DiskIndex.Posting
-import qualified DiskIndex.Document as DocIdx
+import DiskIndex
 
 dsrc = S3Object { s3Bucket = "aws-publicdatasets"
                 , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
@@ -88,9 +87,9 @@ main = do
                            $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-        savePostings "postings" (fmap (sort . map (fmap VU.toList)) postings :: SavedPostings [Position])
-        -- FIXME: better interface, sort elsewhere?
-        DocIdx.write "documents.idx" docIds
+        let postings' :: SavedPostings [Position]
+            postings' = fmap (sort . map (fmap VU.toList)) postings
+        DiskIndex.fromDocuments "index" (M.toList docIds) postings'
 
 type SavedPostings p = M.Map Term [Posting p]
 
@@ -101,14 +100,6 @@ zipWithList = go
         x <- await
         yield (i, x)
         go is
-
-savePostings :: (Binary p, MonadIO m)
-             => FilePath -> M.Map Term [Posting p] -> m ()
-savePostings path = void . liftIO . fromTermPostings 10000 path
-
-saveDocIds :: (MonadIO m) => FilePath -> M.Map DocumentId DocumentName -> m ()
-saveDocIds path docids =
-    void $ BTree.BL.toBinaryList path (Pipes.each $ M.toAscList docids)
 
 consumePostings :: Monad m
                 => Producer ((DocumentId, DocumentName), TermPostings p) m ()
