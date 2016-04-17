@@ -43,7 +43,7 @@ import Data.Warc.Header as Warc
 import qualified Network.HTTP.Types as Http
 import qualified Network.HTTP.Parse as Http
 import Network.HTTP.Media
-import Text.HTML.Clean as Clean
+import SimplIR.HTML.Clean as Clean
 import Tokenise
 import Types
 

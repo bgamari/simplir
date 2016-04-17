@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module TREC where
+module SimplIR.TREC where
 
 import Control.Monad (unless)
 import Control.Monad.Trans.Class

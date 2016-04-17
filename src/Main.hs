@@ -34,7 +34,7 @@ import qualified Pipes.Prelude as P.P
 
 import Data.Warc as Warc
 import qualified Network.HTTP.Types as Http
-import qualified Text.HTML.Clean as Clean
+import qualified SimplIR.HTML.Clean as Clean
 import qualified BTree.BinaryList as BTree.BL
 import Data.Binary (Binary)
 

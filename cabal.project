@@ -1,9 +1,8 @@
 allow-newer: base, transformers, ghc-boot, template-haskell, time
 packages:
-    simplir-trec/*.cabal
+    simplir-*/*.cabal
     http-parsers/*.cabal
     /home/ben/code/maintaining/html-parse/*.cabal
-    html-clean/*.cabal
     pipes-zlib/*.cabal
     zlib/*.cabal
     zlib-bindings/*.cabal

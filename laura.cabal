@@ -71,6 +71,7 @@ executable laura
       vector-binary-instances >= 0.2,
       warc >=0.2 && <0.3,
       simplir-html-clean,
+      simplir-trec,
       html-parse
   hs-source-dirs:      src
   build-tools:         hsc2hs
