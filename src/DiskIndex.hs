@@ -80,6 +80,7 @@ merge dest idxs = do
     let docIds0 :: [PostingIdx.DocIdDelta]
         (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> PostingIdx.toDocIdDelta (Doc.size $ docIdx idx), docId0))
                             (PostingIdx.DocIdDelta 0) idxs
+    -- then merge the postings themselves
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
