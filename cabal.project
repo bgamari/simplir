@@ -12,4 +12,6 @@ packages:
     /opt/exp/haskell-packages/log-domain/*.cabal
     /opt/exp/haskell-packages/safecopy/*.cabal
     /opt/exp/haskell-packages/lens-action/*.cabal
+    /opt/exp/haskell-packages/pipes/*.cabal
+    /opt/exp/haskell-packages/lens/*.cabal
     ./*.cabal
