@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Data.Bifunctor
+import Data.Char
 import Data.Profunctor
 import Data.Foldable
 
@@ -37,8 +38,8 @@ main = do
     let normTerms :: [(Term, p)] -> [(Term, p)]
         normTerms = filterTerms . caseNorm
           where
-            caseNorm = map (first toCaseFold)
-            filterTerms = id
+            caseNorm = map (first $ Term . T.filter isAlpha . T.toCaseFold . getTerm)
+            filterTerms = filter ((>2) . T.length . getTerm . fst)
             --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
     withCompressedSource dsrc compression $ \src -> do
