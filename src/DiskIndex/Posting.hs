@@ -38,7 +38,8 @@ import Prelude hiding (lookup)
 fromTermPostings :: forall p. (Binary p)
                  => Int                       -- ^ chunk size
                  -> FilePath                  -- ^ file path
-                 -> M.Map Term [Posting p]    -- ^ postings, must be sorted by term
+                 -> M.Map Term [Posting p]    -- ^ postings for each term,
+                                              -- must be sorted by document
                  -> IO ()
 fromTermPostings chunkSize path postings =
     let chunks :: [BTree.BLeaf Term (EL.EncodedList (PostingsChunk p))]
@@ -48,6 +49,7 @@ fromTermPostings chunkSize path postings =
   where
     toBLeaf (a,b) = BTree.BLeaf a b
 
+-- | Split a list of 'Posting's into 'PostingsChunk's.
 chunkPostings :: Binary p => Int -> [Posting p] -> [PostingsChunk p]
 chunkPostings n = go
   where
