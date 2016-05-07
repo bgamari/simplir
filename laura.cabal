@@ -144,6 +144,7 @@ executable score-query
       profunctors,
       text >=1.2 && <1.3,
       containers >=0.5 && <0.6,
+      optparse-applicative >= 0.12,
       pipes-text,
       warc,
       b-tree,
