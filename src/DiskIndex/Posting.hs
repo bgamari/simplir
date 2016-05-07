@@ -59,7 +59,7 @@ chunkPostings n = go
                 firstDocId = postingDocId $ head ys
 
                 toDelta :: Posting p -> (DocIdDelta, p)
-                toDelta (Posting docId p) = (docId `docIdDelta` firstDocId, p)
+                toDelta (Posting docId p) = (firstDocId `docIdDelta` docId, p)
 
             in (Chunk firstDocId $ E.encode $ V.fromListN n $ map toDelta ys) : go rest
 
