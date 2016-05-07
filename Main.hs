@@ -38,10 +38,11 @@ import AccumPostings
 import DataSource
 import DiskIndex
 
-dsrc = S3Object { s3Bucket = "aws-publicdatasets"
-                , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
-                }
+--dsrc = S3Object { s3Bucket = "aws-publicdatasets"
+--                , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
+--                }
 --dsrc = LocalFile "../0000tw-00.warc"
+dsrc = LocalFile "data/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
 compression = Just GZip
 
 main :: IO ()
