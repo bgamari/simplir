@@ -10,6 +10,7 @@ import Data.Bifunctor
 import Data.Char
 import Data.Profunctor
 import Data.Foldable
+import Data.List (sort)
 
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Map.Strict as M
@@ -65,8 +66,11 @@ main = do
                            $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-        DiskIndex.fromDocuments "index" (M.toList docIds) postings
+        let postings' :: SavedPostings [Position]
+            postings' = fmap (sort . map (fmap VU.toList)) postings
+        DiskIndex.fromDocuments "index" (M.toList docIds) postings'
 
+type SavedPostings p = M.Map Term [Posting p]
 
 zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
 zipWithList = go
