@@ -60,7 +60,7 @@ derivingUnbox "Position"
   [| \(Position a b) -> (a, b) |]
   [| \(a, b) -> Position a b |]
 
-newtype Term = Term T.Text
+newtype Term = Term {getTerm :: T.Text}
              deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary)
 
 instance Arbitrary Term where
