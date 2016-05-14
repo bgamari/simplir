@@ -20,6 +20,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
 
 import           Pipes
+import           Pipes.Safe
 import qualified Pipes.Prelude as P.P
 import qualified Pipes.Text.Encoding as P.T
 
@@ -43,32 +44,32 @@ main = do
             filterTerms = filter ((>2) . T.length . getTerm . fst)
             --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
-    withCompressedSource dsrc compression $ \src -> do
-        let docs :: Producer TREC.Document IO ()
-            docs = trecDocuments' (P.T.decodeUtf8 src)
+    let docs :: Producer TREC.Document (SafeT IO) ()
+        docs = trecDocuments' $ P.T.decodeUtf8 $ decompress compression $ produce dsrc
 
-        (docIds, postings) <-
-                consumePostings
-             $  docs
-            >-> cat'                                          @TREC.Document
-            >-> P.P.map (\d -> (DocName $ BS.S.toShort $ T.E.encodeUtf8 $ TREC.docNo d, TREC.docText d))
-            >-> cat'                                          @(DocumentName, T.Text)
-            >-> P.P.map (fmap tokeniseWithPositions)
-            >-> cat'                                          @(DocumentName, [(Term, Position)])
-            >-> P.P.map (fmap normTerms)
-            >-> cat'                                          @(DocumentName, [(Term, Position)])
-            >-> zipWithList [DocId 0..]
-            >-> cat'                                          @(DocumentId, (DocumentName, [(Term, Position)]))
-            >-> P.P.map (\(docId, (docName, postings)) ->
-                          ((docId, docName),
-                           toPostings docId
-                           $ M.assocs
-                           $ foldTokens accumPositions postings))
-            >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
+    (docIds, postings) <-
+            runSafeT
+         $  consumePostings
+         $  docs
+        >-> cat'                                          @TREC.Document
+        >-> P.P.map (\d -> (DocName $ BS.S.toShort $ T.E.encodeUtf8 $ TREC.docNo d, TREC.docText d))
+        >-> cat'                                          @(DocumentName, T.Text)
+        >-> P.P.map (fmap tokeniseWithPositions)
+        >-> cat'                                          @(DocumentName, [(Term, Position)])
+        >-> P.P.map (fmap normTerms)
+        >-> cat'                                          @(DocumentName, [(Term, Position)])
+        >-> zipWithList [DocId 0..]
+        >-> cat'                                          @(DocumentId, (DocumentName, [(Term, Position)]))
+        >-> P.P.map (\(docId, (docName, postings)) ->
+                      ((docId, docName),
+                        toPostings docId
+                        $ M.assocs
+                        $ foldTokens accumPositions postings))
+        >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-        let postings' :: SavedPostings [Position]
-            postings' = fmap (sort . map (fmap VU.toList)) postings
-        DiskIndex.fromDocuments "index" (M.toList docIds) postings'
+    let postings' :: SavedPostings [Position]
+        postings' = fmap (sort . map (fmap VU.toList)) postings
+    DiskIndex.fromDocuments "index" (M.toList docIds) postings'
 
 type SavedPostings p = M.Map Term [Posting p]
 

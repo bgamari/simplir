@@ -3,6 +3,7 @@ module DataSource
      -- * Data sources
      DataLocation(..)
    , withDataSource
+   , produce
      -- * Compression
    , Compression(..)
    , decompress
@@ -57,3 +58,11 @@ withCompressedSource :: MonadSafe m
                      -> m a
 withCompressedSource loc compr action =
     withDataSource loc $ action . decompress compr
+
+produce :: (MonadSafe m)
+        => DataLocation
+        -> Producer ByteString m ()
+produce (LocalFile path) =
+    bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) P.BS.fromHandle
+produce (S3Object bucket object) =
+    P.S3.fromS3' bucket object $ \resp -> P.S3.responseBody resp
