@@ -32,7 +32,9 @@ import AccumPostings
 import DataSource
 import DiskIndex
 
-dsrc = LocalFile "data/robust04/docs/ft91.dat.gz"
+dsrcs = map LocalFile [ "data/robust04/docs/ft91.dat.gz"
+                      --, "data/robust04/docs/ft94.dat.gz"
+                      ]
 compression = Just GZip
 
 main :: IO ()
@@ -45,7 +47,8 @@ main = do
             --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
     let docs :: Producer TREC.Document (SafeT IO) ()
-        docs = trecDocuments' $ P.T.decodeUtf8 $ decompress compression $ produce dsrc
+        docs =
+            mapM_ (trecDocuments' . P.T.decodeUtf8 . decompress compression . produce) dsrcs
 
     (docIds, postings) <-
             runSafeT
