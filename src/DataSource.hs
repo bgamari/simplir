@@ -13,6 +13,7 @@ import           Data.ByteString (ByteString)
 import           System.IO
 
 import           Pipes
+import           Pipes.Safe
 import qualified Pipes.GZip as P.GZip
 import qualified Pipes.Aws.S3 as P.S3
 import qualified Pipes.ByteString as P.BS
@@ -22,13 +23,14 @@ data DataLocation = LocalFile { filePath :: FilePath }
                              , s3Object :: P.S3.Object
                              }
 
-withDataSource :: DataLocation
-               -> (Producer ByteString IO () -> IO a)
-               -> IO a
+withDataSource :: MonadSafe m
+               => DataLocation
+               -> (Producer ByteString m () -> m a)
+               -> m a
 withDataSource (LocalFile path) action =
-    withFile path ReadMode $ action . P.BS.fromHandle
+    bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) $ action . P.BS.fromHandle
 withDataSource (S3Object bucket object) action =
-    P.S3.fromS3 bucket object $ \resp -> action (hoist liftIO (P.S3.responseBody resp))
+    P.S3.fromS3 bucket object $ \resp -> action ((P.S3.responseBody resp))
 
 data Compression = GZip
 
@@ -49,8 +51,9 @@ decompressGZip = go
             Left prod' -> go prod'
             Right r    -> return r
 
-withCompressedSource :: DataLocation -> Maybe Compression
-                     -> (Producer ByteString IO () -> IO a)
-                     -> IO a
+withCompressedSource :: MonadSafe m
+                     => DataLocation -> Maybe Compression
+                     -> (Producer ByteString m () -> m a)
+                     -> m a
 withCompressedSource loc compr action =
     withDataSource loc $ action . decompress compr

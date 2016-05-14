@@ -24,6 +24,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
 
 import           Pipes
+import           Pipes.Safe
 import qualified Pipes.Prelude as P.P
 
 import Data.Warc as Warc
@@ -59,8 +60,8 @@ main = do
             caseNorm = map (first toCaseFold)
             filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
-    withDataSource dsrc $ \src -> do
-        let warc :: Warc.Warc IO ()
+    runSafeT $ withDataSource dsrc $ \src -> do
+        let warc :: Warc.Warc (SafeT IO) ()
             warc = Warc.parseWarc
                    $ decompress compression (src >-> progressPipe compProg (Sum . BS.length))
                    >-> progressPipe expProg (Sum . BS.length)
@@ -88,7 +89,7 @@ main = do
 
         let postings' :: SavedPostings [Position]
             postings' = fmap (sort . map (fmap VU.toList)) postings
-        DiskIndex.fromDocuments "index" (M.toList docIds) postings'
+        liftIO $ DiskIndex.fromDocuments "index" (M.toList docIds) postings'
 
 type SavedPostings p = M.Map Term [Posting p]
 
