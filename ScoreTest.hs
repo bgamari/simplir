@@ -37,14 +37,17 @@ main = do
 
     let query' = map (,1) query
         termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
-        termPostings = map (\term -> (term, each $ fromJust $ DiskIndex.lookupPostings term idx)) query
+        termPostings = map (\term -> ( term
+                                     , each $ fromMaybe [] $ DiskIndex.lookupPostings term idx)
+                           ) query
 
     results <- foldProducer (Fold.generalize $ topK resultCount)
         $ collectPostings termPostings
        >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> DiskIndex.lookupDoc docId idx)
        >-> PP.map (swap . queryLikelihood query')
        >-> cat'                            @(Score, DocumentId)
-       >-> PP.map (second $ fst . fromJust . flip DiskIndex.lookupDoc idx)
+       >-> PP.map (second $ fst . fromMaybe (error "failed to lookup document name")
+                                . flip DiskIndex.lookupDoc idx)
        >-> cat'                            @(Score, DocumentName)
 
     putStrLn $ unlines $ map show $ results
