@@ -10,13 +10,15 @@ import Data.Bifunctor
 import Data.Char
 import Data.Profunctor
 import Data.Foldable
-import Data.List (sort)
 
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T.E
+import qualified Data.Vector as V
+import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
+import           Data.Vector.Algorithms.Intro (sort)
 import qualified Control.Foldl as Foldl
 
 import           Pipes
@@ -70,11 +72,9 @@ main = do
                         $ foldTokens accumPositions postings))
         >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-    let postings' :: SavedPostings [Position]
-        postings' = fmap (sort . map (fmap VU.toList)) postings
-    DiskIndex.fromDocuments "index" (M.toList docIds) postings'
+    DiskIndex.fromDocuments "index" (M.toList docIds) (fmap V.toList postings)
 
-type SavedPostings p = M.Map Term [Posting p]
+type SavedPostings p = M.Map Term (V.Vector (Posting p))
 
 zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
 zipWithList = go
@@ -85,14 +85,19 @@ zipWithList = go
         yield (i, x)
         go is
 
-consumePostings :: Monad m
+consumePostings :: (Monad m, Ord p)
                 => Producer ((DocumentId, DocumentName), TermPostings p) m ()
-                -> m (M.Map DocumentId (DocumentName, DocumentLength), M.Map Term [Posting p])
+                -> m ( M.Map DocumentId (DocumentName, DocumentLength)
+                     , SavedPostings p)
 consumePostings =
-    foldProducer ((,) <$> docMeta
-                      <*> lmap snd postings)
+    foldProducer $ (,) <$> docMeta
+                       <*> lmap snd postings
   where
     docMeta  = Foldl.generalize
                $ lmap (\((docId, docName), postings) -> M.singleton docId (docName, DocLength $ sum $ fmap length postings))
                       Foldl.mconcat
-    postings = Foldl.generalize $ fmap (fmap toList) foldPostings
+    postings = Foldl.generalize $ fmap (M.map $ VG.modify sort . fromFoldable) foldPostings
+
+fromFoldable :: (Foldable f, VG.Vector v a)
+             => f a -> v a
+fromFoldable xs = VG.fromListN (length xs) (toList xs)
