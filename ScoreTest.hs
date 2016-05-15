@@ -19,6 +19,7 @@ import Utils
 import DiskIndex
 import CollectPostings
 import Types
+import Term
 import RetrievalModels.QueryLikelihood
 import TopK
 import Options.Applicative
@@ -28,7 +29,7 @@ args =
     (,,)
       <$> option str (short 'i' <> long "index" <> value "index" <> help "index path")
       <*> option auto (short 'n' <> long "count" <> value 20 <> help "result count")
-      <*> some (argument (Term . T.pack <$> str) (help "query terms"))
+      <*> some (argument (Term.fromString <$> str) (help "query terms"))
 
 main :: IO ()
 main = do

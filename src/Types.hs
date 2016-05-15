@@ -7,7 +7,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
-module Types where
+module Types ( module Term
+             , module Types
+             ) where
 
 import Data.String
 import Data.Hashable
@@ -15,10 +17,11 @@ import Data.Binary
 import GHC.Generics
 import Control.DeepSeq
 import qualified Data.ByteString.Short as BS.S
-import qualified Data.Text as T
 import Data.Vector.Unboxed.Deriving
+import qualified Data.Text as T
 import qualified Data.Vector.Unboxed as VU
 import Test.QuickCheck
+import Term
 
 newtype DocumentId = DocId Int
                    deriving (Show, Eq, Ord, Enum, Binary)
@@ -59,16 +62,6 @@ derivingUnbox "Position"
   [t| Position -> (Span, Int) |]
   [| \(Position a b) -> (a, b) |]
   [| \(a, b) -> Position a b |]
-
-newtype Term = Term {getTerm :: T.Text}
-             deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary)
-
-instance Arbitrary Term where
-    arbitrary = Term . T.pack <$> vectorOf 3 (choose ('a','e'))
-
-toCaseFold :: Term -> Term
-toCaseFold (Term t) = Term $ T.toCaseFold t
-{-# INLINE toCaseFold #-}
 
 data Posting a = Posting { postingDocId :: !DocumentId, postingBody :: !a }
                deriving (Show, Functor, Generic)

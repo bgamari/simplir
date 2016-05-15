@@ -18,9 +18,10 @@ import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import Types
+import Term
 
 tokenise :: T.Text -> [Term]
-tokenise = map Term . T.words . T.toCaseFold
+tokenise = map Term.fromText . T.words . T.toCaseFold
 
 tokeniseWithPositions :: T.Text -> [(Term, Position)]
 tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
@@ -29,7 +30,7 @@ tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
     flushToken (!off, !tokN, !startChar, !curChar) off'
       | startChar == curChar = f (off+1, tokN, startChar+1, curChar+1)
       | otherwise =
-        let !tok = Term $ T.Unsafe.takeWord16 tokLen $ T.Unsafe.dropWord16 startChar t
+        let !tok = Term.fromText $ T.Unsafe.takeWord16 tokLen $ T.Unsafe.dropWord16 startChar t
             !tokLen = curChar - startChar
             !pos = Position { charOffset  = Span startChar (curChar-1)
                             , tokenN = tokN

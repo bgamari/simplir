@@ -37,6 +37,7 @@ library
       TopK
       Utils
       Types
+      Term
       WarcDocSource
 
   build-depends:

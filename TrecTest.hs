@@ -29,6 +29,7 @@ import qualified Pipes.Text.Encoding as P.T
 
 import Utils
 import Types
+import Term
 import Tokenise
 import SimplIR.TREC as TREC
 import AccumPostings
@@ -45,8 +46,8 @@ main = do
     let normTerms :: [(Term, p)] -> [(Term, p)]
         normTerms = filterTerms . caseNorm
           where
-            caseNorm = map (first $ Term . T.filter isAlpha . T.toCaseFold . getTerm)
-            filterTerms = filter ((>2) . T.length . getTerm . fst)
+            caseNorm = map (first $ Term.fromText . T.filter isAlpha . T.toCaseFold . Term.toText)
+            filterTerms = filter ((>2) . T.length . Term.toText . fst)
             --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
     let docs :: Producer TREC.Document (SafeT IO) ()

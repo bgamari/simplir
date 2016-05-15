@@ -32,6 +32,7 @@ import qualified SimplIR.HTML.Clean as Clean
 
 import Utils
 import Types
+import Term
 import Progress
 import Tokenise
 import WarcDocSource
@@ -53,11 +54,11 @@ main = do
     pollProgress compProg 1 $ \(Sum n) -> "Compressed "++show (realToFrac n / 1024 / 1024)
     pollProgress expProg 1 $ \(Sum n) -> "Expanded "++show (realToFrac n / 1024 / 1024)
 
-    takeTerms <- HS.fromList . map (Term . T.toCaseFold) . T.words <$> TIO.readFile "terms"
+    takeTerms <- HS.fromList . map (Term.fromText . T.toCaseFold) . T.words <$> TIO.readFile "terms"
     let normTerms :: [(Term, p)] -> [(Term, p)]
         normTerms = filterTerms . caseNorm
           where
-            caseNorm = map (first toCaseFold)
+            caseNorm = map (first $ Term.fromText . T.toCaseFold . Term.toText)
             filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
     runSafeT $ withDataSource dsrc $ \src -> do
