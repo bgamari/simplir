@@ -75,7 +75,7 @@ postingChunkSize :: Int
 postingChunkSize = 2^14
 
 merge :: forall docmeta p. (Binary p, Binary docmeta)
-      => FilePath            -- ^ destination path
+      => FilePath              -- ^ destination path
       -> [DiskIndex docmeta p] -- ^ indices to merge
       -> IO ()
 merge dest idxs = do

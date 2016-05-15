@@ -37,7 +37,7 @@ import Prelude hiding (lookup)
 
 -- | Build an inverted index from a set of postings.
 fromTermPostings :: forall p. (Binary p)
-                 => Int                       -- ^ chunk size
+                 => Int                       -- ^ how many postings per chunk
                  -> FilePath                  -- ^ file path
                  -> M.Map Term [Posting p]    -- ^ postings for each term,
                                               -- must be sorted by document
