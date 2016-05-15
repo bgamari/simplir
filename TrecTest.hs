@@ -81,6 +81,7 @@ main = do
 
     chunkIdxs <- mapM DiskIndex.open chunks
               :: IO [DiskIndex (DocumentName, DocumentLength) (VU.Vector Position)]
+    putStrLn $ "Merging "++show (length chunkIdxs)++" chunks"
     DiskIndex.merge "index" chunkIdxs
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
