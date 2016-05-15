@@ -43,11 +43,11 @@ compression = Just GZip
 
 main :: IO ()
 main = do
-    let normTerms :: [(Term, p)] -> [(Term, p)]
-        normTerms = filterTerms . caseNorm
+    let normTerms :: [(T.Text, p)] -> [(Term, p)]
+        normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
-            caseNorm = map (first $ Term.fromText . T.filter isAlpha . T.toCaseFold . Term.toText)
-            filterTerms = filter ((>2) . T.length . Term.toText . fst)
+            caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
+            filterTerms = filter ((>2) . T.length . fst)
             --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
     let docs :: Producer TREC.Document (SafeT IO) ()
@@ -62,7 +62,7 @@ main = do
             >-> P.P.map (\d -> (DocName $ BS.S.toShort $ T.E.encodeUtf8 $ TREC.docNo d, TREC.docText d))
             >-> cat'                                          @(DocumentName, T.Text)
             >-> P.P.map (fmap tokeniseWithPositions)
-            >-> cat'                                          @(DocumentName, [(Term, Position)])
+            >-> cat'                                          @(DocumentName, [(T.Text, Position)])
             >-> P.P.map (fmap normTerms)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
             >-> zipWithList [DocId 0..]

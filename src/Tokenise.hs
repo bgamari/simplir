@@ -20,17 +20,17 @@ import qualified Data.Vector.Unboxed as VU
 import Types
 import Term
 
-tokenise :: T.Text -> [Term]
-tokenise = map Term.fromText . T.words . T.toCaseFold
+tokenise :: T.Text -> [T.Text]
+tokenise = T.words . T.toCaseFold
 
-tokeniseWithPositions :: T.Text -> [(Term, Position)]
+tokeniseWithPositions :: T.Text -> [(T.Text, Position)]
 tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
   where
-    flushToken :: (Int, Int, Int, Int) -> Int -> Maybe ((Term, Position), (Int, Int, Int, Int))
+    flushToken :: (Int, Int, Int, Int) -> Int -> Maybe ((T.Text, Position), (Int, Int, Int, Int))
     flushToken (!off, !tokN, !startChar, !curChar) off'
       | startChar == curChar = f (off+1, tokN, startChar+1, curChar+1)
       | otherwise =
-        let !tok = Term.fromText $ T.Unsafe.takeWord16 tokLen $ T.Unsafe.dropWord16 startChar t
+        let !tok = T.Unsafe.takeWord16 tokLen $ T.Unsafe.dropWord16 startChar t
             !tokLen = curChar - startChar
             !pos = Position { charOffset  = Span startChar (curChar-1)
                             , tokenN = tokN
@@ -38,7 +38,7 @@ tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
             !s'  = (off', tokN+1, curChar+1, curChar+1)
         in Just ((tok, pos), s')
 
-    f :: (Int, Int, Int, Int) -> Maybe ((Term, Position), (Int, Int, Int, Int))
+    f :: (Int, Int, Int, Int) -> Maybe ((T.Text, Position), (Int, Int, Int, Int))
     f (off, _tokN, _startChar, !curChar)
         -- Done, nothing left over
       | off > len
