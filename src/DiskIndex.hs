@@ -52,7 +52,7 @@ fromDocuments :: (Binary docmeta, Binary p)
               -> IO ()
 fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
-    PostingIdx.fromTermPostings chunkSize (dest </> "term-freq") postings
+    PostingIdx.fromTermPostings postingChunkSize (dest </> "term-freq") postings
     Doc.write (dest </> "documents") (M.fromList docs)
 
 documents :: DiskIndex docmeta p -> [(DocumentId, docmeta)]
@@ -70,7 +70,9 @@ lookupPostings :: (Binary p)
 lookupPostings term idx =
     PostingIdx.lookup (tfIdx idx) term
 
-chunkSize = 10000
+-- | How many postings per chunk?
+postingChunkSize :: Int
+postingChunkSize = 2^14
 
 merge :: forall docmeta p. (Binary p, Binary docmeta)
       => FilePath            -- ^ destination path
@@ -90,6 +92,6 @@ merge dest idxs = do
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
     let mergedSize = sum $ map (PostingIdx.termCount . tfIdx) idxs
-    let chunkSize = 1024
-    PostingIdx.Merge.merge chunkSize (dest </> "term-freq") mergedSize
+    PostingIdx.Merge.merge postingChunkSize
+                           (dest </> "term-freq") mergedSize
                            (zip docIds0 allPostings)
