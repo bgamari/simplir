@@ -36,7 +36,7 @@ import DataSource
 import DiskIndex
 
 dsrcs = map LocalFile [ "data/robust04/docs/ft91.dat.gz"
-                      , "data/robust04/docs/ft94.dat.gz"
+                      -- , "data/robust04/docs/ft94.dat.gz"
                       ]
 compression = Just GZip
 
@@ -73,9 +73,15 @@ main = do
                             $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-    runSafeT $ runEffect $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings)) -> do
+    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings)) -> do
         liftIO $ print (n, M.size docIds)
-        liftIO $ DiskIndex.fromDocuments ("index-"++show n) (M.toList docIds) (fmap V.toList postings)
+        let indexPath = "index-"++show n
+        liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
+        yield indexPath
+
+    chunkIdxs <- mapM DiskIndex.open chunks
+              :: IO [DiskIndex (DocumentName, DocumentLength) (VU.Vector Position)]
+    DiskIndex.merge "index" chunkIdxs
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =

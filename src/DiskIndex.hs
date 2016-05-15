@@ -89,5 +89,7 @@ merge dest idxs = do
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
-    PostingIdx.Merge.merge (dest </> "term-freq") chunkSize
+    let mergedSize = sum $ map (PostingIdx.termCount . tfIdx) idxs
+    let chunkSize = 1024
+    PostingIdx.Merge.merge chunkSize (dest </> "term-freq") mergedSize
                            (zip docIds0 allPostings)

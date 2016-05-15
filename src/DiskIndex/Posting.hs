@@ -10,6 +10,7 @@ module DiskIndex.Posting
     , write
     , walk
     , walkChunks
+    , termCount
     ) where
 
 import GHC.Generics
@@ -98,5 +99,9 @@ write :: MonadIO m
       => FilePath -> Int
       -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
       -> m ()
-write path size =
-    BTree.fromOrderedToFile 32 (fromIntegral size) path
+write path size prod =
+    BTree.fromOrderedToFile 32 (fromIntegral size) path prod
+
+-- | How many terms are in a 'DiskIndex'?
+termCount :: DiskIndex p -> Int
+termCount (DiskIndex btree) = fromIntegral $ BTree.size btree

@@ -26,13 +26,14 @@ import qualified EncodedList as EL
 import BTree (BLeaf(..))
 
 merge :: forall p. (Binary p)
-      => FilePath     -- ^ Merged output
-      -> Int          -- ^ Chunk size
+      => Int          -- ^ Chunk size
+      -> FilePath     -- ^ Merged output
+      -> Int          -- ^ Merged index size (in terms)
       -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
       -- ^ a set of posting sources, along with their 'DocumentId' offsets
       -> IO ()
-merge outFile chunkSize =
-    PostingIdx.write outFile 64
+merge chunkSize outFile mergedSize =
+    PostingIdx.write outFile mergedSize
     . each
     . map (\(term, chunks) -> BLeaf term (EL.fromList chunks))
     . map (fmap $ mergeChunks chunkSize)
