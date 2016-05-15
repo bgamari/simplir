@@ -15,6 +15,7 @@ module DiskIndex
 
 import System.FilePath
 import System.Directory
+import Data.Bifunctor
 import Data.Binary
 import Data.Monoid
 import Data.List (mapAccumL)
@@ -71,18 +72,22 @@ lookupPostings term idx =
 
 chunkSize = 10000
 
-merge :: forall docmeta p. Binary p
+merge :: forall docmeta p. (Binary p, Binary docmeta)
       => FilePath            -- ^ destination path
       -> [DiskIndex docmeta p] -- ^ indices to merge
       -> IO ()
 merge dest idxs = do
+    createDirectoryIfMissing True dest
     -- First merge the document ids
     let docIds0 :: [PostingIdx.DocIdDelta]
         (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> PostingIdx.toDocIdDelta (Doc.size $ docIdx idx), docId0))
                             (PostingIdx.DocIdDelta 0) idxs
+    -- then write the document index TODO
+    Doc.write (dest </> "documents") $ M.fromList $ concat
+        $ zipWith (\delta -> map (first (`PostingIdx.applyDocIdDelta` delta))) docIds0 (map documents idxs)
     -- then merge the postings themselves
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
 
-    PostingIdx.Merge.merge (dest </> "term-freqs") chunkSize
+    PostingIdx.Merge.merge (dest </> "term-freq") chunkSize
                            (zip docIds0 allPostings)
