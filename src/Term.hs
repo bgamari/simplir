@@ -31,9 +31,11 @@ instance Binary Term where
     get = {-# SCC getTerm #-} do
         len <- fromIntegral <$> getWord8
         Term . BS.S.toShort <$> getByteString len
+    {-# INLINE get #-}
     put (Term t) = do
         putWord8 $ fromIntegral $ BS.S.length t
         putBuilder $ BS.B.shortByteString t
+    {-# INLINE put #-}
 
 instance Arbitrary Term where
     arbitrary = Term . BS.S.pack . map (fromIntegral . ord) <$> vectorOf 3 (choose ('a','e'))
