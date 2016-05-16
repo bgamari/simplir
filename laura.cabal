@@ -175,6 +175,7 @@ executable trec-test
       profunctors,
       text >=1.2 && <1.3,
       containers >=0.5 && <0.6,
+      optparse-applicative,
       warc,
       b-tree,
       laura,

@@ -27,6 +27,8 @@ import           Pipes.Safe
 import qualified Pipes.Prelude as P.P
 import qualified Pipes.Text.Encoding as P.T
 
+import Options.Applicative
+
 import Utils
 import Types
 import Term
@@ -36,13 +38,14 @@ import AccumPostings
 import DataSource
 import DiskIndex
 
-dsrcs = map LocalFile [ "data/robust04/docs/ft91.dat.gz"
-                      -- , "data/robust04/docs/ft94.dat.gz"
-                      ]
+opts :: Parser [DataLocation]
+opts = some $ argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file")
+
 compression = Just GZip
 
 main :: IO ()
 main = do
+    dsrcs <- execParser $ info (helper <*> opts) mempty
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
         normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
