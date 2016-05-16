@@ -7,10 +7,26 @@ packages:
     b-tree/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
     /home/ben/code/maintaining/warc/*.cabal
-    /opt/exp/haskell-packages/either/*.cabal
     /opt/exp/haskell-packages/log-domain/*.cabal
     /opt/exp/haskell-packages/safecopy/*.cabal
     /opt/exp/haskell-packages/lens-action/*.cabal
-    /opt/exp/haskell-packages/pipes/*.cabal
     /opt/exp/haskell-packages/lens/*.cabal
+    /opt/exp/haskell-packages/pipes/*.cabal
+    /opt/exp/haskell-packages/binary-serialise-cbor/*.cabal
     ./*.cabal
+    /opt/exp/haskell-packages/bytestring/*.cabal
+    /opt/exp/haskell-packages/binary/*.cabal
+
+profiling-detail: exported-functions
+flags: -test-doctests
+
+package laura
+    profiling-detail: all
+    ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo -ddump-stg
+    -- -ticky -ticky-allocd -ticky-dyn-thunk
+
+package b-tree
+    --profiling-detail: exported-functions
+    profiling-detail: all
+    ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo
+
