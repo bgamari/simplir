@@ -16,6 +16,7 @@ import Data.Hashable
 import Data.Binary
 import GHC.Generics
 import Control.DeepSeq
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BS.S
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Text as T
@@ -36,6 +37,11 @@ derivingUnbox "DocumentId"
 
 newtype DocumentName = DocName BS.S.ShortByteString
                      deriving (Show, Eq, Ord, Binary)
+
+instance Arbitrary DocumentName where
+    arbitrary = do
+        n <- arbitrary :: Gen Int
+        return $ DocName $ BS.S.toShort $ BS.pack $ "doc"++show n
 
 -- | An interval within a discrete *.
 data Span = Span { begin, end :: !Int }

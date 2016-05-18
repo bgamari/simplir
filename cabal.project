@@ -22,11 +22,13 @@ flags: -test-doctests
 
 package laura
     profiling-detail: all
+    test: yes
     ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo -ddump-stg
     -- -ticky -ticky-allocd -ticky-dyn-thunk
 
 package b-tree
     --profiling-detail: exported-functions
     profiling-detail: all
+    test: yes
     ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo
 

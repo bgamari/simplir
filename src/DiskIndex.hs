@@ -10,6 +10,7 @@ module DiskIndex
       -- * Queries
     , lookupDoc
     , lookupPostings
+    , termPostings
     , documents
     ) where
 
@@ -69,6 +70,13 @@ lookupPostings :: (Binary p)
                -> Maybe [Posting p]     -- ^ the postings of the term
 lookupPostings term idx =
     PostingIdx.lookup (tfIdx idx) term
+
+-- | Enumerate the postings for all terms in the index.
+termPostings :: (Binary p)
+             => DiskIndex docmeta p
+             -> [(Term, [Posting p])]
+termPostings idx =
+    PostingIdx.walk (tfIdx idx)
 
 -- | How many postings per chunk?
 postingChunkSize :: Int
