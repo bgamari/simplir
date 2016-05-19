@@ -26,6 +26,7 @@ library
       DiskIndex
       DiskIndex.Posting
       DiskIndex.Document
+      DiskIndex.Posting.Tests
       DiskIndex.Tests
       RetrievalModels.QueryLikelihood
       AccumPostings
