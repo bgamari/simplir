@@ -49,8 +49,8 @@ trecDocuments = go . parseTokensLazy
 tokensToDocument :: [Token] -> Document
 tokensToDocument toks =
   let tagContent name = takeContent $ takeInsideTag name toks
-      docNo = tagContent "DOCNO"
-      docDate = tagContent "DATE"
+      docNo = T.strip $ tagContent "DOCNO"
+      docDate = T.strip $ tagContent "DATE"
       docHeadline = tagContent "HEADLINE"
       docText = tagContent "TEXT"
   in Document {..}
