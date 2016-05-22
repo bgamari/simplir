@@ -2,7 +2,6 @@ module DataSource
    (
      -- * Data sources
      DataLocation(..)
-   , withDataSource
    , produce
      -- * Compression
    , Compression(..)
@@ -23,15 +22,6 @@ data DataLocation = LocalFile { filePath :: FilePath }
                   | S3Object { s3Bucket :: P.S3.Bucket
                              , s3Object :: P.S3.Object
                              }
-
-withDataSource :: MonadSafe m
-               => DataLocation
-               -> (Producer ByteString m () -> m a)
-               -> m a
-withDataSource (LocalFile path) action =
-    bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) $ action . P.BS.fromHandle
-withDataSource (S3Object bucket object) action =
-    P.S3.fromS3 bucket object $ \resp -> action ((P.S3.responseBody resp))
 
 data Compression = GZip
 
@@ -57,7 +47,7 @@ withCompressedSource :: MonadSafe m
                      -> (Producer ByteString m () -> m a)
                      -> m a
 withCompressedSource loc compr action =
-    withDataSource loc $ action . decompress compr
+    action $ decompress compr (produce loc)
 
 produce :: (MonadSafe m)
         => DataLocation
@@ -65,4 +55,4 @@ produce :: (MonadSafe m)
 produce (LocalFile path) =
     bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) P.BS.fromHandle
 produce (S3Object bucket object) =
-    P.S3.fromS3' bucket object $ \resp -> P.S3.responseBody resp
+    P.S3.fromS3 bucket object $ \resp -> P.S3.responseBody resp

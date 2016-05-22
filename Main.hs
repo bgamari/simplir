@@ -61,10 +61,10 @@ main = do
             caseNorm = map (first $ T.toCaseFold)
             filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
 
-    runSafeT $ withDataSource dsrc $ \src -> do
+    runSafeT $ do
         let warc :: Warc.Warc (SafeT IO) ()
             warc = Warc.parseWarc
-                   $ decompress compression (src >-> progressPipe compProg (Sum . BS.length))
+                   $ decompress compression (produce dsrc >-> progressPipe compProg (Sum . BS.length))
                    >-> progressPipe expProg (Sum . BS.length)
 
         (docIds, postings) <-
