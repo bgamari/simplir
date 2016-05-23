@@ -45,7 +45,7 @@ main = do
     results <- foldProducer (Fold.generalize $ topK resultCount)
         $ collectPostings termPostings
        >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> DiskIndex.lookupDoc docId idx)
-       >-> PP.map (swap . queryLikelihood query')
+       >-> PP.map (swap . queryLikelihood NoSmoothing query')
        >-> cat'                            @(Score, DocumentId)
        >-> PP.map (second $ fst . fromMaybe (error "failed to lookup document name")
                                 . flip DiskIndex.lookupDoc idx)
