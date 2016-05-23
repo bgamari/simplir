@@ -1,7 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module DataSource
    (
      -- * Data sources
      DataLocation(..)
+   , parseDataLocation
    , produce
      -- * Compression
    , Compression(..)
@@ -11,6 +14,7 @@ module DataSource
 
 import           Data.ByteString (ByteString)
 import           System.IO
+import qualified Data.Text as T
 
 import           Pipes
 import           Pipes.Safe
@@ -22,8 +26,18 @@ data DataLocation = LocalFile { filePath :: FilePath }
                   | S3Object { s3Bucket :: P.S3.Bucket
                              , s3Object :: P.S3.Object
                              }
+                  deriving (Show)
 
 data Compression = GZip
+
+parseDataLocation :: T.Text -> Maybe DataLocation
+parseDataLocation t
+  | Just rest <- "s3://" `T.stripPrefix` t
+  = let (bucket, obj) = T.break (=='/') rest
+    in Just $ S3Object (P.S3.Bucket bucket) (P.S3.Object $ T.tail obj)
+
+  | otherwise
+  = Just $ LocalFile $ T.unpack t
 
 decompress :: MonadIO m
            => Maybe Compression
