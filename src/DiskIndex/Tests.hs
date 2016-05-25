@@ -2,6 +2,7 @@
 
 module DiskIndex.Tests where
 
+import Data.List (sort)
 import Control.Monad.IO.Class
 import Data.Traversable (forM)
 import Data.Foldable (forM_)
@@ -23,19 +24,19 @@ import System.IO.Temp
 import System.FilePath
 
 mergeContainsAll :: [M.Map DocumentName (M.Map Term (Positive Int))] -> Property
-mergeContainsAll chunks = monadicIO $ do
+mergeContainsAll chunks' = monadicIO $ do
     tempDir <- liftIO $ getTemporaryDirectory >>= (\tmp -> createTempDirectory tmp "index")
-    liftIO $ print ("mergeContainsAll", tempDir)
 
     -- uniquify document names
     --let chunks = zipWith uniqueDocName [0..] chunks'
     --    uniqueDocName n = M.mapKeys (\(DocName name) -> DocName $ "chunk-"++show n++":"++name)
+    let chunks = map (M.filter (not . M.null)) chunks'
 
     -- generate chunk indexes
     indexDirs <- liftIO $ forM (zip [0..] chunks) $ \(i,docs) -> do
         let indexDir = tempDir </> "index-"++show i
         let postings :: M.Map Term [Posting Int]
-            postings = M.fromListWith mappend
+            postings = fmap sort $ M.fromListWith mappend
                 [ (term, [Posting docId tf])
                 | (docName, terms) <- M.assocs docs
                 , (term, Positive tf) <- M.assocs terms
@@ -43,14 +44,11 @@ mergeContainsAll chunks = monadicIO $ do
                 ]
             docMap :: M.Map DocumentName DocumentId
             docMap = M.fromList $ zip (M.keys docs) [DocId 0..]
-        print ("generated", indexDir, postings)
         DiskIndex.fromDocuments indexDir (map swap $ M.assocs docMap) postings
         return indexDir
 
     -- merge indexes
-    liftIO $ print ("indexes", indexDirs)
     indexes <- liftIO $ mapM (DiskIndex.open @DocumentName @Int) indexDirs
-    liftIO $ print ("indexes", fmap (fmap DiskIndex.termPostings) (zip indexDirs indexes))
     let indexDir = tempDir </> "merged"
     liftIO $ DiskIndex.merge @DocumentName @Int indexDir indexes
     liftIO $ mapM_ removeDirectoryRecursive indexDirs
@@ -71,9 +69,8 @@ mergeContainsAll chunks = monadicIO $ do
                , Posting docId n <- postings
                , let Just docName = DiskIndex.lookupDoc docId merged
                ]
-    liftIO $ print (chunks, test)
     liftIO $ removeDirectoryRecursive tempDir
-    return $ gold == test
+    return $ (gold === test :: Property)
 
 tests :: TestTree
 tests = testGroup "DiskIndex"
