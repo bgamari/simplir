@@ -1,10 +1,16 @@
-module TopK ( topK, topK' ) where
+{-# LANGUAGE TypeApplications #-}
+
+module TopK ( topK, topK', tests ) where
 
 import Data.Foldable
 import Data.Profunctor
 import qualified Control.Foldl as Fold
 import qualified Data.Heap as H
 import Data.Ord
+
+import Test.QuickCheck
+import Test.Tasty
+import Test.Tasty.QuickCheck
 
 data Accum a = Accum { insertions :: !Int
                        -- ^ insertions until next threshold update
@@ -44,3 +50,12 @@ minK updatePeriod k =
     step acc x =
         acc { heap = H.take k $ H.insert x (heap acc) }
 {-# INLINE minK #-}
+
+testMinK :: (Ord a, Show a) => Int -> Positive Int -> [a] -> Property
+testMinK updatePeriod (Positive k) xs =
+    Fold.fold (minK updatePeriod k) xs === take k (H.sort xs)
+
+tests = testGroup "top-k"
+    [ testProperty "testMinK 1" (testMinK @Int 1)
+    , testProperty "testMinK 10" (testMinK @Int 10)
+    ]
