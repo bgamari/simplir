@@ -89,4 +89,4 @@ main = do
                         )
             >-> cat'                                          @(Score, DocumentName)
 
-        liftIO $ print results
+        liftIO $ putStrLn $ unlines $ map show results
