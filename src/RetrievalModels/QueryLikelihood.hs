@@ -14,8 +14,8 @@ data Smoothing = NoSmoothing
 
 queryLikelihood :: Smoothing
                 -> [(Term, Int)]
-                -> (DocumentId, DocumentLength, [(Term, Int)])
-                -> (DocumentId, Score)
+                -> (doc, DocumentLength, [(Term, Int)])
+                -> (doc, Score)
 queryLikelihood smoothing query = \(docId, DocLength docLen, terms) ->
     let denom = case smoothing of
                   NoSmoothing           -> realToFrac docLen
