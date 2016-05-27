@@ -1,6 +1,11 @@
 {-# LANGUAGE TypeApplications #-}
 
-module TopK ( topK, topK', tests ) where
+module TopK
+    ( -- * Computing top-k lists
+      topK, topK'
+    , H.Entry(..)
+      -- * Tests
+    , tests ) where
 
 import Data.Foldable
 import Data.Profunctor
