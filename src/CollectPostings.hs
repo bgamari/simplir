@@ -28,6 +28,9 @@ data ActivePosting m p = AP { apPosting   :: !(Posting p)
                             , apRemaining :: Producer (Posting p) m ()
                             }
 
+apDocId :: ActivePosting m p -> DocumentId
+apDocId = postingDocId . apPosting
+
 instance Eq p => Eq (ActivePosting m p) where
     (==) = (==) `on` apPosting
 
@@ -75,15 +78,15 @@ collectPostings = start
       | H.null actives     = return ()
       | otherwise          = do
         -- pop off minimal active postings
-        let minDocId = H.minimum actives
-            (postings, actives') = H.span (== minDocId) actives
+        let minDocId = apDocId $ H.minimum actives
+            (postings, actives') = H.span (\x -> apDocId x == minDocId) actives
 
             docPostings :: [(Term, p)]
             docPostings =
                 [ (apTerm, postingBody apPosting)
                 | AP {..} <- H.toUnsortedList postings ]
 
-        yield (postingDocId $ apPosting minDocId, docPostings)
+        yield (minDocId, docPostings)
 
         -- pull in new postings
         new <- lift $ mapM (\ap -> nextPosting (apTerm ap, apRemaining ap))
@@ -109,7 +112,7 @@ roundTripPostings docs =
   where
     docs' :: M.Map DocumentId (M.Map Term p)
     docs' =
-        M.fromListWith mappend
+        M.fromList -- no need to append here; collection should handle this
         $ map (fmap M.fromList)
         $ P.P.toList
         $ collectPostings
