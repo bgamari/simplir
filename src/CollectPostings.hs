@@ -1,10 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 
 module CollectPostings
     ( collectPostings
-    , test
+    , tests
     ) where
 
 import Data.Monoid
@@ -14,6 +15,13 @@ import qualified Data.Heap as H
 
 import Pipes
 import Types
+
+import qualified Data.Map as M
+import qualified Data.Set as S
+import qualified Pipes.Prelude as P.P
+import Test.Tasty
+import Test.Tasty.QuickCheck
+import Test.QuickCheck
 
 data ActivePosting m p = AP { apPosting   :: !(Posting p)
                             , apTerm      :: !Term
@@ -91,3 +99,29 @@ test =
   where
     p :: Int -> Posting ()
     p i = Posting (DocId i) ()
+
+roundTripPostings :: forall p. (Ord p, Show p)
+                  => M.Map DocumentId (M.Map Term p)
+                  -> Property
+roundTripPostings docs =
+    counterexample (show postings) $
+    docs' === M.filter (not . M.null) docs
+  where
+    docs' :: M.Map DocumentId (M.Map Term p)
+    docs' =
+        M.fromListWith mappend
+        $ map (fmap M.fromList)
+        $ P.P.toList
+        $ collectPostings
+        $ M.toAscList $ fmap (each . S.toAscList) postings
+
+    postings :: M.Map Term (S.Set (Posting p))
+    postings = M.unionsWith mappend
+               [ M.singleton term (S.singleton $ Posting docId x)
+               | (docId, terms) <- M.toList docs
+               , (term, x) <- M.toList terms
+               ]
+
+tests :: TestTree
+tests = testGroup "CollectPostings"
+    [ testProperty "round-trip" (roundTripPostings @Int) ]
