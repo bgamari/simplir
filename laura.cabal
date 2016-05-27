@@ -128,6 +128,7 @@ executable dump-postings
       errors,
       foldl,
       vector,
+      optparse-applicative,
       profunctors,
       exceptions >= 0.8,
       text >=1.2 && <1.3,
