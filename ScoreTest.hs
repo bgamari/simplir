@@ -31,6 +31,9 @@ args =
       <*> option auto (short 'n' <> long "count" <> value 20 <> help "result count")
       <*> some (argument (Term.fromString <$> str) (help "query terms"))
 
+--smoothing = Dirichlet 2500 (const 0.01)
+smoothing = NoSmoothing
+
 main :: IO ()
 main = do
     (indexPath, resultCount, query) <- execParser $ info (helper <*> args) mempty
@@ -45,11 +48,13 @@ main = do
     results <- foldProducer (Fold.generalize $ topK resultCount)
         $ collectPostings termPostings
        >-> PP.mapFoldable (\(docId, terms) -> (docId,,map (fmap length) terms) . snd <$> DiskIndex.lookupDoc docId idx)
-       >-> PP.map (swap . queryLikelihood NoSmoothing query')
-       >-> cat'                            @(Score, DocumentId)
-       >-> PP.map (second $ fst . fromMaybe (error "failed to lookup document name")
-                                . flip DiskIndex.lookupDoc idx)
-       >-> cat'                            @(Score, DocumentName)
+       >-> PP.map (toEntry . queryLikelihood smoothing query')
+       >-> cat'                            @(Entry Score DocumentId)
+       >-> PP.map (fmap $ fst . fromMaybe (error "failed to lookup document name")
+                              . flip DiskIndex.lookupDoc idx)
+       >-> cat'                            @(Entry Score DocumentName)
 
     putStrLn $ unlines $ map show $ results
     return ()
+
+toEntry (a,b) = Entry b a
