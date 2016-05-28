@@ -23,6 +23,7 @@ library
       DiskIndex.Posting.Types
       Data.SmallNat
       Control.Foldl.Vector
+      Control.Foldl.Map
 
   exposed-modules:
       DiskIndex

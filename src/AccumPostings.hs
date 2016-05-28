@@ -6,9 +6,12 @@ module AccumPostings
     , foldPostings
     ) where
 
+import Data.Traversable
 import Data.Foldable
 import Data.Monoid
+import Data.Profunctor
 import qualified Control.Foldl as Foldl
+import           Control.Foldl.Map
 import qualified Data.Map as M
 import qualified Data.DList as DList
 import           Data.DList (DList)
@@ -27,16 +30,5 @@ toPostings docId terms =
     ]
 
 foldPostings :: Foldl.Fold (TermPostings p) (M.Map Term (DList (Posting p)))
-foldPostings = Foldl.Fold step initial extract
-  where
-    initial = M.empty
-    extract = id
+foldPostings = Foldl.handles traverse $ lmap (fmap DList.singleton) $ multiFold Foldl.mconcat
 
-    step acc postings =
-        foldl' insert acc postings
-      where
-        insert :: M.Map Term (DList (Posting p))
-               -> (Term, Posting p)
-               -> M.Map Term (DList (Posting p))
-        insert acc (term, posting) =
-            M.insertWith (<>) term (DList.singleton posting) acc
