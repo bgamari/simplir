@@ -95,3 +95,11 @@ type PositionalPosting = Posting (VU.Vector Position)
 -- | The length of a document in tokens.
 newtype DocumentLength = DocLength Int
                        deriving (Eq, Ord, Show, Binary)
+
+-- | A number of occurrences of a 'Term'
+newtype TermFrequency = TermFreq Int
+                      deriving (Eq, Ord, Show, Binary)
+
+instance Monoid TermFrequency where
+    mempty = TermFreq 0
+    TermFreq a `mappend` TermFreq b = TermFreq (a + b)
