@@ -13,6 +13,7 @@ import Data.Foldable
 import Data.Profunctor
 import Data.Monoid
 import Data.Tuple
+import Data.Char
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
@@ -58,9 +59,10 @@ main :: IO ()
 main = do
     (resultCount, query, dsrcs) <- execParser $ info (helper <*> opts) mempty
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
-        normTerms = map (first Term.fromText) . caseNorm
+        normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
-            caseNorm = map (first $ T.toCaseFold)
+            filterTerms = filter ((>2) . T.length . fst)
+            caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     let queryTerms :: [(Term, Int)]
         queryTerms = M.assocs $ M.unionsWith (+) [ M.singleton (Term.fromText t) 1
