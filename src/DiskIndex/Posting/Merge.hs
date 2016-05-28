@@ -6,7 +6,6 @@
  
 module DiskIndex.Posting.Merge where
 
-import Data.Bifunctor
 import Data.Foldable
 import Data.Monoid
 import Data.Ord
@@ -39,7 +38,7 @@ merge chunkSize outFile mergedSize =
     . map (fmap $ mergeChunks chunkSize)
     . mergePostings
 
-mergePostings :: forall p. (Binary p)
+mergePostings :: forall p. ()
               => [(DocIdDelta, [(Term, [PostingsChunk p])])]
               -> [(Term, [PostingsChunk p])]
 mergePostings =

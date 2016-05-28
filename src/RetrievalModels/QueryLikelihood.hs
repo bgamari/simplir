@@ -4,7 +4,6 @@ import Data.Foldable
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (fromMaybe)
 import Numeric.Log hiding (sum)
-import qualified Numeric.Log as Log
 import Types
 
 type Score = Log Double

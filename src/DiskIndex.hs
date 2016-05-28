@@ -20,7 +20,6 @@ import Data.Bifunctor
 import Data.Binary
 import Data.Monoid
 import Data.List (mapAccumL)
-import qualified Data.Heap as H
 import qualified Data.Map as M
 
 import Types

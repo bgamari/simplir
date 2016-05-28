@@ -6,19 +6,13 @@ module AccumPostings
     , foldPostings
     ) where
 
-import Data.Traversable
-import Data.Foldable
-import Data.Monoid
 import Data.Profunctor
 import qualified Control.Foldl as Foldl
 import           Control.Foldl.Map
 import qualified Data.Map as M
 import qualified Data.DList as DList
 import           Data.DList (DList)
-import           Control.Monad.Trans.State.Strict
-import           Control.Monad.IO.Class
 
-import WarcDocSource
 import Types
 
 type TermPostings a = [(Term, Posting a)]

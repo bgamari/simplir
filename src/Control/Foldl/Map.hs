@@ -1,7 +1,6 @@
 module Control.Foldl.Map where
 
 import Data.Maybe
-import Data.Profunctor
 import qualified Control.Foldl as Foldl
 import qualified Data.Map as M
 

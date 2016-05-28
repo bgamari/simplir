@@ -13,12 +13,9 @@ module DiskIndex.Posting
     , termCount
     ) where
 
-import GHC.Generics
-import Control.Exception (assert)
 import Data.Foldable
 
 import Data.Binary
-import qualified Data.Heap as H
 
 import qualified Data.Map as M
 import qualified Data.Vector as V
@@ -30,7 +27,6 @@ import BTree (BLeaf(..))
 import qualified EncodedList as EL
 import qualified Encoded as E
 import DiskIndex.Posting.Types
-import Data.SmallNat
 import Types
 
 import Prelude hiding (lookup)

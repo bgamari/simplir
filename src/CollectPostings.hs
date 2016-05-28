@@ -21,7 +21,6 @@ import qualified Data.Set as S
 import qualified Pipes.Prelude as P.P
 import Test.Tasty
 import Test.Tasty.QuickCheck
-import Test.QuickCheck
 
 data ActivePosting m p = AP { apPosting   :: !(Posting p)
                             , apTerm      :: !Term

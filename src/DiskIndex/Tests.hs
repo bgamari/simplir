@@ -5,16 +5,13 @@ module DiskIndex.Tests where
 import Data.List (sort)
 import Control.Monad.IO.Class
 import Data.Traversable (forM)
-import Data.Foldable (forM_)
 import Data.Tuple (swap)
 import qualified Data.Map.Strict as M
-import qualified Data.Set as S
 
 import qualified DiskIndex
 import Types
 
 import Test.QuickCheck
-import Test.QuickCheck.Modifiers
 import Test.QuickCheck.Monadic
 import Test.Tasty
 import Test.Tasty.QuickCheck

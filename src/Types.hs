@@ -11,15 +11,12 @@ module Types ( module Term
              , module Types
              ) where
 
-import Data.String
-import Data.Hashable
 import Data.Binary
 import GHC.Generics
 import Control.DeepSeq
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Short as BS.S
 import Data.Vector.Unboxed.Deriving
-import qualified Data.Text as T
 import qualified Data.Vector.Unboxed as VU
 import Test.QuickCheck
 import Term

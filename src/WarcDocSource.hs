@@ -14,8 +14,6 @@ import Control.Monad.State.Strict
 import Control.Monad.Catch
 import Control.Error
 import Data.Foldable
-import Data.Monoid
-import Data.Functor.Contravariant
 import Prelude hiding (log)
 
 import qualified Data.ByteString.Char8 as BS
@@ -23,28 +21,22 @@ import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import qualified Data.Text.Lazy as T.L
 import qualified Data.Text.Encoding as T.E
 import qualified Data.Text.ICU.Convert as ICU
-import qualified Data.Vector.Unboxed as VU
 
 import qualified Data.CaseInsensitive as CI
 
 import           Pipes
 import qualified Pipes.Prelude as P.P
-import qualified Pipes.ByteString as P.BS
 import qualified Data.Attoparsec.ByteString.Lazy as Atto
 import System.Logging.Facade
 
 import Control.Lens as Lens
 
 import Data.Warc as Warc
-import Data.Warc.Header as Warc
 import qualified Network.HTTP.Types as Http
 import qualified Network.HTTP.Parse as Http
 import Network.HTTP.Media
-import SimplIR.HTML.Clean as Clean
-import Tokenise
 import Types
 
 data MsgType = MsgResponse | MsgRequest
