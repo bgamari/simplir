@@ -16,11 +16,13 @@ cabal-version:       >=1.10
 
 library
   default-language:    Haskell2010
+  ghc-options:         -Wall
   hs-source-dirs:      src
   other-modules:
       DiskIndex.Posting.Merge
       DiskIndex.Posting.Types
       Data.SmallNat
+      Control.Foldl.Vector
 
   exposed-modules:
       DiskIndex
@@ -77,6 +79,8 @@ library
       foldl >= 1.1,
       vector >= 0.11,
       vector-th-unbox >= 0.2,
+      primitive,
+
       b-tree,
       heaps,
       vector-binary-instances >= 0.2,
