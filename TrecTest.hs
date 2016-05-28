@@ -59,7 +59,7 @@ main = do
 
     let chunkIndexes :: Producer (FragmentIndex (VU.Vector Position)) (SafeT IO) ()
         chunkIndexes =
-                consumePostings 10000
+                consumePostings 10000 (TermFreq . VU.length)
              $  docs
             >-> cat'                                          @TREC.Document
             >-> P.P.map (\d -> (DocName $ BS.S.toShort $ T.E.encodeUtf8 $ TREC.docNo d, TREC.docText d))
@@ -77,7 +77,7 @@ main = do
                             $ foldTokens accumPositions postings))
             >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
 
-    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings)) -> do
+    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs)) -> do
         liftIO $ print (n, M.size docIds)
         let indexPath = "index-"++show n
         liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
@@ -91,7 +91,8 @@ main = do
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
     ( M.Map DocumentId (DocumentName, DocumentLength)
-    , SavedPostings p)
+    , SavedPostings p
+    , M.Map Term TermFrequency)
 
 zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
 zipWithList = go
@@ -122,20 +123,29 @@ foldChunks chunkSize (Foldl.FoldM step initial extract) = start
 
 consumePostings :: (Monad m, Ord p)
                 => Int
+                -> (p -> TermFrequency)
                 -> Producer ((DocumentId, DocumentName), TermPostings p) m ()
                 -> Producer (FragmentIndex p) m ()
-consumePostings chunkSize =
-    foldChunks chunkSize (Foldl.generalize consumePostings')
+consumePostings chunkSize getTermFreq =
+    foldChunks chunkSize (Foldl.generalize $ consumePostings' getTermFreq)
 
-consumePostings' :: (Ord p)
-                 => Fold ((DocumentId, DocumentName), TermPostings p)
+consumePostings' :: forall p. (Ord p)
+                 => (p -> TermFrequency)
+                 -> Fold ((DocumentId, DocumentName), TermPostings p)
                          (FragmentIndex p)
-consumePostings' =
-    (,) <$> docMeta <*> lmap snd postings
+consumePostings' getTermFreq =
+    (,,) <$> docMeta
+         <*> lmap snd postings
+         <*> lmap snd termFreqs
   where
     docMeta  = lmap (\((docId, docName), postings) -> M.singleton docId (docName, DocLength $ sum $ fmap length postings))
                       Foldl.mconcat
     postings = fmap (M.map $ VG.modify sort . fromFoldable) foldPostings
+
+    termFreqs :: Fold (TermPostings p) (M.Map Term TermFrequency)
+    termFreqs = Foldl.handles traverse
+                $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps))
+                $ Foldl.mconcat
 
 fromFoldable :: (Foldable f, VG.Vector v a)
              => f a -> v a
