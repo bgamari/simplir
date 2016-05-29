@@ -11,6 +11,7 @@ packages:
     /opt/exp/haskell-packages/safecopy/*.cabal
     /opt/exp/haskell-packages/lens-action/*.cabal
     /opt/exp/haskell-packages/lens/*.cabal
+    /opt/exp/haskell-packages/heaps/*.cabal
     /opt/exp/haskell-packages/pipes/*.cabal
     /opt/exp/haskell-packages/binary-serialise-cbor/*.cabal
     ./*.cabal
@@ -23,12 +24,12 @@ flags: -test-doctests
 package laura
     profiling-detail: all
     tests: true
-    ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo -ddump-stg
+    --ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo -ddump-stg
     -- -ticky -ticky-allocd -ticky-dyn-thunk
 
 package b-tree
     --profiling-detail: exported-functions
     profiling-detail: all
     tests: true
-    ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo
+    --ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo
 
