@@ -7,16 +7,20 @@ import Numeric.Log hiding (sum)
 import Types
 
 type Score = Log Double
-type TermProb = Log Double
+
+-- | An oracle providing a term's probability under the background language
+-- model.
+type TermProb = Term -> Log Double
 
 data Smoothing
     = NoSmoothing
-    | Dirichlet !(Log Double) (Term -> Log Double)
+    | Dirichlet !(Log Double) TermProb
       -- ^ Given by Dirichlet factor $mu$ and background
       -- term probability. Values around the average
       -- document length or of order 100 are good guesses.
     | Laplace
-    -- | Mercer
+    | JelinekMercer !(Log Double) TermProb
+      -- ^ Jelinek-Mercer smoothing.
 
 -- | Score a document under the query likelihood model.
 queryLikelihood :: Smoothing                -- ^ what smoothing to apply
@@ -25,22 +29,24 @@ queryLikelihood :: Smoothing                -- ^ what smoothing to apply
                 -> [(Term, Int)]            -- ^ the document's term frequencies
                 -> Score                    -- ^ the score under the query likelihood model
 queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
-    let denom = case smoothing of
-                  NoSmoothing            -> realToFrac docLen
-                  Dirichlet mu _termProb -> realToFrac docLen + mu
-                  Laplace                -> realToFrac docLen + 2
+    let docLen' = realToFrac docLen :: Log Double
+
+        score term tf =
+            case smoothing of
+              NoSmoothing           -> tf' / docLen'
+              Dirichlet mu termProb -> (tf' + mu * termProb term) / (docLen' + mu)
+              Laplace               -> (tf' + 1) / (docLen' + 2)
+              JelinekMercer alpha termProb ->
+                  alpha * (tf' / docLen') + (1-alpha) * termProb term
+          where tf' = realToFrac tf
 
         docTfs :: HM.HashMap Term Int
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
         accum :: HM.HashMap Term Int -> (Term, Int) -> HM.HashMap Term Int
         accum acc (term, tf) = HM.adjust (+tf) term acc
-    in product [ (num / denom)^(queryTf term)
+    in product [ (score term tf)^(queryTf term)
                | (term, tf) <- HM.toList docTfs
-               , let num = case smoothing of
-                             NoSmoothing            -> realToFrac tf
-                             Dirichlet mu termProb  -> realToFrac tf + mu * termProb term
-                             Laplace                -> realToFrac tf + 1
                ]
   where
     queryTerms :: HM.HashMap Term Int
@@ -48,4 +54,3 @@ queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
 
     queryTf :: Term -> Int
     queryTf term = fromMaybe 0 $ HM.lookup term queryTerms
-
