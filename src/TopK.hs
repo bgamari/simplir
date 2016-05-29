@@ -35,13 +35,13 @@ topK' updatePeriod k = dimap Down (map unDown) (minK updatePeriod k)
 
 minK :: Ord a => Int -> Int -> Fold.Fold a [a]
 minK updatePeriod k =
-    Fold.Fold step accum0 (toList . heap)
+    Fold.Fold step accum0 (take k . toList . heap)
   where
     accum0 = Accum updatePeriod Nothing H.empty
 
     -- doesn't make threshold
     step acc@(Accum _ (Just thresh) _) x
-      | x < thresh = acc
+      | x > thresh = acc
     -- update threshold
     step acc@(Accum 0 mthresh heap) x =
         let (heap', rest) = H.splitAt (k-1) heap
@@ -53,7 +53,9 @@ minK updatePeriod k =
         in step acc' x
     -- otherwise just insert it
     step acc x =
-        acc { heap = H.take k $ H.insert x (heap acc) }
+        acc { heap = H.insert x (heap acc)
+            , insertions = insertions acc - 1
+            }
 {-# INLINE minK #-}
 
 testMinK :: (Ord a, Show a) => Int -> Positive Int -> [a] -> Property
