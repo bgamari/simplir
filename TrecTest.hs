@@ -11,7 +11,9 @@ import Data.Char
 import Data.Profunctor
 import Data.Foldable
 
+import Data.Binary
 import qualified Data.ByteString.Short as BS.S
+import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T.E
@@ -28,6 +30,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Pipes.Text.Encoding as P.T
 
 import Options.Applicative
+import System.FilePath
 
 import Utils
 import Types
@@ -83,6 +86,7 @@ main = do
         liftIO $ print (n, M.size docIds)
         let indexPath = "index-"++show n
         liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
+        liftIO $ BS.L.writeFile (indexPath </> "term-freqs") $ encode termFreqs
         yield indexPath
 
     chunkIdxs <- mapM DiskIndex.open chunks

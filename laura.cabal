@@ -208,6 +208,7 @@ executable trec-test
       pipes-bytestring >=2.1 && <2.2,
       pipes-text,
       pipes-safe,
+      filepath,
       vector,
       vector-algorithms,
       profunctors,
