@@ -67,14 +67,17 @@ main = do
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])
             >-> P.P.map (fmap normTerms)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
+            >-> P.P.map (\(docName, terms) -> (docName, DocLength $ length terms, terms))
+            >-> cat'                                          @(DocumentName, DocumentLength, [(Term, Position)])
             >-> zipWithList [DocId 0..]
-            >-> cat'                                          @(DocumentId, (DocumentName, [(Term, Position)]))
-            >-> P.P.map (\(docId, (docName, postings)) ->
-                          ((docId, docName),
-                            toPostings docId
+            >-> cat'                                          @(DocumentId, (DocumentName, DocumentLength, [(Term, Position)]))
+            >-> P.P.map (\(docId, (docName, docLen, postings)) ->
+                          ((docId, docName, docLen)
+                          , toPostings docId
                             $ M.assocs
-                            $ foldTokens accumPositions postings))
-            >-> cat'                                          @((DocumentId, DocumentName), TermPostings (VU.Vector Position))
+                            $ foldTokens accumPositions postings
+                          ))
+            >-> cat'                                          @((DocumentId, DocumentName, DocumentLength), TermPostings (VU.Vector Position))
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs)) -> do
         liftIO $ print (n, M.size docIds)
@@ -123,21 +126,21 @@ foldChunks chunkSize (Foldl.FoldM step initial extract) = start
 consumePostings :: (Monad m, Ord p)
                 => Int
                 -> (p -> TermFrequency)
-                -> Producer ((DocumentId, DocumentName), TermPostings p) m ()
+                -> Producer ((DocumentId, DocumentName, DocumentLength), TermPostings p) m ()
                 -> Producer (FragmentIndex p) m ()
 consumePostings chunkSize getTermFreq =
     foldChunks chunkSize (Foldl.generalize $ consumePostings' getTermFreq)
 
 consumePostings' :: forall p. (Ord p)
                  => (p -> TermFrequency)
-                 -> Fold ((DocumentId, DocumentName), TermPostings p)
+                 -> Fold ((DocumentId, DocumentName, DocumentLength), TermPostings p)
                          (FragmentIndex p)
 consumePostings' getTermFreq =
     (,,) <$> docMeta
          <*> lmap snd postings
          <*> lmap snd termFreqs
   where
-    docMeta  = lmap (\((docId, docName), postings) -> M.singleton docId (docName, DocLength $ sum $ fmap length postings))
+    docMeta  = lmap (\((docId, docName, docLen), postings) -> M.singleton docId (docName, docLen))
                       Foldl.mconcat
     postings = fmap (M.map $ VG.modify sort . fromFoldable) foldPostings
 
