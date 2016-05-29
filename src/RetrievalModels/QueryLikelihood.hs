@@ -18,26 +18,28 @@ data Smoothing
     -- | Laplace
     -- | Mercer
 
-queryLikelihood :: Smoothing
-                -> [(Term, Int)]
-                -> (doc, DocumentLength, [(Term, Int)])
-                -> (doc, Score)
-queryLikelihood smoothing query = \(docId, DocLength docLen, docTerms) ->
+-- | Score a document under the query likelihood model.
+queryLikelihood :: Smoothing                -- ^ what smoothing to apply
+                -> [(Term, Int)]            -- ^ the query's term frequencies
+                -> DocumentLength           -- ^ the length of the document being scored
+                -> [(Term, Int)]            -- ^ the document's term frequencies
+                -> Score                    -- ^ the score under the query likelihood model
+queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
     let denom = case smoothing of
-                  NoSmoothing           -> realToFrac docLen
-                  Dirichlet mu termProb -> realToFrac docLen + mu
+                  NoSmoothing            -> realToFrac docLen
+                  Dirichlet mu _termProb -> realToFrac docLen + mu
 
         docTfs :: HM.HashMap Term Int
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
         accum :: HM.HashMap Term Int -> (Term, Int) -> HM.HashMap Term Int
         accum acc (term, tf) = HM.adjust (+tf) term acc
-    in (docId, product [ (num / denom)^(queryTf term)
-                       | (term, tf) <- HM.toList docTfs
-                       , let num = case smoothing of
-                                     NoSmoothing -> realToFrac tf
-                                     Dirichlet mu termProb -> realToFrac tf + mu * termProb term
-                       ])
+    in product [ (num / denom)^(queryTf term)
+               | (term, tf) <- HM.toList docTfs
+               , let num = case smoothing of
+                             NoSmoothing -> realToFrac tf
+                             Dirichlet mu termProb -> realToFrac tf + mu * termProb term
+               ]
   where
     queryTerms :: HM.HashMap Term Int
     queryTerms = HM.fromList query

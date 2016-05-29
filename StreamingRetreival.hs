@@ -84,11 +84,12 @@ main = do
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])
             >-> P.P.map (fmap normTerms)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
-            >-> P.P.map (\(docName, terms) ->
+            >-> P.P.map (second $ \terms ->
                            let docLength = DocLength $ length terms
                                terms' = map (\(term,_) -> (term, 1)) terms
-                           in swap $ queryLikelihood NoSmoothing queryTerms (docName, docLength, terms')
+                           in queryLikelihood NoSmoothing queryTerms docLength terms'
                         )
+            >-> P.P.map swap
             >-> cat'                                          @(Score, DocumentName)
 
         liftIO $ putStrLn $ unlines $ map show results
