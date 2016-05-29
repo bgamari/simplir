@@ -41,7 +41,7 @@ data DiskIndex docmeta p
 open :: (Binary docmeta, Binary p) => FilePath -> IO (DiskIndex docmeta p)
 open path = do
     doc <- Doc.open $ path </> "documents"
-    Right tf <- PostingIdx.open $ path </> "term-freq" -- TODO: Error handling
+    Right tf <- PostingIdx.open $ path </> "postings" -- TODO: Error handling
     return $ DiskIndex tf doc
 
 -- | Build an on-disk index from a set of documents and their postings.
@@ -52,7 +52,7 @@ fromDocuments :: (Binary docmeta, Binary p)
               -> IO ()
 fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
-    PostingIdx.fromTermPostings postingChunkSize (dest </> "term-freq") postings
+    PostingIdx.fromTermPostings postingChunkSize (dest </> "postings") postings
     Doc.write (dest </> "documents") (M.fromList docs)
 
 documents :: DiskIndex docmeta p -> [(DocumentId, docmeta)]
@@ -100,5 +100,5 @@ merge dest idxs = do
 
     let mergedSize = sum $ map (PostingIdx.termCount . tfIdx) idxs
     PostingIdx.Merge.merge postingChunkSize
-                           (dest </> "term-freq") mergedSize
+                           (dest </> "postings") mergedSize
                            (zip docIds0 allPostings)
