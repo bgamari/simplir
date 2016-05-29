@@ -32,7 +32,7 @@ args =
       <*> some (argument (Term.fromString <$> str) (help "query terms"))
 
 --smoothing = Dirichlet 2500 (const 0.01)
-smoothing = NoSmoothing
+smoothing = Laplace
 
 main :: IO ()
 main = do
