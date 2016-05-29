@@ -11,6 +11,8 @@ import qualified Data.Map as M
 import Control.Monad.Trans.Except
 import qualified Control.Foldl as Fold
 import qualified Data.Text as T
+import qualified Data.ByteString.Lazy as BS.L
+import System.FilePath
 
 import Pipes
 import qualified Pipes.Prelude as PP
@@ -23,6 +25,7 @@ import Term
 import RetrievalModels.QueryLikelihood
 import TopK
 import Options.Applicative
+import qualified BTree
 
 args :: Parser (FilePath, Int, [Term])
 args =
@@ -37,7 +40,9 @@ smoothing = Laplace
 main :: IO ()
 main = do
     (indexPath, resultCount, query) <- execParser $ info (helper <*> args) mempty
-    idx <- DiskIndex.open "index" :: IO (DiskIndex (DocumentName, DocumentLength) [Position])
+    idx <- DiskIndex.open indexPath :: IO (DiskIndex (DocumentName, DocumentLength) [Position])
+    Right tfIdx <- BTree.open (indexPath </> "term-freqs")
+        :: IO (Either String (BTree.LookupTree Term TermFrequency))
 
     let query' = map (,1) query
         termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
@@ -60,3 +65,6 @@ main = do
 
     putStrLn $ unlines $ map show $ results
     return ()
+
+traceP :: (MonadIO m) => (a -> String) -> Pipe a a m r
+traceP f = PP.mapM (\x -> liftIO (putStrLn $ f x) >> return x)

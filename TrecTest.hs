@@ -11,9 +11,7 @@ import Data.Char
 import Data.Profunctor
 import Data.Foldable
 
-import Data.Binary
 import qualified Data.ByteString.Short as BS.S
-import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T.E
@@ -23,6 +21,7 @@ import qualified Data.Vector.Unboxed as VU
 import           Data.Vector.Algorithms.Intro (sort)
 import qualified Control.Foldl as Foldl
 import           Control.Foldl (FoldM, Fold)
+import           Control.Monad.Trans.Except
 
 import           Pipes
 import           Pipes.Safe
@@ -31,6 +30,7 @@ import qualified Pipes.Text.Encoding as P.T
 
 import Options.Applicative
 import System.FilePath
+import qualified BTree
 
 import Utils
 import Types
@@ -86,13 +86,19 @@ main = do
         liftIO $ print (n, M.size docIds)
         let indexPath = "index-"++show n
         liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
-        liftIO $ BS.L.writeFile (indexPath </> "term-freqs") $ encode termFreqs
+        liftIO $ BTree.fromOrderedToFile 32 (fromIntegral $ M.size termFreqs)
+                                         (indexPath </> "term-freqs")
+                                         (each $ map (uncurry BTree.BLeaf) $ M.toAscList termFreqs)
         yield indexPath
 
     chunkIdxs <- mapM DiskIndex.open chunks
               :: IO [DiskIndex (DocumentName, DocumentLength) (VU.Vector Position)]
     putStrLn $ "Merging "++show (length chunkIdxs)++" chunks"
     DiskIndex.merge "index" chunkIdxs
+
+    Right trees <- runExceptT $ mapM (\indexPath -> ExceptT $ BTree.open (indexPath </> "term-freqs")) chunks
+        :: IO (Either String [BTree.LookupTree Term TermFrequency])
+    BTree.mergeTrees (\x y -> pure $ x <> y) 32 ("index" </> "term-freqs") trees
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
