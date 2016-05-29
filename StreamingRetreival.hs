@@ -64,8 +64,8 @@ main = do
             filterTerms = filter ((>2) . T.length . fst)
             caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
-    let queryTerms :: [(Term, Int)]
-        queryTerms = M.assocs $ M.unionsWith (+) [ M.singleton (Term.fromText t) 1
+    let queryTerms :: M.Map Term Int
+        queryTerms = M.unionsWith (+) [ M.singleton (Term.fromText t) 1
                                                  | t <- T.words query
                                                  ]
 
@@ -84,10 +84,11 @@ main = do
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])
             >-> P.P.map (fmap normTerms)
             >-> cat'                                          @(DocumentName, [(Term, Position)])
+            >-> P.P.filter (any (`M.member` queryTerms) . map fst . snd)
             >-> P.P.map (second $ \terms ->
                            let docLength = DocLength $ length terms
                                terms' = map (\(term,_) -> (term, 1)) terms
-                           in queryLikelihood NoSmoothing queryTerms docLength terms'
+                           in queryLikelihood Laplace (M.assocs queryTerms) docLength terms'
                         )
             >-> P.P.map swap
             >-> cat'                                          @(Score, DocumentName)
