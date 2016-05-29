@@ -11,11 +11,11 @@ type TermProb = Log Double
 
 data Smoothing
     = NoSmoothing
-    | Dirichlet (Log Double) (Term -> Log Double)
+    | Dirichlet !(Log Double) (Term -> Log Double)
       -- ^ Given by Dirichlet factor $mu$ and background
       -- term probability. Values around the average
       -- document length or of order 100 are good guesses.
-    -- | Laplace
+    | Laplace
     -- | Mercer
 
 -- | Score a document under the query likelihood model.
@@ -28,6 +28,7 @@ queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
     let denom = case smoothing of
                   NoSmoothing            -> realToFrac docLen
                   Dirichlet mu _termProb -> realToFrac docLen + mu
+                  Laplace                -> realToFrac docLen + 2
 
         docTfs :: HM.HashMap Term Int
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
@@ -37,8 +38,9 @@ queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
     in product [ (num / denom)^(queryTf term)
                | (term, tf) <- HM.toList docTfs
                , let num = case smoothing of
-                             NoSmoothing -> realToFrac tf
-                             Dirichlet mu termProb -> realToFrac tf + mu * termProb term
+                             NoSmoothing            -> realToFrac tf
+                             Dirichlet mu termProb  -> realToFrac tf + mu * termProb term
+                             Laplace                -> realToFrac tf + 1
                ]
   where
     queryTerms :: HM.HashMap Term Int
