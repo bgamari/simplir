@@ -49,9 +49,8 @@ main = do
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
         normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
-            caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
             filterTerms = filter ((>2) . T.length . fst)
-            --filterTerms = filter (\(k,_) -> k `HS.member` takeTerms)
+            caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     let docs :: Producer TREC.Document (SafeT IO) ()
         docs =
