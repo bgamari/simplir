@@ -17,6 +17,8 @@ import System.FilePath
 import Pipes
 import qualified Pipes.Prelude as PP
 
+import Numeric.Log
+import qualified Data.SmallUtf8 as Utf8
 import Utils
 import DiskIndex
 import CollectPostings
@@ -27,16 +29,19 @@ import TopK
 import Options.Applicative
 import qualified BTree
 
-args :: Parser (FilePath, Int, [Term])
+type QueryId = String
+
+args :: Parser (FilePath, Int, QueryId, [Term])
 args =
-    (,,)
+    (,,,)
       <$> option str (short 'i' <> long "index" <> value "index" <> help "index path")
       <*> option auto (short 'n' <> long "count" <> value 20 <> help "result count")
+      <*> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
       <*> some (argument (Term.fromString <$> str) (help "query terms"))
 
 main :: IO ()
 main = do
-    (indexPath, resultCount, query) <- execParser $ info (helper <*> args) mempty
+    (indexPath, resultCount, qid, query) <- execParser $ info (helper <*> args) mempty
     idx <- DiskIndex.open indexPath :: IO (DiskIndex (DocumentName, DocumentLength) [Position])
     Right tfIdx <- BTree.open (indexPath </> "term-freqs")
         :: IO (Either String (BTree.LookupTree Term TermFrequency))
@@ -62,8 +67,9 @@ main = do
                               . flip DiskIndex.lookupDoc idx)
        >-> cat'                            @(Entry Score DocumentName)
 
-    putStrLn $ unlines $ map show $ results
-    return ()
+    let toRunFile rank (Entry (Exp score) (DocName docName)) = unwords
+            [ qid, "Q0", Utf8.toString docName, show rank, show score, "simplir" ]
+    liftIO $ putStrLn $ unlines $ zipWith toRunFile [1..] results
 
 traceP :: (MonadIO m) => (a -> String) -> Pipe a a m r
 traceP f = PP.mapM (\x -> liftIO (putStrLn $ f x) >> return x)
