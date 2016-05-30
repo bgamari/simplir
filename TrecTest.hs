@@ -16,6 +16,7 @@ import qualified Data.Set as S
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
+import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T.IO
 import qualified Data.Text.Encoding as T.E
@@ -66,6 +67,11 @@ main = do
         docs =
             mapM_ (trecDocuments' . P.T.decodeUtf8 . decompress compression . produce) dsrcs
 
+    let killPunctuation c
+          | c `HS.member` chars = ' '
+          | otherwise           = c
+          where chars = HS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
+
     let chunkIndexes :: Producer (FragmentIndex (VU.Vector Position)) (SafeT IO) ()
         chunkIndexes =
                 consumePostings 10000 (TermFreq . VU.length)
@@ -73,6 +79,7 @@ main = do
             >-> cat'                                          @TREC.Document
             >-> P.P.map (\d -> (DocName $ Utf8.fromText $ TREC.docNo d, TREC.docText d))
             >-> cat'                                          @(DocumentName, T.Text)
+            >-> P.P.map (fmap $ T.map killPunctuation)
             >-> P.P.map (fmap tokeniseWithPositions)
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])
             >-> P.P.map (\(docName, terms) ->
