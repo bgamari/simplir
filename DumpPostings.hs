@@ -4,6 +4,7 @@
 import Control.Monad
 import qualified DiskIndex
 import qualified DiskIndex.Posting as PostingIdx
+import qualified Term
 import Types
 import Options.Applicative
 
@@ -18,15 +19,22 @@ main = do
     (index, terms) <- execParser $ info (helper <*> args) mempty
     idx <- DiskIndex.open index :: IO (DiskIndex.DiskIndex (DocumentName, DocumentLength) [Position])
 
-    let toDocName :: Show a => Posting a -> String
-        toDocName = maybe "none" show . flip DiskIndex.lookupDoc idx . postingDocId
+    let toDocName :: DocumentId -> String
+        toDocName = maybe "none" show . flip DiskIndex.lookupDoc idx
+        showTermPostings :: Term -> [Posting [Position]] -> String
+        showTermPostings term postings =
+            show term ++ "\n"
+            ++ unlines [ "  "++toDocName (postingDocId p) ++ " " ++ show (length $ postingBody p)
+                       | p <- postings
+                       ]
     if null terms
       then
         forM_ (PostingIdx.walk $ DiskIndex.tfIdx idx) $ \(term, postings) ->
-          putStrLn $ show term ++ "\t" ++ show (map toDocName postings)
+          putStrLn $ showTermPostings term postings
       else
         forM_ terms $ \term ->
-          case DiskIndex.lookupPostings (Types.fromString term) idx of
-            Just postings ->
-                putStrLn $ show term ++ "\t" ++ show (map toDocName postings)
+          let term' = Term.fromString term
+          in case DiskIndex.lookupPostings term' idx of
+               Just postings ->
+                 putStrLn $ showTermPostings term' postings
     return ()
