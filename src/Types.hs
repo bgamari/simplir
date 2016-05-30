@@ -11,6 +11,7 @@ module Types ( module Term
              , module Types
              ) where
 
+import Data.String (IsString)
 import Data.Binary
 import GHC.Generics
 import Control.DeepSeq
@@ -32,7 +33,7 @@ derivingUnbox "DocumentId"
   [| DocId |]
 
 newtype DocumentName = DocName Utf8.SmallUtf8
-                     deriving (Show, Eq, Ord, Binary)
+                     deriving (Show, Eq, Ord, Binary, IsString)
 
 instance Arbitrary DocumentName where
     arbitrary = do
