@@ -18,7 +18,7 @@ library
   other-extensions:    OverloadedStrings, RecordWildCards
   default-language:    Haskell2010
   build-depends:       base >=4.8 && <4.10,
-                       pipes >=4.1 && <4.2,
+                       pipes >=4.1 && <4.3,
                        text >=1.2 && <1.3,
                        transformers >=0.4 && <0.5,
                        case-insensitive >=1.2 && <1.3,
@@ -30,13 +30,13 @@ library
 benchmark bench
   type:                exitcode-stdio-1.0
   main-is:             Benchmark.hs
-  build-depends:       base >=4.8 && <4.10,
-                       pipes >=4.1 && <4.2,
-                       text >=1.2 && <1.3,
-                       criterion >=1.1 && <1.2,
-                       transformers >=0.4 && <0.5,
-                       case-insensitive >=1.2 && <1.3,
-                       pipes-attoparsec >=0.5 && <0.6,
-                       pipes-parse >=3.0 && <3.1,
-                       lens >=4.13 && <4.15,
-                       html-parse >=0.1 && <0.2
+  build-depends:       base,
+                       pipes,
+                       text,
+                       transformers,
+                       case-insensitive,
+                       pipes-attoparsec,
+                       pipes-parse,
+                       lens,
+                       html-parse,
+                       criterion >=1.1 && <1.2

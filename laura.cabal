@@ -49,7 +49,7 @@ library
   build-depends:
       base >=4.8 && <4.9,
       pipes-bytestring >=2.1 && <2.2,
-      pipes >=4.1 && <4.2,
+      pipes,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       contravariant >= 1.3 && <1.5,
@@ -104,7 +104,7 @@ executable laura
       base >=4.8 && <4.9,
       unordered-containers >= 0.2,
       pipes-bytestring >=2.1 && <2.2,
-      pipes >=4.1 && <4.2,
+      pipes,
       pipes-safe,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
@@ -127,7 +127,7 @@ executable dump-postings
   build-depends:
       base >=4.8 && <4.9,
       pipes-bytestring >=2.1 && <2.2,
-      pipes >=4.1 && <4.2,
+      pipes,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       mtl,
@@ -151,7 +151,7 @@ executable score-query
   build-depends:
       base >=4.8 && <4.9,
       pipes-bytestring >=2.1 && <2.2,
-      pipes >=4.1 && <4.2,
+      pipes,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       filepath,
@@ -178,7 +178,7 @@ executable streaming-retreival
   build-depends:
       base >=4.8 && <4.9,
       pipes-bytestring >=2.1 && <2.2,
-      pipes >=4.1 && <4.2,
+      pipes,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       filepath,
@@ -210,7 +210,7 @@ executable trec-test
       mtl,
       binary,
       foldl,
-      pipes >=4.1 && <4.2,
+      pipes,
       pipes-bytestring >=2.1 && <2.2,
       pipes-text,
       pipes-safe,
