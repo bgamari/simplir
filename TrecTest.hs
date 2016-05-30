@@ -75,13 +75,18 @@ main = do
             >-> cat'                                          @(DocumentName, T.Text)
             >-> P.P.map (fmap tokeniseWithPositions)
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])
+            >-> P.P.map (\(docName, terms) ->
+                           let docLen = DocLength $ length $ filter (not . T.all (not . isAlphaNum) . fst) terms
+                           in ((docName, docLen), terms))
+            >-> cat'                                          @((DocumentName, DocumentLength), [(T.Text, Position)])
             >-> P.P.map (fmap normTerms)
-            >-> cat'                                          @(DocumentName, [(Term, Position)])
-            >-> P.P.map (\(docName, terms) -> (docName, DocLength $ length terms, terms))
-            >-> cat'                                          @(DocumentName, DocumentLength, [(Term, Position)])
+            >-> cat'                                          @((DocumentName, DocumentLength), [(Term, Position)])
+            >-> P.P.mapM (\x@((docName, docLen), terms) -> do
+                               liftIO $ if docName == "FBIS4-7811" then mapM_ print terms else return ()
+                               return x)
             >-> zipWithList [DocId 0..]
-            >-> cat'                                          @(DocumentId, (DocumentName, DocumentLength, [(Term, Position)]))
-            >-> P.P.map (\(docId, (docName, docLen, postings)) ->
+            >-> cat'                                          @(DocumentId, ((DocumentName, DocumentLength), [(Term, Position)]))
+            >-> P.P.map (\(docId, ((docName, docLen), postings)) ->
                           ((docId, docName, docLen)
                           , toPostings docId
                             $ M.assocs
