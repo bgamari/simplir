@@ -12,10 +12,12 @@ import Data.Profunctor
 import Data.Foldable
 
 import Data.Binary
+import qualified Data.Set as S
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
+import qualified Data.Text.IO as T.IO
 import qualified Data.Text.Encoding as T.E
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as VG
@@ -52,10 +54,12 @@ compression = Just GZip
 main :: IO ()
 main = do
     dsrcs <- execParser $ info (helper <*> opts) mempty
+    stopwords <- S.fromList . T.lines <$> T.IO.readFile "inquery-stopwordlist"
+
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
         normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
-            filterTerms = filter ((>2) . T.length . fst)
+            filterTerms = filter ((>2) . T.length . fst) . filter (not . (`S.member` stopwords) . fst)
             caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     let docs :: Producer TREC.Document (SafeT IO) ()

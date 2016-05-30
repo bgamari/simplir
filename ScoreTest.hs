@@ -8,9 +8,11 @@ import Data.Tuple
 import Data.Binary
 import Data.Bifunctor
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.Trans.Except
 import qualified Control.Foldl as Fold
 import qualified Data.Text as T
+import qualified Data.Text.IO as T.IO
 import qualified Data.ByteString.Lazy as BS.L
 import System.FilePath
 
@@ -47,6 +49,8 @@ main = do
         :: IO (Either String (BTree.LookupTree Term TermFrequency))
     collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
     let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
+
+    stopwords <- S.fromList . map Term.fromText . T.lines <$> T.IO.readFile "inquery-stopwordlist"
 
     let query' = map (,1) query
         termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
