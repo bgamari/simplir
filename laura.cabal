@@ -26,6 +26,7 @@ library
       Control.Foldl.Map
 
   exposed-modules:
+      Data.SmallUtf8
       DiskIndex
       DiskIndex.Posting
       DiskIndex.Document

@@ -16,9 +16,9 @@ import Control.Error
 import Data.Foldable
 import Prelude hiding (log)
 
+import qualified Data.SmallUtf8 as Utf8
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
-import qualified Data.ByteString.Short as BS.S
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T.E
@@ -81,7 +81,7 @@ decodeDocument (hdr, content) = do
     decode  <- findDecoder respHeaders
 
     let Warc.RecordId (Warc.Uri docUri) = recId
-        !docName = DocName $ BS.S.toShort docUri
+        !docName = DocName $ Utf8.fromAscii docUri
     return (docName, decode $ BS.L.toStrict body)
 
 mapFoldableM :: (Monad m, Foldable f)  => (a -> m (f b)) -> Pipe a b m r

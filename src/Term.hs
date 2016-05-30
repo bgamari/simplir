@@ -2,40 +2,25 @@
 
 module Term where
 
-import Data.Char (ord)
-import Data.String
+import Data.String (IsString)
 import Control.DeepSeq
 import Data.Binary
-import Data.Binary.Get
-import Data.Binary.Put
 import Data.Hashable
-import qualified Data.ByteString.Short as BS.S
-import qualified Data.ByteString.Builder as BS.B
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T.E
 import Test.QuickCheck
+import qualified Data.Text as T
+import qualified Data.SmallUtf8 as Utf8
 
-newtype Term = Term BS.S.ShortByteString
-             deriving (Eq, Ord, Show, NFData, Hashable, IsString)
+newtype Term = Term Utf8.SmallUtf8
+             deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary)
 
 fromText :: T.Text -> Term
-fromText = Term . BS.S.toShort . T.E.encodeUtf8
+fromText = Term . Utf8.fromText
 
 toText :: Term -> T.Text
-toText (Term t) = T.E.decodeUtf8 $ BS.S.fromShort t
+toText (Term t) = Utf8.toText t
 
 fromString :: String -> Term
 fromString = fromText . T.pack
 
-instance Binary Term where
-    get = {-# SCC getTerm #-} do
-        len <- fromIntegral <$> getWord8
-        Term . BS.S.toShort <$> getByteString len
-    {-# INLINE get #-}
-    put (Term t) = do
-        putWord8 $ fromIntegral $ BS.S.length t
-        putBuilder $ BS.B.shortByteString t
-    {-# INLINE put #-}
-
 instance Arbitrary Term where
-    arbitrary = Term . BS.S.pack . map (fromIntegral . ord) <$> vectorOf 3 (choose ('a','e'))
+    arbitrary = fromString <$> vectorOf 3 (choose ('a','e'))

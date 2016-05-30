@@ -34,6 +34,7 @@ import Options.Applicative
 import System.FilePath
 import qualified BTree
 
+import qualified Data.SmallUtf8 as Utf8
 import Utils
 import Types
 import Term
@@ -66,7 +67,7 @@ main = do
                 consumePostings 10000 (TermFreq . VU.length)
              $  docs
             >-> cat'                                          @TREC.Document
-            >-> P.P.map (\d -> (DocName $ BS.S.toShort $ T.E.encodeUtf8 $ TREC.docNo d, TREC.docText d))
+            >-> P.P.map (\d -> (DocName $ Utf8.fromText $ TREC.docNo d, TREC.docText d))
             >-> cat'                                          @(DocumentName, T.Text)
             >-> P.P.map (fmap tokeniseWithPositions)
             >-> cat'                                          @(DocumentName, [(T.Text, Position)])

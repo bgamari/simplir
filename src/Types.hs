@@ -14,12 +14,11 @@ module Types ( module Term
 import Data.Binary
 import GHC.Generics
 import Control.DeepSeq
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Short as BS.S
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
 import Test.QuickCheck
 import Term
+import qualified Data.SmallUtf8 as Utf8
 
 newtype DocumentId = DocId Int
                    deriving (Show, Eq, Ord, Enum, Binary)
@@ -32,13 +31,13 @@ derivingUnbox "DocumentId"
   [| \(DocId n) -> n |]
   [| DocId |]
 
-newtype DocumentName = DocName BS.S.ShortByteString
+newtype DocumentName = DocName Utf8.SmallUtf8
                      deriving (Show, Eq, Ord, Binary)
 
 instance Arbitrary DocumentName where
     arbitrary = do
         n <- arbitrary :: Gen Int
-        return $ DocName $ BS.S.toShort $ BS.pack $ "doc"++show n
+        return $ DocName $ Utf8.fromString $ "doc"++show n
 
 -- | An interval within a discrete *.
 data Span = Span { begin, end :: !Int }
