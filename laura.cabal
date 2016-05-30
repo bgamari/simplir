@@ -178,6 +178,7 @@ executable streaming-retreival
       pipes >=4.1 && <4.2,
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
+      filepath,
       mtl,
       binary,
       foldl,

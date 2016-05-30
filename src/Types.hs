@@ -97,6 +97,9 @@ newtype DocumentLength = DocLength Int
 newtype TermFrequency = TermFreq Int
                       deriving (Eq, Ord, Show, Binary)
 
+getTermFrequency :: Real a => TermFrequency -> a
+getTermFrequency (TermFreq x) = fromIntegral x
+
 instance Monoid TermFrequency where
     mempty = TermFreq 0
     TermFreq a `mappend` TermFreq b = TermFreq (a + b)

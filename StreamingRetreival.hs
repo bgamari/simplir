@@ -15,6 +15,7 @@ import Data.Monoid
 import Data.Tuple
 import Data.Char
 
+import Data.Binary
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.ByteString.Short as BS.S
@@ -26,6 +27,7 @@ import qualified Data.Text.IO as TIO
 import qualified Data.Text.Lazy as T.L
 import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
+import System.FilePath
 
 import           Pipes
 import           Pipes.Safe
@@ -45,6 +47,7 @@ import DataSource
 import TopK
 import SimplIR.TREC as TREC
 import DiskIndex
+import qualified BTree
 import RetrievalModels.QueryLikelihood
 
 opts :: Parser (Int, T.Text, [DataLocation])
@@ -57,6 +60,12 @@ compression = Just GZip
 
 main :: IO ()
 main = do
+    let indexPath = "index"
+    Right tfIdx <- BTree.open (indexPath </> "term-freqs")
+        :: IO (Either String (BTree.LookupTree Term TermFrequency))
+    collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
+    let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
+
     (resultCount, query, dsrcs) <- execParser $ info (helper <*> opts) mempty
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
         normTerms = map (first Term.fromText) . filterTerms . caseNorm
@@ -88,7 +97,7 @@ main = do
             >-> P.P.map (second $ \terms ->
                            let docLength = DocLength $ length terms
                                terms' = map (\(term,_) -> (term, 1)) terms
-                           in queryLikelihood Laplace (M.assocs queryTerms) docLength terms'
+                           in queryLikelihood smoothing (M.assocs queryTerms) docLength terms'
                         )
             >-> P.P.map swap
             >-> cat'                                          @(Score, DocumentName)
