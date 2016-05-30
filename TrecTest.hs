@@ -174,9 +174,12 @@ consumePostings' getTermFreq =
     termFreqs :: Fold (TermPostings p) (M.Map Term TermFrequency)
     termFreqs = Foldl.handles traverse
                 $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps))
-                $ Foldl.mconcat
+                $ mconcatMaps
 
     collLength = lmap (\(a,b, DocLength c) -> c) Foldl.sum
+
+mconcatMaps :: (Ord k, Monoid a) => Fold (M.Map k a) (M.Map k a)
+mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id
 
 fromFoldable :: (Foldable f, VG.Vector v a)
              => f a -> v a
