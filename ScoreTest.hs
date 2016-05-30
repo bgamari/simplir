@@ -34,15 +34,14 @@ args =
       <*> option auto (short 'n' <> long "count" <> value 20 <> help "result count")
       <*> some (argument (Term.fromString <$> str) (help "query terms"))
 
---smoothing = Dirichlet 2500 (const 0.01)
-smoothing = Laplace
-
 main :: IO ()
 main = do
     (indexPath, resultCount, query) <- execParser $ info (helper <*> args) mempty
     idx <- DiskIndex.open indexPath :: IO (DiskIndex (DocumentName, DocumentLength) [Position])
     Right tfIdx <- BTree.open (indexPath </> "term-freqs")
         :: IO (Either String (BTree.LookupTree Term TermFrequency))
+    collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
+    let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
 
     let query' = map (,1) query
         termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]

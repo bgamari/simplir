@@ -11,7 +11,9 @@ import Data.Char
 import Data.Profunctor
 import Data.Foldable
 
+import Data.Binary
 import qualified Data.ByteString.Short as BS.S
+import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T.E
@@ -82,19 +84,24 @@ main = do
                           ))
             >-> cat'                                          @((DocumentId, DocumentName, DocumentLength), TermPostings (VU.Vector Position))
 
-    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs)) -> do
+    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs, collLength)) -> do
         liftIO $ print (n, M.size docIds)
         let indexPath = "index-"++show n
         liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
         liftIO $ BTree.fromOrderedToFile 32 (fromIntegral $ M.size termFreqs)
                                          (indexPath </> "term-freqs")
                                          (each $ map (uncurry BTree.BLeaf) $ M.toAscList termFreqs)
+        liftIO $ BS.L.writeFile (indexPath </> "coll-length") $ encode collLength
         yield indexPath
 
     chunkIdxs <- mapM DiskIndex.open chunks
               :: IO [DiskIndex (DocumentName, DocumentLength) (VU.Vector Position)]
     putStrLn $ "Merging "++show (length chunkIdxs)++" chunks"
     DiskIndex.merge "index" chunkIdxs
+
+    collLengths <- mapM (\indexPath -> decode <$> BS.L.readFile (indexPath </> "coll-length")) $ chunks
+        :: IO [Int]
+    BS.L.writeFile ("index" </> "coll-length") $ encode (sum collLengths)
 
     Right trees <- runExceptT $ mapM (\indexPath -> ExceptT $ BTree.open (indexPath </> "term-freqs")) chunks
         :: IO (Either String [BTree.LookupTree Term TermFrequency])
@@ -104,7 +111,10 @@ type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
     ( M.Map DocumentId (DocumentName, DocumentLength)
     , SavedPostings p
-    , M.Map Term TermFrequency)
+    , M.Map Term TermFrequency
+    , CollectionLength)
+
+type CollectionLength = Int
 
 zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
 zipWithList = go
@@ -146,9 +156,11 @@ consumePostings' :: forall p. (Ord p)
                  -> Fold ((DocumentId, DocumentName, DocumentLength), TermPostings p)
                          (FragmentIndex p)
 consumePostings' getTermFreq =
-    (,,) <$> docMeta
-         <*> lmap snd postings
-         <*> lmap snd termFreqs
+    (,,,)
+      <$> docMeta
+      <*> lmap snd postings
+      <*> lmap snd termFreqs
+      <*> lmap fst collLength
   where
     docMeta  = lmap (\((docId, docName, docLen), postings) -> M.singleton docId (docName, docLen))
                       Foldl.mconcat
@@ -158,6 +170,8 @@ consumePostings' getTermFreq =
     termFreqs = Foldl.handles traverse
                 $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps))
                 $ Foldl.mconcat
+
+    collLength = lmap (\(a,b, DocLength c) -> c) Foldl.sum
 
 fromFoldable :: (Foldable f, VG.Vector v a)
              => f a -> v a
