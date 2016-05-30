@@ -48,7 +48,7 @@ main = do
     Right tfIdx <- BTree.open (indexPath </> "term-freqs")
         :: IO (Either String (BTree.LookupTree Term TermFrequency))
     collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
-    let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
+    let smoothing = Dirichlet 1500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
 
     stopwords <- S.fromList . map Term.fromText . T.lines <$> T.IO.readFile "inquery-stopwordlist"
 
