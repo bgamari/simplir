@@ -1,4 +1,4 @@
-allow-newer: base, transformers, ghc-boot, template-haskell, time
+allow-newer: base, transformers, ghc-boot, template-haskell, time, pipes
 packages:
     simplir-*/*.cabal
     http-parsers/*.cabal
@@ -12,7 +12,6 @@ packages:
     /opt/exp/haskell-packages/lens-action/*.cabal
     /opt/exp/haskell-packages/lens/*.cabal
     /opt/exp/haskell-packages/heaps/*.cabal
-    /opt/exp/haskell-packages/pipes/*.cabal
     /opt/exp/haskell-packages/binary-serialise-cbor/*.cabal
     ./*.cabal
     /opt/exp/haskell-packages/bytestring/*.cabal
@@ -20,6 +19,9 @@ packages:
 
 profiling-detail: exported-functions
 flags: -test-doctests
+tests: false
+benchmarks: false
+jobs: 4
 
 package laura
     profiling-detail: all
