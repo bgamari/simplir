@@ -14,6 +14,7 @@ import Data.Profunctor
 import Data.Monoid
 import Data.Tuple
 import Data.Char
+import Numeric.Log
 
 import Data.Binary
 import qualified Data.ByteString.Char8 as BS
@@ -51,11 +52,13 @@ import DiskIndex
 import qualified BTree
 import RetrievalModels.QueryLikelihood
 
-opts :: Parser (Int, T.Text, [DataLocation])
+type QueryId = String
+opts :: Parser (Int, T.Text, QueryId, [DataLocation])
 opts =
-    (,,)
+    (,,,)
       <$> option auto (metavar "N" <> long "count" <> short 'n')
       <*> option (T.pack <$> str) (metavar "TERMS" <> long "query" <> short 'q')
+      <*> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
 compression = Just GZip
 
@@ -67,7 +70,7 @@ main = do
     collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
     let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
 
-    (resultCount, query, dsrcs) <- execParser $ info (helper <*> opts) mempty
+    (resultCount, query, qid, dsrcs) <- execParser $ info (helper <*> opts) mempty
     let normTerms :: [(T.Text, p)] -> [(Term, p)]
         normTerms = map (first Term.fromText) . filterTerms . caseNorm
           where
@@ -103,4 +106,6 @@ main = do
             >-> P.P.map swap
             >-> cat'                                          @(Score, DocumentName)
 
-        liftIO $ putStrLn $ unlines $ map show results
+        let toRunFile rank (Exp score, DocName docName) = unwords
+                [ qid, "Q0", Utf8.toString docName, show rank, show score, "simplir" ]
+        liftIO $ putStrLn $ unlines $ zipWith toRunFile [1..] results

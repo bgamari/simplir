@@ -88,6 +88,7 @@ library
       vector-binary-instances >= 0.2,
       warc >=0.2 && <0.3,
       simplir-html-clean,
+      binary-serialise-cbor,
 
       QuickCheck >=2.8 && <2.9,
       tasty,
@@ -188,6 +189,7 @@ executable streaming-retreival
       text >=1.2 && <1.3,
       containers >=0.5 && <0.6,
       unordered-containers >= 0.2,
+      log-domain,
       optparse-applicative >= 0.12,
       pipes-text,
       pipes-safe,
