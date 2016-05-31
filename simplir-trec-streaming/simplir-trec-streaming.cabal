@@ -1,0 +1,25 @@
+name:                simplir-trec-streaming
+version:             0.1.0.0
+-- synopsis:            
+-- description:         
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2016 Ben Gamari
+-- category:            
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     SimplIR.TrecStreaming
+  other-extensions:    GeneralizedNewtypeDeriving, DeriveGeneric, RecordWildCards
+  build-depends:       base >=4.9 && <4.10,
+                       bytestring >=0.10 && <0.11,
+                       unordered-containers >= 0.2 && < 0.3,
+                       text >=1.2 && <1.3,
+                       time >=1.6 && <1.7,
+                       pinch >=0.2 && <0.3
+  hs-source-dirs:      src
+  default-language:    Haskell2010
