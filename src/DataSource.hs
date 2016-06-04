@@ -12,13 +12,16 @@ module DataSource
    , withCompressedSource
    ) where
 
-import           Data.ByteString (ByteString)
+import           Control.Monad (join)
 import           System.IO
+
+import           Data.ByteString (ByteString)
 import qualified Data.Text as T
 
 import           Pipes
 import           Pipes.Safe
 import qualified Pipes.GZip as P.GZip
+import qualified Pipes.Lzma as P.Lzma
 import qualified Pipes.Aws.S3 as P.S3
 import qualified Pipes.ByteString as P.BS
 
@@ -28,7 +31,8 @@ data DataLocation = LocalFile { filePath :: FilePath }
                              }
                   deriving (Show)
 
-data Compression = GZip
+data Compression = GZip   -- ^ e.g. @file.gz@
+                 | Lzma   -- ^ e.g. @file.xz@
 
 parseDataLocation :: T.Text -> Maybe DataLocation
 parseDataLocation t
@@ -44,6 +48,7 @@ decompress :: MonadIO m
            -> Producer ByteString m a -> Producer ByteString m a
 decompress Nothing     = id
 decompress (Just GZip) = decompressGZip
+decompress (Just Lzma) = join . P.Lzma.decompress
 
 decompressGZip :: MonadIO m
                => Producer ByteString m r
