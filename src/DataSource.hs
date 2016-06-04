@@ -5,6 +5,7 @@ module DataSource
      -- * Data sources
      DataLocation(..)
    , parseDataLocation
+   , getFileName
    , produce
      -- * Compression
    , Compression(..)
@@ -17,6 +18,7 @@ import           System.IO
 
 import           Data.ByteString (ByteString)
 import qualified Data.Text as T
+import           System.FilePath
 
 import           Pipes
 import           Pipes.Safe
@@ -30,6 +32,12 @@ data DataLocation = LocalFile { filePath :: FilePath }
                              , s3Object :: P.S3.Object
                              }
                   deriving (Show)
+
+-- | Get some sensible approximation of a file name for the given
+-- 'DataLocation'.
+getFileName :: DataLocation -> T.Text
+getFileName (LocalFile path) = T.pack $ takeFileName path
+getFileName (S3Object _ (P.S3.Object obj)) = obj
 
 data Compression = GZip   -- ^ e.g. @file.gz@
                  | Lzma   -- ^ e.g. @file.xz@
