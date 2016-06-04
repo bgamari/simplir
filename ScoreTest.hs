@@ -4,12 +4,9 @@
 {-# LANGUAGE TypeApplications #-}
 
 import Data.Maybe
-import Data.Tuple
 import Data.Binary
 import Data.Bifunctor
-import qualified Data.Map as M
 import qualified Data.Set as S
-import Control.Monad.Trans.Except
 import qualified Control.Foldl as Fold
 import qualified Data.Text as T
 import qualified Data.Text.IO as T.IO
