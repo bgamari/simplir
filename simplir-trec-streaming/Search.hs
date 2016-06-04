@@ -33,6 +33,7 @@ import System.FilePath
 import           Pipes
 import           Pipes.Safe
 import qualified Pipes.Prelude as P.P
+import qualified Pipes.ByteString as P.BS
 import qualified Pipes.Text.Encoding as P.T
 
 import Options.Applicative
@@ -87,8 +88,9 @@ main = do
 
     let docs :: Producer Trec.StreamItem (SafeT IO) ()
         docs =
-            mapM_ (\src ->
-                    (decompress compression $ produce src) >-> P.P.mapFoldable Trec.readItems
+            mapM_ (\src -> do
+                        bs <- P.BS.toLazyM (decompress compression $ produce src)
+                        mapM_ yield (Trec.readItems $ BS.L.toStrict bs)
                   ) dsrcs
 
     runSafeT $ do
