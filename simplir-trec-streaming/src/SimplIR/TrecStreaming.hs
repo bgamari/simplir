@@ -6,7 +6,11 @@
 module SimplIR.TrecStreaming
     ( -- * Stream items
       StreamItem(..)
-      -- * Annotations
+    , ContentItem(..)
+    , readItems
+    , DocumentId(..)
+    , Url(..)
+    , Version(..)
     , AnnotatorId(..)
     ) where
 
@@ -23,21 +27,20 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Pinch
 import Pinch.Protocol
-import Pinch.Internal.Value
 
-newtype AnnotatorId = AnnotatorId T.Text
+newtype AnnotatorId = AnnotatorId { getAnnotatorId :: T.Text }
                     deriving (Eq, Ord, Show, Generic)
 
-newtype DocumentId = DocumentId T.Text
+newtype DocumentId = DocumentId { getDocumentId :: T.Text }
                    deriving (Eq, Ord, Show, Generic)
 
 data Version = V010 | V020 | V030
              deriving (Eq, Ord, Enum, Bounded, Show, Generic)
 
-newtype Url = Url T.Text
+newtype Url = Url { getUrl :: T.Text }
             deriving (Eq, Ord, Show, Generic)
 
-newtype StreamId = StreamId T.Text
+newtype StreamId = StreamId { getStreamId :: T.Text }
                  deriving (Eq, Ord, Show, Generic)
 
 data StreamItem = StreamItem { version      :: !Version
