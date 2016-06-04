@@ -202,8 +202,8 @@ executable streaming-retreival
   default-language:    Haskell2010
   ghc-options:         -rtsopts
 
-executable trec-test
-  main-is:             TrecTest.hs
+executable trec-index
+  main-is:             TrecIndex.hs
   build-depends:
       base >=4.8 && <4.9,
       bytestring >=0.10 && <0.11,
