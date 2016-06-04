@@ -6,7 +6,7 @@ packages:
     http-parsers/*.cabal
     /home/ben/code/maintaining/html-parse/*.cabal
     pipes-s3/*.cabal
-    lzma-pipes/*.cabal
+    /home/ben/code/maintaining/pipes-lzma/*.cabal
     b-tree/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
     /home/ben/code/maintaining/warc/*.cabal
