@@ -13,19 +13,17 @@ import Data.Foldable
 
 import Data.Binary
 import qualified Data.Set as S
-import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Lazy as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
 import qualified Data.Text.IO as T.IO
-import qualified Data.Text.Encoding as T.E
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as VG
 import qualified Data.Vector.Unboxed as VU
 import           Data.Vector.Algorithms.Intro (sort)
 import qualified Control.Foldl as Foldl
-import           Control.Foldl (FoldM, Fold)
+import           Control.Foldl (Fold)
 import           Control.Monad.Trans.Except
 
 import           Pipes
@@ -149,7 +147,7 @@ consumePostings' getTermFreq =
       <*> lmap snd termFreqs
       <*> lmap fst collLength
   where
-    docMeta  = lmap (\((docId, docName, docLen), postings) -> M.singleton docId (docName, docLen))
+    docMeta  = lmap (\((docId, docName, docLen), _postings) -> M.singleton docId (docName, docLen))
                       Foldl.mconcat
     postings = fmap (M.map $ VG.modify sort . fromFoldable) foldPostings
 
