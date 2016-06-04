@@ -1,9 +1,12 @@
 allow-newer: base, transformers, ghc-boot, template-haskell, time, pipes
 packages:
+    ./*.cabal
     simplir-*/*.cabal
+    pinch/*.cabal
     http-parsers/*.cabal
     /home/ben/code/maintaining/html-parse/*.cabal
     pipes-s3/*.cabal
+    lzma-pipes/*.cabal
     b-tree/*.cabal
     /home/ben/code/maintaining/pipes-interleave/*.cabal
     /home/ben/code/maintaining/warc/*.cabal
@@ -13,7 +16,6 @@ packages:
     /opt/exp/haskell-packages/lens/*.cabal
     /opt/exp/haskell-packages/heaps/*.cabal
     /opt/exp/haskell-packages/binary-serialise-cbor/*.cabal
-    ./*.cabal
     /opt/exp/haskell-packages/bytestring/*.cabal
     /opt/exp/haskell-packages/binary/*.cabal
 
@@ -35,3 +37,8 @@ package b-tree
     tests: true
     --ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo
 
+
+package pinch
+    tests: true
+    profiling-detail: toplevel-functions
+    profiling: true
