@@ -15,6 +15,7 @@ import Data.Monoid
 import Data.Profunctor
 import Data.Tuple
 import Data.Char
+import System.IO
 
 import Data.Binary
 import Numeric.Log hiding (sum)
@@ -174,6 +175,7 @@ streamingDocuments :: [DataLocation]
                    -> Producer (ArchiveName, Trec.StreamItem) (SafeT IO) ()
 streamingDocuments dsrcs =
     mapM_ (\src -> do
+                liftIO $ hPutStrLn stderr $ show src
                 bs <- P.BS.toLazyM (decompress compression $ produce src)
                 mapM_ (yield . (getFilePath src,)) (Trec.readItems $ BS.L.toStrict bs)
           ) dsrcs
