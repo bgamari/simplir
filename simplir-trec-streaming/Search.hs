@@ -169,7 +169,7 @@ streamingDocuments :: [DataLocation]
 streamingDocuments dsrcs =
     mapM_ (\src -> do
                 bs <- P.BS.toLazyM (decompress compression $ produce src)
-                mapM_ (yield . (getFileName src,)) (Trec.readItems $ BS.L.toStrict bs)
+                mapM_ (yield . (getFilePath src,)) (Trec.readItems $ BS.L.toStrict bs)
           ) dsrcs
 
 normalizationPipeline
@@ -182,7 +182,7 @@ normalizationPipeline =
                     body <- Trec.body d
                     visible <- Trec.cleanVisible body
                     let docName =
-                            DocName $ Utf8.fromText $ archive <> Trec.getDocumentId (Trec.documentId d)
+                            DocName $ Utf8.fromText $ archive <> ":" <> Trec.getDocumentId (Trec.documentId d)
                     return (docName, visible))
       >-> cat'                                          @(DocumentName, T.Text)
       >-> P.P.map (fmap tokeniseWithPositions)
