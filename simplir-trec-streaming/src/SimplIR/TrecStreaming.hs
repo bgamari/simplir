@@ -93,6 +93,6 @@ readItems = go
     go bs
       | BS.null bs  = []
       | otherwise   =
-        let Right (bs', val) = deserializeValue' binaryProtocol bs
+        let (bs', val) = either error id $ deserializeValue' binaryProtocol bs
             item = either error id $ runParser (parseStreamItem val)
         in item : go bs'
