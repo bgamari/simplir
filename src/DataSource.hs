@@ -6,6 +6,7 @@ module DataSource
      DataLocation(..)
    , parseDataLocation
    , getFileName
+   , getFilePath
    , produce
      -- * Compression
    , Compression(..)
@@ -13,6 +14,7 @@ module DataSource
    , withCompressedSource
    ) where
 
+import           Data.Monoid
 import           Control.Monad (join)
 import           System.IO
 
@@ -38,6 +40,12 @@ data DataLocation = LocalFile { filePath :: FilePath }
 getFileName :: DataLocation -> T.Text
 getFileName (LocalFile path) = T.pack $ takeFileName path
 getFileName (S3Object _ (P.S3.Object obj)) = obj
+
+-- | Get some sensible approximation of a "path" for the given
+-- 'DataLocation'.
+getFilePath :: DataLocation -> T.Text
+getFilePath (LocalFile path) = T.pack path
+getFilePath (S3Object (P.S3.Bucket bucket) (P.S3.Object obj)) = "s3://" <> bucket <> "/" <> obj
 
 data Compression = GZip   -- ^ e.g. @file.gz@
                  | Lzma   -- ^ e.g. @file.xz@
