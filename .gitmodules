@@ -1,0 +1,18 @@
+[submodule "vendor/binary-serialise-cbor"]
+	path = vendor/binary-serialise-cbor
+	url = git://github.com/well-typed/binary-serialise-cbor
+[submodule "vendor/b-tree"]
+	path = vendor/b-tree
+	url = git://github.com/bgamari/b-tree
+[submodule "vendor/pipes-s3"]
+	path = vendor/pipes-s3
+	url = git://github.com/bgamari/pipes-s3
+[submodule "vendor/html-parse"]
+	path = vendor/html-parse
+	url = git://github.com/bgamari/html-parse
+[submodule "vendor/http-parsers"]
+	path = vendor/http-parsers
+	url = git://github.com/bgamari/http-parsers
+[submodule "vendor/warc"]
+	path = vendor/warc
+	url = git://github.com/bgamari/warc
