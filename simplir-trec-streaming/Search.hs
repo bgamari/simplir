@@ -53,6 +53,7 @@ import qualified BTree
 import RetrievalModels.QueryLikelihood
 
 type QueryId = String
+
 opts :: Parser (Int, T.Text, QueryId, [DataLocation])
 opts =
     (,,,)
@@ -60,7 +61,8 @@ opts =
       <*> option (T.pack <$> str) (metavar "TERMS" <> long "query" <> short 'q')
       <*> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
-compression = Just GZip
+
+compression = Just Lzma
 
 main :: IO ()
 main = do

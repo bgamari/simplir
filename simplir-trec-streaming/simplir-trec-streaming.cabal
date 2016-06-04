@@ -26,7 +26,7 @@ library
   default-language:    Haskell2010
 
 
-executable test
+executable trec-streaming
   main-is:             Search.hs
   other-extensions:    GeneralizedNewtypeDeriving, DeriveGeneric, RecordWildCards
   build-depends:       base >=4.9 && <4.10,
