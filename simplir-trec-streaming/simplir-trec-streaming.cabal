@@ -24,3 +24,30 @@ library
                        laura
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+
+executable test
+  main-is:             Search.hs
+  other-extensions:    GeneralizedNewtypeDeriving, DeriveGeneric, RecordWildCards
+  build-depends:       base >=4.9 && <4.10,
+                       bytestring >=0.10 && <0.11,
+                       unordered-containers >= 0.2 && < 0.3,
+                       text >=1.2 && <1.3,
+                       time >=1.6 && <1.7,
+                       pipes,
+                       pipes-safe,
+                       pipes-text,
+                       optparse-applicative,
+                       mtl,
+                       log-domain,
+                       profunctors,
+                       binary,
+                       containers,
+                       foldl,
+                       b-tree,
+                       filepath,
+                       vector,
+                       simplir-trec-streaming,
+                       pinch >=0.2 && <0.3,
+                       laura
+  default-language:    Haskell2010
