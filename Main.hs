@@ -94,14 +94,6 @@ main = do
 
 type SavedPostings p = M.Map Term [Posting p]
 
-zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
-zipWithList = go
-  where
-    go (i:is) = do
-        x <- await
-        yield (i, x)
-        go is
-
 consumePostings :: Monad m
                 => Producer ((DocumentId, DocumentName), TermPostings p) m ()
                 -> m (M.Map DocumentId (DocumentName, DocumentLength), M.Map Term [Posting p])

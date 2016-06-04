@@ -133,33 +133,6 @@ type FragmentIndex p =
 
 type CollectionLength = Int
 
-zipWithList :: Monad m => [i] -> Pipe a (i,a) m r
-zipWithList = go
-  where
-    go []     = error "zipWithList: Reached end of list"
-    go (i:is) = do
-        x <- await
-        yield (i, x)
-        go is
-
-foldChunks :: Monad m => Int -> FoldM m a b -> Producer a m () -> Producer b m ()
-foldChunks chunkSize (Foldl.FoldM step initial extract) = start
-  where
-    start prod = do
-        acc <- lift initial
-        go chunkSize acc prod
-
-    go 0 acc prod = do
-        lift (extract acc) >>= yield
-        start prod
-    go n acc prod = do
-        mx <- lift $ next prod
-        case mx of
-          Right (x, prod') -> do
-              acc' <- lift $ step acc x
-              go (n-1 :: Int) acc' prod'
-          Left r -> lift (extract acc) >>= yield
-
 consumePostings :: (Monad m, Ord p)
                 => Int
                 -> (p -> TermFrequency)
@@ -189,9 +162,6 @@ consumePostings' getTermFreq =
                 $ mconcatMaps
 
     collLength = lmap (\(a,b, DocLength c) -> c) Foldl.sum
-
-mconcatMaps :: (Ord k, Monoid a) => Fold (M.Map k a) (M.Map k a)
-mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id
 
 fromFoldable :: (Foldable f, VG.Vector v a)
              => f a -> v a
