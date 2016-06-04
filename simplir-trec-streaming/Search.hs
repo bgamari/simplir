@@ -9,6 +9,7 @@
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
 import Data.Monoid
+import Data.Profunctor
 import Data.Tuple
 import Data.Char
 import Numeric.Log
@@ -16,9 +17,9 @@ import Numeric.Log
 import Data.Binary
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Control.Foldl as Foldl
-import System.FilePath
 
 import           Pipes
 import           Pipes.Safe
@@ -35,38 +36,79 @@ import Tokenise
 import DataSource
 import TopK
 import qualified SimplIR.TrecStreaming as Trec
-import qualified BTree
 import RetrievalModels.QueryLikelihood
 
 type QueryId = String
 
-queryOpts :: Parser (Int, M.Map Term Int, QueryId, [DataLocation])
-queryOpts =
-    (,,,)
-      <$> option auto (metavar "N" <> long "count" <> short 'n')
+scoreMode :: Parser (IO ())
+scoreMode =
+    score
+      <$> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
       <*> queryTerms
-      <*> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
+      <*> option auto (metavar "N" <> long "count" <> short 'n')
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
   where
     queryTerms :: Parser (M.Map Term Int)
     queryTerms = M.fromListWith (+) . flip zip (repeat 1)
-                 <$> some (option (Term.fromString <$> str) (metavar "TERMS" <> long "query" <> short 'q'))
+                 <$> some (option (Term.fromString <$> str)
+                                  (metavar "TERMS" <> long "query" <> short 'q'))
+
+corpusStatsMode :: Parser (IO ())
+corpusStatsMode =
+    corpusStats
+      <$> queryTerms
+      <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
+  where
+    queryTerms :: Parser (S.Set Term)
+    queryTerms = S.fromList
+                 <$> some (option (Term.fromString <$> str)
+                                  (metavar "TERMS" <> long "query" <> short 'q'))
+
+modes :: Parser (IO ())
+modes = subparser
+    $  command "score" (info scoreMode mempty)
+    <> command "corpus-stats" (info corpusStatsMode mempty)
 
 compression = Just Lzma
 
 main :: IO ()
 main = do
-    (resultCount, queryTerms, qid, dsrcs) <- execParser $ info (helper <*> queryOpts) mempty
-    score qid queryTerms resultCount dsrcs
+    mode <- execParser $ info (helper <*> modes) mempty
+    mode
+
+corpusStats :: S.Set Term -> [DataLocation] -> IO ()
+corpusStats queryTerms docs = do
+    runSafeT $ do
+        idx@(termFreqs, collLength) <-
+                foldProducer (Foldl.generalize indexPostings)
+             $  streamingDocuments docs >-> normalizationPipeline
+        liftIO $ putStrLn $ "Indexed "++show collLength++" documents with "++show (M.size termFreqs)++" terms"
+        liftIO $ BS.L.writeFile "background" $ encode idx
+
+type CollectionLength = Int
+type CorpusStats = ( M.Map Term TermFrequency
+                   , CollectionLength
+                   )
+
+indexPostings :: Foldl.Fold (DocumentName, [(Term, Position)]) CorpusStats
+indexPostings =
+    (,)
+      <$> lmap snd termFreqs
+      <*> lmap (const 1) Foldl.sum
+  where
+    termFreqs :: Foldl.Fold [(Term, Position)] (M.Map Term TermFrequency)
+    termFreqs =
+          Foldl.handles traverse
+        $ lmap (\(term, _) -> M.singleton term (TermFreq 1))
+        $ mconcatMaps
 
 score :: QueryId -> M.Map Term Int -> Int -> [DataLocation] -> IO ()
 score qid queryTerms resultCount docs = do
     -- background statistics
-    let indexPath = "index"
-    Right tfIdx <- BTree.open (indexPath </> "term-freqs")
-        :: IO (Either String (BTree.LookupTree Term TermFrequency))
-    collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
-    let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
+    (termFreqs, collLength) <- decode <$> BS.L.readFile "background"
+        :: IO CorpusStats
+    let getTermFreq term = maybe mempty id $ M.lookup term termFreqs
+        smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
 
     let scoreTerms :: [(Term, Position)] -> Score
         scoreTerms terms =

@@ -45,8 +45,6 @@ executable trec-streaming
                        binary,
                        containers,
                        foldl,
-                       b-tree,
-                       filepath,
                        vector,
                        simplir-trec-streaming,
                        pinch,
