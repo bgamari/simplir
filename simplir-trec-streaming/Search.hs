@@ -9,6 +9,7 @@
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
+import Data.Foldable (fold)
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
@@ -16,7 +17,7 @@ import Data.Tuple
 import Data.Char
 
 import Data.Binary
-import Numeric.Log
+import Numeric.Log hiding (sum)
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -72,7 +73,11 @@ optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
 
 readQueries :: QueryFile -> IO (M.Map QueryId [Term])
-readQueries fname = M.unions . mapMaybe parse . lines <$> readFile fname
+readQueries fname = do
+    queries <- M.unions . mapMaybe parse . lines <$> readFile fname
+    let allTerms = foldMap S.fromList queries
+    putStrLn $ show (M.size queries)++" with "++show (S.size allTerms)++" unique terms"
+    return queries
   where
     parse "" = Nothing
     parse line
@@ -101,6 +106,7 @@ corpusStats queryFile outputFile docs = do
 
         liftIO $ putStrLn $ "Indexed "++show collLength++" documents with "++show (M.size termFreqs)++" terms"
         liftIO $ BS.L.writeFile outputFile $ encode idx
+        liftIO $ putStrLn $ "Saw "++show (fold termFreqs)++" term occurrences"
 
 type CollectionLength = Int
 type CorpusStats = ( M.Map Term TermFrequency
