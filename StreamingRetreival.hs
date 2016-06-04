@@ -6,27 +6,17 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-import Data.List (sort)
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
-import Data.Foldable
-import Data.Profunctor
 import Data.Monoid
 import Data.Tuple
 import Data.Char
 import Numeric.Log
 
 import Data.Binary
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BS.L
-import qualified Data.ByteString.Short as BS.S
 import qualified Data.Map.Strict as M
-import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T.E
-import qualified Data.Text.IO as TIO
-import qualified Data.Text.Lazy as T.L
-import qualified Data.Vector.Unboxed as VU
 import qualified Control.Foldl as Foldl
 import System.FilePath
 
@@ -43,12 +33,9 @@ import Types
 import Term
 import Progress
 import Tokenise
-import WarcDocSource
-import AccumPostings
 import DataSource
 import TopK
 import SimplIR.TREC as TREC
-import DiskIndex
 import qualified BTree
 import RetrievalModels.QueryLikelihood
 
