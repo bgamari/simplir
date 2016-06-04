@@ -68,6 +68,12 @@ score qid queryTerms resultCount docs = do
     collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int
     let smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . maybe 0 getTermFrequency . BTree.lookup tfIdx)
 
+    let scoreTerms :: [(Term, Position)] -> Score
+        scoreTerms terms =
+            let docLength = DocLength $ length terms
+                terms' = map (\(term,_) -> (term, 1)) terms
+            in queryLikelihood smoothing (M.assocs queryTerms) docLength terms'
+
     runSafeT $ do
         results <-
                 foldProducer (Foldl.generalize $ topK resultCount)
@@ -75,12 +81,7 @@ score qid queryTerms resultCount docs = do
             >-> normalizationPipeline
             >-> cat'                                          @(DocumentName, [(Term, Position)])
             >-> P.P.filter (any (`M.member` queryTerms) . map fst . snd)
-            >-> P.P.map (second $ \terms ->
-                            let docLength = DocLength $ length terms
-                                terms' = map (\(term,_) -> (term, 1)) terms
-                            in queryLikelihood smoothing (M.assocs queryTerms) docLength terms'
-                        )
-            >-> P.P.map swap
+            >-> P.P.map (swap . second scoreTerms)
             >-> cat'                                          @(Score, DocumentName)
 
         let toRunFile rank (Exp score, DocName docName) = unwords
