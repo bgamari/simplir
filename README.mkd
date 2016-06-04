@@ -1,0 +1,22 @@
+# Simpl-IR — A simple and flexible information retrieval toolbox
+
+## Building
+
+You will need a few dependencies,
+
+ * GHC 8.0.1
+ * `cabal-install` 1.24.
+ * `libicu-dev`
+ * `liblzma-dev`
+
+Then simply,
+```
+$ git clone --recursive git://github.com/laura-dietz/simpl-ir
+$ cd simpl-ir
+$ cabal new-build
+$ mkdir -p bin
+$ for i in $(find dist-newstyle/build/ -executable -a -type f -a -! -iname '*.so'); do ln -fs $(pwd)/$i bin/$(basename $i); done
+```
+
+You will end up with a number of executables in the `bin` directory. If you are
+reading this file you likely know what to do from here.
