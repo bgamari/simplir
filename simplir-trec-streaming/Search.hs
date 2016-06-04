@@ -41,18 +41,23 @@ import qualified SimplIR.TrecStreaming as Trec
 import RetrievalModels.QueryLikelihood
 
 type QueryId = String
+type StatsFile = FilePath
 
 scoreMode :: Parser (IO ())
 scoreMode =
     score
       <$> optQueryFile
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
+      <*> option str (metavar "FILE" <> long "stats" <> short 's'
+                      <> help "background corpus statistics file")
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
 
 corpusStatsMode :: Parser (IO ())
 corpusStatsMode =
     corpusStats
       <$> optQueryFile
+      <*> option str (metavar "FILE" <> long "output" <> short 'o'
+                      <> help "output file path")
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
 
 modes :: Parser (IO ())
@@ -81,8 +86,8 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-corpusStats :: QueryFile -> [DataLocation] -> IO ()
-corpusStats queryFile docs = do
+corpusStats :: QueryFile -> StatsFile -> [DataLocation] -> IO ()
+corpusStats queryFile outputFile docs = do
     queries <- readQueries queryFile
     let queryTerms = foldMap S.fromList queries
     runSafeT $ do
@@ -95,7 +100,7 @@ corpusStats queryFile docs = do
             >-> P.P.map (second $ filter ((`S.member` queryTerms)))
 
         liftIO $ putStrLn $ "Indexed "++show collLength++" documents with "++show (M.size termFreqs)++" terms"
-        liftIO $ BS.L.writeFile "background" $ encode idx
+        liftIO $ BS.L.writeFile outputFile $ encode idx
 
 type CollectionLength = Int
 type CorpusStats = ( M.Map Term TermFrequency
@@ -114,12 +119,12 @@ indexPostings =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-score :: QueryFile -> Int -> [DataLocation] -> IO ()
-score queryFile resultCount docs = do
+score :: QueryFile -> Int -> FilePath -> [DataLocation] -> IO ()
+score queryFile resultCount statsFile docs = do
     queries <- readQueries queryFile
 
     -- load background statistics
-    (termFreqs, collLength) <- decode <$> BS.L.readFile "background"
+    (termFreqs, collLength) <- decode <$> BS.L.readFile statsFile
         :: IO CorpusStats
     let getTermFreq term = maybe mempty id $ M.lookup term termFreqs
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
