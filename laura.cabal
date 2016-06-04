@@ -145,7 +145,7 @@ executable dump-postings
       b-tree,
       laura
   default-language:    Haskell2010
-  ghc-options:         -rtsopts
+  ghc-options:         -rtsopts -Wall
 
 executable score-query
   main-is:             ScoreTest.hs
@@ -172,7 +172,7 @@ executable score-query
       simplir-html-clean,
       simplir-trec
   default-language:    Haskell2010
-  ghc-options:         -rtsopts
+  ghc-options:         -rtsopts -Wall
 
 executable streaming-retreival
   main-is:             StreamingRetreival.hs
@@ -200,7 +200,7 @@ executable streaming-retreival
       laura,
       simplir-trec
   default-language:    Haskell2010
-  ghc-options:         -rtsopts
+  ghc-options:         -rtsopts -Wall
 
 executable trec-index
   main-is:             TrecIndex.hs
@@ -228,13 +228,14 @@ executable trec-index
       laura,
       simplir-trec
   default-language:    Haskell2010
-  ghc-options:         -rtsopts
+  ghc-options:         -rtsopts -Wall
 
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
   hs-source-dirs:      tests
   default-language:    Haskell2010
+  ghc-options:         -Wall
   build-depends:
     base,
     tasty,

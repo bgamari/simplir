@@ -26,6 +26,7 @@ library
                        pipes-parse >=3.0 && <3.1,
                        lens >=4.13 && <4.15,
                        html-parse >=0.1 && <0.2
+  ghc-options:         -Wall
 
 benchmark bench
   type:                exitcode-stdio-1.0
@@ -40,3 +41,4 @@ benchmark bench
                        lens,
                        html-parse,
                        criterion >=1.1 && <1.2
+  ghc-options:         -Wall
