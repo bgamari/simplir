@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
@@ -15,6 +16,7 @@ import Data.Monoid
 import Data.Profunctor
 import Data.Tuple
 import Data.Char
+import GHC.Generics
 import System.IO
 
 import Data.Binary
@@ -97,7 +99,7 @@ corpusStats queryFile outputFile docs = do
     queries <- readQueries queryFile
     let queryTerms = foldMap S.fromList queries
     runSafeT $ do
-        idx@(termFreqs, collLength) <-
+        stats <-
                 foldProducer (Foldl.generalize indexPostings)
              $  streamingDocuments docs >-> normalizationPipeline
             >-> cat'                                @(DocumentName, [(Term, Position)])
@@ -105,18 +107,28 @@ corpusStats queryFile outputFile docs = do
             >-> cat'                                @(DocumentName, [Term])
             >-> P.P.map (second $ filter ((`S.member` queryTerms)))
 
-        liftIO $ putStrLn $ "Indexed "++show collLength++" documents with "++show (M.size termFreqs)++" terms"
-        liftIO $ BS.L.writeFile outputFile $ encode idx
-        liftIO $ putStrLn $ "Saw "++show (fold termFreqs)++" term occurrences"
+        liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength stats)
+                          ++" documents with "++show (M.size $ corpusTermFreqs stats)++" terms"
+        liftIO $ BS.L.writeFile outputFile $ encode stats
+        liftIO $ putStrLn $ "Saw "++show (fold $ corpusTermFreqs stats)++" term occurrences"
 
 type CollectionLength = Int
-type CorpusStats = ( M.Map Term TermFrequency
-                   , CollectionLength
-                   )
+data CorpusStats = CorpusStats { corpusTermFreqs :: !(M.Map Term TermFrequency)
+                               , corpusCollectionLength :: !CollectionLength
+                               }
+                 deriving (Generic)
+
+instance Binary CorpusStats
+instance Monoid CorpusStats where
+    mempty = CorpusStats mempty 0
+    a `mappend` b =
+        CorpusStats { corpusTermFreqs = corpusTermFreqs a <> corpusTermFreqs b
+                    , corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
+                    }
 
 indexPostings :: Foldl.Fold (DocumentName, [Term]) CorpusStats
 indexPostings =
-    (,)
+    CorpusStats
       <$> lmap snd termFreqs
       <*> lmap (const 1) Foldl.sum
   where
@@ -131,7 +143,7 @@ score queryFile resultCount statsFile docs = do
     queries <- readQueries queryFile
 
     -- load background statistics
-    (termFreqs, collLength) <- decode <$> BS.L.readFile statsFile
+    CorpusStats termFreqs collLength <- decode <$> BS.L.readFile statsFile
         :: IO CorpusStats
     let getTermFreq term = maybe mempty id $ M.lookup term termFreqs
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
