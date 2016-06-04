@@ -3,6 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -45,7 +46,7 @@ scoreMode =
     score
       <$> option str (metavar "QUERY_ID" <> long "qid" <> short 'i' <> value "1")
       <*> queryTerms
-      <*> option auto (metavar "N" <> long "count" <> short 'n')
+      <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
   where
     queryTerms :: Parser (M.Map Term Int)
@@ -66,14 +67,14 @@ corpusStatsMode =
 
 modes :: Parser (IO ())
 modes = subparser
-    $  command "score" (info scoreMode mempty)
-    <> command "corpus-stats" (info corpusStatsMode mempty)
+    $  command "score" (info scoreMode fullDesc)
+    <> command "corpus-stats" (info corpusStatsMode fullDesc)
 
 compression = Just Lzma
 
 main :: IO ()
 main = do
-    mode <- execParser $ info (helper <*> modes) mempty
+    mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
 corpusStats :: S.Set Term -> [DataLocation] -> IO ()
@@ -82,6 +83,11 @@ corpusStats queryTerms docs = do
         idx@(termFreqs, collLength) <-
                 foldProducer (Foldl.generalize indexPostings)
              $  streamingDocuments docs >-> normalizationPipeline
+            >-> cat'                                @(DocumentName, [(Term, Position)])
+            >-> P.P.map (second $ map fst)
+            >-> cat'                                @(DocumentName, [Term])
+            >-> P.P.map (second $ filter ((`S.member` queryTerms)))
+
         liftIO $ putStrLn $ "Indexed "++show collLength++" documents with "++show (M.size termFreqs)++" terms"
         liftIO $ BS.L.writeFile "background" $ encode idx
 
@@ -90,16 +96,16 @@ type CorpusStats = ( M.Map Term TermFrequency
                    , CollectionLength
                    )
 
-indexPostings :: Foldl.Fold (DocumentName, [(Term, Position)]) CorpusStats
+indexPostings :: Foldl.Fold (DocumentName, [Term]) CorpusStats
 indexPostings =
     (,)
       <$> lmap snd termFreqs
       <*> lmap (const 1) Foldl.sum
   where
-    termFreqs :: Foldl.Fold [(Term, Position)] (M.Map Term TermFrequency)
+    termFreqs :: Foldl.Fold [Term] (M.Map Term TermFrequency)
     termFreqs =
           Foldl.handles traverse
-        $ lmap (\(term, _) -> M.singleton term (TermFreq 1))
+        $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
 score :: QueryId -> M.Map Term Int -> Int -> [DataLocation] -> IO ()
@@ -130,22 +136,28 @@ score qid queryTerms resultCount docs = do
                 [ qid, "Q0", Utf8.toString docName, show rank, show score, "simplir" ]
         liftIO $ putStrLn $ unlines $ zipWith toRunFile [1..] results
 
-streamingDocuments :: [DataLocation] -> Producer Trec.StreamItem (SafeT IO) ()
+type ArchiveName = T.Text
+
+streamingDocuments :: [DataLocation]
+                   -> Producer (ArchiveName, Trec.StreamItem) (SafeT IO) ()
 streamingDocuments dsrcs =
     mapM_ (\src -> do
                 bs <- P.BS.toLazyM (decompress compression $ produce src)
-                mapM_ yield (Trec.readItems $ BS.L.toStrict bs)
+                mapM_ (yield . (getFileName src,)) (Trec.readItems $ BS.L.toStrict bs)
           ) dsrcs
 
-normalizationPipeline :: Monad m => Pipe Trec.StreamItem (DocumentName, [(Term, Position)]) m ()
+normalizationPipeline
+    :: Monad m
+    => Pipe (ArchiveName, Trec.StreamItem)
+            (DocumentName, [(Term, Position)]) m ()
 normalizationPipeline =
-          cat'                                          @Trec.StreamItem
-      >-> P.P.mapFoldable
-              (\d -> do body <- Trec.body d
-                        visible <- Trec.cleanVisible body
-                        return ( DocName $ Utf8.fromText $ Trec.getDocumentId $ Trec.documentId d
-                                , visible
-                                ))
+          P.P.mapFoldable
+              (\(archive, d) -> do
+                    body <- Trec.body d
+                    visible <- Trec.cleanVisible body
+                    let docName =
+                            DocName $ Utf8.fromText $ archive <> Trec.getDocumentId (Trec.documentId d)
+                    return (docName, visible))
       >-> cat'                                          @(DocumentName, T.Text)
       >-> P.P.map (fmap tokeniseWithPositions)
       >-> cat'                                          @(DocumentName, [(T.Text, Position)])
