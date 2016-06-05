@@ -88,6 +88,8 @@ streamMode =
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> option str (metavar "FILE" <> long "stats" <> short 's'
                       <> help "background corpus statistics file")
+      <*> option str (metavar "FILE" <> long "output" <> short 'o'
+                      <> help "output file name")
       <*> optDocumentSource
       <*> inputFiles
 
@@ -184,8 +186,8 @@ foldCorpusStats =
 
 type ScoredDocument = (Score, (ArchiveName, DocumentName, DocumentLength, M.Map Term [Position]))
 
-score :: QueryFile -> Int -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
-score queryFile resultCount statsFile docSource readDocLocs = do
+score :: QueryFile -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap S.fromList queries
@@ -226,13 +228,13 @@ score queryFile resultCount statsFile docSource readDocLocs = do
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
             >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
 
-        liftIO $ putStrLn $ unlines
+        liftIO $ writeFile (outputRoot<.>"run") $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
             | (qid, scores) <- M.toList results
             , (rank, (Exp score, (archive, DocName docName, _, _))) <- zip [1..] scores
             ]
 
-        liftIO $ BS.L.writeFile "out.json" $ Aeson.encode
+        liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode
             [ Aeson.object
               [ "query_id" .= qid
               , "results"  .=
