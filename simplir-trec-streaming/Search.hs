@@ -162,7 +162,7 @@ score queryFile resultCount statsFile docs = do
 
     let queriesFold :: Foldl.Fold (DocumentName, [Term])
                                   (M.Map QueryId [(Score, DocumentName)])
-        queriesFold = sequenceA $ fmap queryFold queries
+        queriesFold = traverse queryFold queries
 
         queryFold :: [Term] -> Foldl.Fold (DocumentName, [Term]) [(Score, DocumentName)]
         queryFold queryTerms =
