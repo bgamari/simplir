@@ -124,9 +124,9 @@ corpusStats queryFile outputFile readDocLocs = do
         stats <-
                 foldProducer (Foldl.generalize indexPostings)
              $  streamingDocuments docs >-> normalizationPipeline
-            >-> cat'                                @(DocumentName, [(Term, Position)])
+            >-> cat'                                @((ArchiveName, DocumentName), [(Term, Position)])
             >-> P.P.map (second $ map fst)
-            >-> cat'                                @(DocumentName, [Term])
+            >-> cat'                                @((ArchiveName, DocumentName), [Term])
             >-> P.P.map (second $ filter ((`S.member` queryTerms)))
 
         liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength stats)
@@ -148,7 +148,7 @@ instance Monoid CorpusStats where
                     , corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
                     }
 
-indexPostings :: Foldl.Fold (DocumentName, [Term]) CorpusStats
+indexPostings :: Foldl.Fold ((ArchiveName, DocumentName), [Term]) CorpusStats
 indexPostings =
     CorpusStats
       <$> lmap snd termFreqs
@@ -172,11 +172,12 @@ score queryFile resultCount statsFile readDocLocs = do
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
 
 
-    let queriesFold :: Foldl.Fold (DocumentName, [Term])
-                                  (M.Map QueryId [(Score, DocumentName)])
+    let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName), [Term])
+                                  (M.Map QueryId [(Score, (ArchiveName, DocumentName))])
         queriesFold = traverse queryFold queries
 
-        queryFold :: [Term] -> Foldl.Fold (DocumentName, [Term]) [(Score, DocumentName)]
+        queryFold :: [Term] -> Foldl.Fold ((ArchiveName, DocumentName), [Term])
+                                          [(Score, (ArchiveName, DocumentName))]
         queryFold queryTerms =
               Foldl.handles (Foldl.filtered (\(_, docTerms) -> any (`M.member` queryTerms') docTerms))
             $ lmap (swap . second scoreTerms)
@@ -196,14 +197,14 @@ score queryFile resultCount statsFile readDocLocs = do
                 foldProducer (Foldl.generalize queriesFold)
              $  streamingDocuments docs
             >-> normalizationPipeline
-            >-> cat'                                          @(DocumentName, [(Term, Position)])
+            >-> cat'                                          @((ArchiveName, DocumentName), [(Term, Position)])
             >-> P.P.map (second $ map fst)
-            >-> cat'                                          @(DocumentName, [Term])
+            >-> cat'                                          @((ArchiveName, DocumentName), [Term])
 
         liftIO $ putStrLn $ unlines
-            [ unwords [ qid, "Q0", Utf8.toString docName, show rank, show score, "simplir" ]
+            [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
             | (qid, scores) <- M.toList results
-            , (rank, (Exp score, DocName docName)) <- zip [1..] scores
+            , (rank, (Exp score, (archive, DocName docName))) <- zip [1..] scores
             ]
         return ()
 
@@ -217,10 +218,10 @@ dumpDocument queryFile archive docIds = do
          $  streamingDocuments [archive]
         >-> P.P.filter (\(_,doc) -> Trec.documentId doc `S.member` docIds)
         >-> normalizationPipeline
-        >-> cat'                                            @(DocumentName, [(Term, Position)])
+        >-> cat'                                            @((ArchiveName, DocumentName), [(Term, Position)])
         >-> P.P.map (fmap $ filter (\(term,_) -> term `S.member` allQueryTerms))
-        >-> cat'                                            @(DocumentName, [(Term, Position)])
-        >-> P.P.map ( \(docName, terms) ->
+        >-> cat'                                            @((ArchiveName, DocumentName), [(Term, Position)])
+        >-> P.P.map ( \((archive, docName), terms) ->
                         let positionalPostings :: [(Term, Position)] -> M.Map Term [Position]
                             positionalPostings terms =         -- turn [(term, pos)] into [(term, [pos])]
                                 M.unionsWith (++)
@@ -228,6 +229,7 @@ dumpDocument queryFile archive docIds = do
                                   | (term, pos) <- terms ]
                         in Aeson.object
                            [ "docname".= Utf8.toText (getDocName docName),
+                             "archive".= archive,
                              "termpostings".=
                              [ Aeson.object [
                                    "term".= term,
@@ -258,20 +260,20 @@ streamingDocuments dsrcs =
 normalizationPipeline
     :: Monad m
     => Pipe (ArchiveName, Trec.StreamItem)
-            (DocumentName, [(Term, Position)]) m ()
+            ((ArchiveName, DocumentName), [(Term, Position)]) m ()
 normalizationPipeline =
           P.P.mapFoldable
               (\(archive, d) -> do
                     body <- Trec.body d
                     visible <- Trec.cleanVisible body
                     let docName =
-                            DocName $ Utf8.fromText $ archive <> ":" <> Trec.getDocumentId (Trec.documentId d)
-                    return (docName, visible))
-      >-> cat'                                          @(DocumentName, T.Text)
+                            DocName $ Utf8.fromText $ Trec.getDocumentId (Trec.documentId d)
+                    return ((archive, docName), visible))
+      >-> cat'                                          @((ArchiveName, DocumentName), T.Text)
       >-> P.P.map (fmap tokeniseWithPositions)
-      >-> cat'                                          @(DocumentName, [(T.Text, Position)])
+      >-> cat'                                          @((ArchiveName, DocumentName), [(T.Text, Position)])
       >-> P.P.map (fmap normTerms)
-      >-> cat'                                          @(DocumentName, [(Term, Position)])
+      >-> cat'                                          @((ArchiveName, DocumentName), [(Term, Position)])
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
     normTerms = map (first Term.fromText) . filterTerms . caseNorm
