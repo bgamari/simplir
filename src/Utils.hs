@@ -20,8 +20,8 @@ foldProducer :: Monad m => Foldl.FoldM m a b -> Producer a m () -> m b
 foldProducer (Foldl.FoldM step initial extract) =
     P.P.foldM step initial extract
 
--- | Fold over chunks of the output of a 'Producer' with the given 'FoldM',
--- emitting the result of each.
+-- | Fold over fixed-size chunks of the output of a 'Producer' with the given
+-- 'FoldM', emitting the result from each.
 foldChunks :: Monad m => Int -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
 foldChunks chunkSize (Foldl.FoldM step initial extract) = start
   where
