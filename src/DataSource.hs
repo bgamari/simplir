@@ -62,6 +62,9 @@ parseDataLocation t
   = let (bucket, obj) = T.break (=='/') rest
     in Just $ S3Object (P.S3.Bucket bucket) (P.S3.Object $ T.tail obj)
 
+  | Just rest <- "file://" `T.stripPrefix` t
+  = Just $ LocalFile $ T.unpack rest
+
   | otherwise
   = Just $ LocalFile $ T.unpack t
 
