@@ -160,28 +160,31 @@ score queryFile resultCount statsFile docs = do
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
 
 
-    let queryFolds :: Foldl.Fold (DocumentName, [Term])
-                                 (M.Map QueryId [(Score, DocumentName)])
-        queryFolds = sequenceA $ fmap queryFold queries
+    let queriesFold :: Foldl.Fold (DocumentName, [Term])
+                                  (M.Map QueryId [(Score, DocumentName)])
+        queriesFold = sequenceA $ fmap queryFold queries
 
         queryFold :: [Term] -> Foldl.Fold (DocumentName, [Term]) [(Score, DocumentName)]
         queryFold queryTerms =
-            let queryTerms' :: M.Map Term Int
-                queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
-                scoreTerms :: [Term] -> Score
-                scoreTerms terms =
-                    let docLength = DocLength $ length terms
-                        terms' = zip terms (repeat 1)
-                    in queryLikelihood smoothing (M.assocs queryTerms') docLength terms'
-            in lmap (swap . second scoreTerms) $ topK resultCount
+              Foldl.handles (Foldl.filtered (\(_, docTerms) -> any (`M.member` queryTerms') docTerms))
+            $ lmap (swap . second scoreTerms)
+            $ topK resultCount
+          where
+            queryTerms' :: M.Map Term Int
+            queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
+
+            scoreTerms :: [Term] -> Score
+            scoreTerms docTerms =
+                let docLength = DocLength $ length docTerms
+                    docTerms' = zip docTerms (repeat 1)
+                in queryLikelihood smoothing (M.assocs queryTerms') docLength docTerms'
 
     runSafeT $ do
         results <-
-                foldProducer (Foldl.generalize queryFolds)
+                foldProducer (Foldl.generalize queriesFold)
              $  streamingDocuments docs
             >-> normalizationPipeline
             >-> cat'                                          @(DocumentName, [(Term, Position)])
-            -- >-> P.P.filter (any (`S.member` allQueryTerms) . map fst . snd)
             >-> P.P.map (second $ map fst)
             >-> cat'                                          @(DocumentName, [Term])
 
@@ -203,8 +206,7 @@ dumpDocument queryFile archive docIds = do
         >-> P.P.filter (\(_,doc) -> Trec.documentId doc `S.member` docIds)
         >-> normalizationPipeline
         >-> cat'                                            @(DocumentName, [(Term, Position)])
-        >-> P.P.map ( \ (docName, terms) ->
-                        (docName, filter (\(term,_) -> term `S.member` allQueryTerms) terms))
+        >-> P.P.map (fmap $ filter (\(term,_) -> term `S.member` allQueryTerms))
         >-> cat'                                            @(DocumentName, [(Term, Position)])
         >-> P.P.map ( \(docName, terms) ->
                         let positionalPostings :: [(Term, Position)] -> M.Map Term [Position]
