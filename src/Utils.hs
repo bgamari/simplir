@@ -1,10 +1,15 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Utils where
 
 import qualified Control.Foldl as Foldl
 import Pipes
 import qualified Data.Map as M
 import qualified Pipes.Prelude as P.P
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as BS
+import qualified Pipes.ByteString as P.BS
 
 -- | A variant of 'cat' with the type parameters rearranged for convenient use
 -- with @TypeApplications@.
@@ -33,7 +38,7 @@ foldChunks chunkSize (Foldl.FoldM step initial extract) = start
           Right (x, prod') -> do
               acc' <- lift $ step acc x
               go (n-1 :: Int) acc' prod'
-          Left r -> lift (extract acc) >>= yield
+          Left () -> lift (extract acc) >>= yield
 
 -- | Zip the elements coming down a 'Pipe' with elements of a list. Fails if the
 -- list runs out of elements.
@@ -49,3 +54,14 @@ zipWithList = go
 -- | Fold over a set of 'M.Map's, monoidally merging duplicates.
 mconcatMaps :: (Ord k, Monoid a) => Foldl.Fold (M.Map k a) (M.Map k a)
 mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id
+
+-- | Stream out a JSON array.
+toJsonArray :: (Monad m, Aeson.ToJSON a)
+            => Producer a m () -> Producer BS.ByteString m ()
+toJsonArray prod0 = yield "[\n" >> go prod0
+  where
+    go prod = do
+        mx <- lift $ next prod
+        case mx of
+          Right (x, prod') -> P.BS.fromLazy (Aeson.encode x) >> yield ",\n" >> go prod'
+          Left () -> yield "]"

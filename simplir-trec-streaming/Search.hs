@@ -20,6 +20,8 @@ import GHC.Generics
 import System.IO
 
 import Data.Binary
+import qualified Data.Aeson as Aeson
+import Data.Aeson ((.=))
 import Numeric.Log hiding (sum)
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
@@ -64,10 +66,19 @@ corpusStatsMode =
                       <> help "output file path")
       <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
 
+dumpDocumentMode :: Parser (IO ())
+dumpDocumentMode =
+    dumpDocument
+      <$> optQueryFile
+      <*> option (LocalFile <$> str)
+                 (metavar "FILE" <> long "archive" <> short 'a' <> help "archive file")
+      <*> S.fromList `fmap` some (argument (Trec.DocumentId . T.pack <$> str) $ metavar "DOC_ID" <> help "document id to export")
+
 modes :: Parser (IO ())
 modes = subparser
     $  command "score" (info scoreMode fullDesc)
     <> command "corpus-stats" (info corpusStatsMode fullDesc)
+    <> command "dump-doc" (info dumpDocumentMode fullDesc)
 
 type QueryFile = FilePath
 
@@ -180,6 +191,44 @@ score queryFile resultCount statsFile docs = do
             , (rank, (Exp score, DocName docName)) <- zip [1..] scores
             ]
         return ()
+
+dumpDocument :: QueryFile -> DataLocation -> S.Set Trec.DocumentId -> IO ()
+dumpDocument queryFile archive docIds = do
+    queries <- readQueries queryFile
+    let allQueryTerms = foldMap S.fromList queries
+    runSafeT $ runEffect $ do
+            (>-> P.BS.stdout)
+         $  toJsonArray
+         $  streamingDocuments [archive]
+        >-> P.P.filter (\(_,doc) -> Trec.documentId doc `S.member` docIds)
+        >-> normalizationPipeline
+        >-> cat'                                            @(DocumentName, [(Term, Position)])
+        >-> P.P.map ( \ (docName, terms) ->
+                        (docName, filter (\(term,_) -> term `S.member` allQueryTerms) terms))
+        >-> cat'                                            @(DocumentName, [(Term, Position)])
+        >-> P.P.map ( \(docName, terms) ->
+                        let positionalPostings :: [(Term, Position)] -> M.Map Term [Position]
+                            positionalPostings terms =         -- turn [(term, pos)] into [(term, [pos])]
+                                M.unionsWith (++)
+                                  [ M.singleton term [pos]
+                                  | (term, pos) <- terms ]
+                        in Aeson.object
+                           [ "docname".= Utf8.toText (getDocName docName),
+                             "termpostings".=
+                             [ Aeson.object [
+                                   "term".= term,
+                                   "positions".=
+                                     [ Aeson.object
+                                       [ "tokenpos".= tokenN pos,
+                                         "charpos".= Aeson.object
+                                             [ "begin".= begin (charOffset pos),
+                                               "end".= end (charOffset pos)
+                                             ]
+                                       ]  | pos <- poss ]
+                                   ]
+                             | (term, poss) <- M.toList $ positionalPostings terms ]
+                           ])
+    return ()
 
 type ArchiveName = T.Text
 

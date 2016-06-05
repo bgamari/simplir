@@ -45,6 +45,7 @@ executable trec-streaming
                        binary,
                        containers,
                        foldl,
+                       aeson,
                        vector,
                        simplir-trec-streaming,
                        pinch,
