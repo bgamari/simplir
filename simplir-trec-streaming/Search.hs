@@ -79,7 +79,7 @@ readQueries :: QueryFile -> IO (M.Map QueryId [Term])
 readQueries fname = do
     queries <- M.unions . mapMaybe parse . lines <$> readFile fname
     let allTerms = foldMap S.fromList queries
-    putStrLn $ show (M.size queries)++" with "++show (S.size allTerms)++" unique terms"
+    hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
     return queries
   where
     parse "" = Nothing
