@@ -8,6 +8,7 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.Hashable
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Builder as BS.B
@@ -41,3 +42,11 @@ instance Binary SmallUtf8 where
         putWord8 $ fromIntegral $ BS.S.length t
         putBuilder $ BS.B.shortByteString t
     {-# INLINE put #-}
+
+instance Aeson.ToJSON SmallUtf8 where
+    toJSON = Aeson.String . toText
+    toEncoding = Aeson.toEncoding . toText
+
+instance Aeson.FromJSON SmallUtf8 where
+    parseJSON (Aeson.String t) = pure $ fromText t
+    parseJSON _                = fail "ToJson(SmallUtf8): Expected String"

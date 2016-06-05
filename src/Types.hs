@@ -32,7 +32,7 @@ derivingUnbox "DocumentId"
   [| \(DocId n) -> n |]
   [| DocId |]
 
-newtype DocumentName = DocName Utf8.SmallUtf8
+newtype DocumentName = DocName { getDocName :: Utf8.SmallUtf8 }
                      deriving (Show, Eq, Ord, Binary, IsString)
 
 instance Arbitrary DocumentName where
