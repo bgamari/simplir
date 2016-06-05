@@ -38,6 +38,7 @@ import           Data.Vector.Algorithms.Heap (sort)
 import           Pipes
 import           Pipes.Safe
 import qualified Pipes.Text.Encoding as P.T
+import qualified Pipes.ByteString as P.BS
 import qualified Pipes.Prelude as P.P
 
 import Options.Applicative
@@ -52,6 +53,7 @@ import DataSource
 import qualified DiskIndex
 import TopK
 import qualified SimplIR.TREC as Trec
+import qualified SimplIR.TrecStreaming as Kba
 import RetrievalModels.QueryLikelihood
 
 type QueryId = String
@@ -68,6 +70,15 @@ inputFiles =
     parse ('@':rest) = map (DataSource (Just GZip) . LocalFile) . lines <$> readFile rest
     parse fname      = return [DataSource (Just GZip) (LocalFile fname)]
 
+type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+optDocumentSource :: Parser DocumentSource
+optDocumentSource =
+    option (parse <$> str) (help "document type (kba or robust)" <> value kbaDocuments
+                           <> short 'f' <> long "format")
+  where
+    parse "kba" = kbaDocuments
+    parse "robust" = trecDocuments
+
 streamMode :: Parser (IO ())
 streamMode =
     score
@@ -75,12 +86,14 @@ streamMode =
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> option str (metavar "FILE" <> long "stats" <> short 's'
                       <> help "background corpus statistics file")
+      <*> optDocumentSource
       <*> inputFiles
 
 indexMode :: Parser (IO ())
 indexMode =
     buildIndex
-      <$> inputFiles
+      <$> optDocumentSource
+      <*> inputFiles
 
 corpusStatsMode :: Parser (IO ())
 corpusStatsMode =
@@ -88,6 +101,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option str (metavar "FILE" <> long "output" <> short 'o'
                       <> help "output file path")
+      <*> optDocumentSource
       <*> inputFiles
 
 
@@ -120,15 +134,15 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-corpusStats :: QueryFile -> StatsFile -> IO [DataSource] -> IO ()
-corpusStats queryFile outputFile readDocLocs = do
+corpusStats :: QueryFile -> StatsFile -> DocumentSource -> IO [DataSource] -> IO ()
+corpusStats queryFile outputFile docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let queryTerms = foldMap S.fromList queries
     runSafeT $ do
         stats <-
                 foldProducer (Foldl.generalize foldCorpusStats)
-             $  trecDocuments docs >-> normalizationPipeline
+             $  docSource docs >-> normalizationPipeline
             >-> cat'                                @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
             >-> P.P.map (second $ map fst)
             >-> cat'                                @((ArchiveName, DocumentName, DocumentLength), [Term])
@@ -166,8 +180,8 @@ foldCorpusStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-score :: QueryFile -> Int -> FilePath -> IO [DataSource] -> IO ()
-score queryFile resultCount statsFile readDocLocs = do
+score :: QueryFile -> Int -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+score queryFile resultCount statsFile docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
 
@@ -202,7 +216,7 @@ score queryFile resultCount statsFile readDocLocs = do
     runSafeT $ do
         results <-
                 foldProducer (Foldl.generalize queriesFold)
-             $  trecDocuments docs
+             $  docSource docs
             >-> normalizationPipeline
             >-> cat'                                          @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
             >-> P.P.map (second $ map fst)
@@ -215,14 +229,14 @@ score queryFile resultCount statsFile readDocLocs = do
             ]
         return ()
 
-buildIndex :: IO [DataSource] -> IO ()
-buildIndex readDocLocs = do
+buildIndex :: DocumentSource -> IO [DataSource] -> IO ()
+buildIndex docSource readDocLocs = do
     docs <- readDocLocs
 
     let chunkIndexes :: Producer (FragmentIndex (V.U.Vector Position)) (SafeT IO) ()
         chunkIndexes =
                 foldChunks 1000 (Foldl.generalize $ indexPostings (TermFreq . V.G.length))
-             $  trecDocuments docs
+             $  docSource docs
             >-> normalizationPipeline
             >-> cat'                                              @( (ArchiveName, DocumentName, DocumentLength)
                                                                   , [(Term, Position)] )
@@ -297,6 +311,22 @@ trecDocuments dsrcs =
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , Trec.docText d)))
           dsrcs
+
+kbaDocuments :: [DataSource]
+             -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+kbaDocuments dsrcs =
+    mapM_ (\src -> do
+                liftIO $ hPutStrLn stderr $ show src
+                bs <- P.BS.toLazyM (dataSource src)
+                mapM_ (yield . (getFilePath $ dsrcLocation src,)) (Kba.readItems $ BS.L.toStrict bs)
+          ) dsrcs
+    >-> P.P.mapFoldable
+              (\(archive, d) -> do
+                    body <- Kba.body d
+                    visible <- Kba.cleanVisible body
+                    let docName =
+                            DocName $ Utf8.fromText $ Kba.getDocumentId (Kba.documentId d)
+                    return ((archive, docName), visible))
 
 normalizationPipeline
     :: Monad m

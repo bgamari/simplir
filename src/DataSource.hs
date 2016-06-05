@@ -80,6 +80,7 @@ produce (S3Object bucket object) =
 -- | A compression method
 data Compression = GZip   -- ^ e.g. @file.gz@
                  | Lzma   -- ^ e.g. @file.xz@
+                 deriving (Show)
 
 decompress :: MonadIO m
            => Maybe Compression
@@ -111,6 +112,7 @@ withCompressedSource loc compr action =
 data DataSource = DataSource { dsrcCompression :: Maybe Compression
                              , dsrcLocation    :: DataLocation
                              }
+                deriving (Show)
 
 -- | Produce the data from a 'DataSource'
 dataSource :: MonadSafe m => DataSource -> Producer ByteString m ()
