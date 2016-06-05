@@ -188,12 +188,12 @@ score :: QueryFile -> Int -> FilePath -> DocumentSource -> IO [DataSource] -> IO
 score queryFile resultCount statsFile docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
+    let allQueryTerms = foldMap S.fromList queries
 
     -- load background statistics
     CorpusStats termFreqs collLength <- decode <$> BS.L.readFile statsFile
     let getTermFreq term = maybe mempty id $ M.lookup term termFreqs
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
-
 
     let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
                                   (M.Map QueryId [ScoredDocument])
@@ -222,6 +222,7 @@ score queryFile resultCount statsFile docSource readDocLocs = do
              $  docSource docs
             >-> normalizationPipeline
             >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
+            >-> P.P.map (second $ filter ((`S.member` allQueryTerms) . fst))
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
             >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
 
