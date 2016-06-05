@@ -6,6 +6,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Types ( module Term
              , module Types
@@ -13,10 +15,13 @@ module Types ( module Term
 
 import Data.String (IsString)
 import Data.Binary
+import Data.Monoid
 import GHC.Generics
 import Control.DeepSeq
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
+import qualified Data.Aeson as Aeson
+import Data.Aeson ((.=))
 import Test.QuickCheck
 import Term
 import qualified Data.SmallUtf8 as Utf8
@@ -45,6 +50,9 @@ data Span = Span { begin, end :: !Int }
           deriving (Eq, Ord, Show, Generic)
 
 instance Binary Span
+instance Aeson.ToJSON Span where
+    toJSON (Span{..}) = Aeson.object [ "begin" .= begin, "end" .= end ]
+    toEncoding (Span{..}) = Aeson.pairs ("begin" .= begin <> "end" .= end)
 
 derivingUnbox "Span"
   [t| Span -> (Int, Int) |]
