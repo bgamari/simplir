@@ -182,7 +182,7 @@ foldCorpusStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-type ScoredDocument = (Score, (ArchiveName, DocumentName, M.Map Term [Position]))
+type ScoredDocument = (Score, (ArchiveName, DocumentName, DocumentLength, M.Map Term [Position]))
 
 score :: QueryFile -> Int -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
 score queryFile resultCount statsFile docSource readDocLocs = do
@@ -213,7 +213,7 @@ score queryFile resultCount statsFile docSource readDocLocs = do
                        -> ScoredDocument
             scoreTerms ((archive, docName, docLength), docTerms) =
                 ( queryLikelihood smoothing (M.assocs queryTerms') docLength (M.toList $ fmap length docTerms)
-                , (archive, docName, docTerms)
+                , (archive, docName, docLength, docTerms)
                 )
 
     runSafeT $ do
@@ -229,7 +229,7 @@ score queryFile resultCount statsFile docSource readDocLocs = do
         liftIO $ putStrLn $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
             | (qid, scores) <- M.toList results
-            , (rank, (Exp score, (archive, DocName docName, _postings))) <- zip [1..] scores
+            , (rank, (Exp score, (archive, DocName docName, _, _))) <- zip [1..] scores
             ]
 
         liftIO $ BS.L.writeFile "out.json" $ Aeson.encode
@@ -238,8 +238,9 @@ score queryFile resultCount statsFile docSource readDocLocs = do
               , "results"  .=
                 [ Aeson.object
                   [ "doc_name" .= docName
-                  , "archive" .= archive
-                  , "score"   .= score
+                  , "length"   .= docLength
+                  , "archive"  .= archive
+                  , "score"    .= score
                   , "postings" .= [
                         Aeson.object
                           [ "term" .= term
@@ -252,7 +253,7 @@ score queryFile resultCount statsFile docSource readDocLocs = do
                         | (term, poss) <- M.toList postings
                         ]
                   ]
-                | (Exp score, (archive, DocName docName, postings)) <- scores
+                | (Exp score, (archive, DocName docName, docLength, postings)) <- scores
                 ]
               ]
             | (qid, scores) <- M.toList results
