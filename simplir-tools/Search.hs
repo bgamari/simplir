@@ -67,8 +67,9 @@ inputFiles =
     concatThem = fmap concat . sequence
 
     parse :: String -> IO [DataSource]
-    parse ('@':rest) = map (DataSource (Just GZip) . LocalFile) . lines <$> readFile rest
-    parse fname      = return [DataSource (Just GZip) (LocalFile fname)]
+    parse ('@':rest) = map parse' . lines <$> readFile rest
+    parse fname      = return [parse' fname]
+    parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
 
 type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 optDocumentSource :: Parser DocumentSource
