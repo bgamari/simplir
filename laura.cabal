@@ -175,62 +175,6 @@ executable score-query
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall
 
-executable streaming-retrieval
-  main-is:             StreamingRetrieval.hs
-  build-depends:
-      base >=4.8 && <4.9,
-      pipes-bytestring >=2.1 && <2.2,
-      pipes,
-      bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
-      filepath,
-      mtl,
-      binary,
-      foldl,
-      vector,
-      profunctors,
-      text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
-      unordered-containers >= 0.2,
-      log-domain,
-      optparse-applicative >= 0.12,
-      pipes-text,
-      pipes-safe,
-      warc,
-      b-tree,
-      laura,
-      simplir-trec
-  default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall
-
-executable trec-index
-  main-is:             TrecIndex.hs
-  build-depends:
-      base >=4.8 && <4.9,
-      bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
-      mtl,
-      binary,
-      foldl,
-      pipes,
-      pipes-bytestring >=2.1 && <2.2,
-      pipes-text,
-      pipes-safe,
-      filepath,
-      vector,
-      vector-algorithms,
-      profunctors,
-      text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
-      unordered-containers >= 0.2,
-      optparse-applicative,
-      warc,
-      b-tree,
-      laura,
-      simplir-trec
-  default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall
-
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
