@@ -76,8 +76,9 @@ optDocumentSource =
     option (parse <$> str) (help "document type (kba or robust)" <> value kbaDocuments
                            <> short 'f' <> long "format")
   where
-    parse "kba" = kbaDocuments
+    parse "kba"    = kbaDocuments
     parse "robust" = trecDocuments
+    parse _        = fail "unknown document source type"
 
 streamMode :: Parser (IO ())
 streamMode =
@@ -180,6 +181,8 @@ foldCorpusStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
+type ScoredDocument = (Score, (ArchiveName, DocumentName, M.Map Term [Position]))
+
 score :: QueryFile -> Int -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
 score queryFile resultCount statsFile docSource readDocLocs = do
     docs <- readDocLocs
@@ -191,41 +194,66 @@ score queryFile resultCount statsFile docSource readDocLocs = do
         smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
 
 
-    let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), [Term])
-                                  (M.Map QueryId [(Score, (ArchiveName, DocumentName))])
+    let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+                                  (M.Map QueryId [ScoredDocument])
         queriesFold = traverse queryFold queries
 
-        queryFold :: [Term] -> Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), [Term])
-                                          [(Score, (ArchiveName, DocumentName))]
+        queryFold :: [Term] -> Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+                                          [ScoredDocument]
         queryFold queryTerms =
-              Foldl.handles (Foldl.filtered (\(_, docTerms) -> any (`M.member` queryTerms') docTerms))
+              Foldl.handles (Foldl.filtered (\(_, docTerms) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms))
             $ lmap scoreTerms
             $ topK resultCount
           where
             queryTerms' :: M.Map Term Int
             queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
 
-            scoreTerms :: ((ArchiveName, DocumentName, DocumentLength), [Term])
-                       -> (Score, (ArchiveName, DocumentName))
+            scoreTerms :: ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+                       -> ScoredDocument
             scoreTerms ((archive, docName, docLength), docTerms) =
-                let docTerms' = zip docTerms (repeat 1)
-                in ( queryLikelihood smoothing (M.assocs queryTerms') docLength docTerms'
-                   , (archive, docName)
-                   )
+                ( queryLikelihood smoothing (M.assocs queryTerms') docLength (M.toList $ fmap length docTerms)
+                , (archive, docName, docTerms)
+                )
 
     runSafeT $ do
         results <-
                 foldProducer (Foldl.generalize queriesFold)
              $  docSource docs
             >-> normalizationPipeline
-            >-> cat'                                          @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
-            >-> P.P.map (second $ map fst)
-            >-> cat'                                          @((ArchiveName, DocumentName, DocumentLength), [Term])
+            >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
+            >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
+            >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
 
         liftIO $ putStrLn $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
             | (qid, scores) <- M.toList results
-            , (rank, (Exp score, (archive, DocName docName))) <- zip [1..] scores
+            , (rank, (Exp score, (archive, DocName docName, _postings))) <- zip [1..] scores
+            ]
+
+        liftIO $ BS.L.writeFile "out.json" $ Aeson.encode
+            [ Aeson.object
+              [ "query_id" .= qid
+              , "results"  .=
+                [ Aeson.object
+                  [ "doc_name" .= docName
+                  , "archive" .= archive
+                  , "score"   .= score
+                  , "postings" .= [
+                        Aeson.object
+                          [ "term" .= term
+                          , "positions" .= [
+                                Aeson.object
+                                  [ "token_pos" .= tokenN pos
+                                  , "char_pos" .= charOffset pos
+                                  ]  | pos <- poss ]
+                          ]
+                        | (term, poss) <- M.toList postings
+                        ]
+                  ]
+                | (Exp score, (archive, DocName docName, postings)) <- scores
+                ]
+              ]
+            | (qid, scores) <- M.toList results
             ]
         return ()
 
