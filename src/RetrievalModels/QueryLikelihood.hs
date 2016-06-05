@@ -1,4 +1,10 @@
-module RetrievalModels.QueryLikelihood where
+module RetrievalModels.QueryLikelihood
+    ( Score
+    , queryLikelihood
+      -- * Smoothing models
+    , TermProb
+    , Smoothing(..)
+    ) where
 
 import Data.Foldable
 import qualified Data.HashMap.Strict as HM
@@ -22,30 +28,36 @@ data Smoothing
     | JelinekMercer !(Log Double) TermProb
       -- ^ Jelinek-Mercer smoothing.
 
+-- | Score a term
+score :: Smoothing
+      -> DocumentLength -- ^ the length of the document which we are scoring
+      -> Term           -- ^ the term
+      -> Int            -- ^ how many times does it occur?
+      -> Score
+score smoothing (DocLength docLen) term tf =
+    case smoothing of
+      NoSmoothing           -> tf' / docLen'
+      Dirichlet mu termProb -> (tf' + mu * termProb term) / (docLen' + mu)
+      Laplace               -> (tf' + 1) / (docLen' + 2)
+      JelinekMercer alpha termProb ->
+          alpha * (tf' / docLen') + (1-alpha) * termProb term
+  where
+    tf' = realToFrac tf
+    docLen' = realToFrac docLen :: Log Double
+
 -- | Score a document under the query likelihood model.
 queryLikelihood :: Smoothing                -- ^ what smoothing to apply
                 -> [(Term, Int)]            -- ^ the query's term frequencies
                 -> DocumentLength           -- ^ the length of the document being scored
                 -> [(Term, Int)]            -- ^ the document's term frequencies
                 -> Score                    -- ^ the score under the query likelihood model
-queryLikelihood smoothing query = \(DocLength docLen) docTerms ->
-    let docLen' = realToFrac docLen :: Log Double
-
-        score term tf =
-            case smoothing of
-              NoSmoothing           -> tf' / docLen'
-              Dirichlet mu termProb -> (tf' + mu * termProb term) / (docLen' + mu)
-              Laplace               -> (tf' + 1) / (docLen' + 2)
-              JelinekMercer alpha termProb ->
-                  alpha * (tf' / docLen') + (1-alpha) * termProb term
-          where tf' = realToFrac tf
-
-        docTfs :: HM.HashMap Term Int
+queryLikelihood smoothing query = \docLen docTerms ->
+    let docTfs :: HM.HashMap Term Int
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
         accum :: HM.HashMap Term Int -> (Term, Int) -> HM.HashMap Term Int
         accum acc (term, tf) = HM.adjust (+tf) term acc
-    in product [ (score term tf)^(queryTf term)
+    in product [ (score smoothing docLen term tf)^(queryTf term)
                | (term, tf) <- HM.toList docTfs
                ]
   where
