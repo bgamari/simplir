@@ -3,11 +3,17 @@
 module DataSource
    (
      -- * Data sources
-     DataLocation(..)
+     DataSource(..)
+   , parseDataSource
+   , dataSource
+
+     -- * Data locations
+   , DataLocation(..)
    , parseDataLocation
    , getFileName
    , getFilePath
    , produce
+
      -- * Compression
    , Compression(..)
    , decompress
@@ -29,6 +35,8 @@ import qualified Pipes.Lzma as P.Lzma
 import qualified Pipes.Aws.S3 as P.S3
 import qualified Pipes.ByteString as P.BS
 
+-- | A 'DataLocation' describes the location of some raw data (e.g. a file
+-- on the filesystem or S3).
 data DataLocation = LocalFile { filePath :: FilePath }
                   | S3Object { s3Bucket :: P.S3.Bucket
                              , s3Object :: P.S3.Object
@@ -47,9 +55,7 @@ getFilePath :: DataLocation -> T.Text
 getFilePath (LocalFile path) = T.pack path
 getFilePath (S3Object (P.S3.Bucket bucket) (P.S3.Object obj)) = "s3://" <> bucket <> "/" <> obj
 
-data Compression = GZip   -- ^ e.g. @file.gz@
-                 | Lzma   -- ^ e.g. @file.xz@
-
+-- | Parse a 'DataLocation' from its string representation.
 parseDataLocation :: T.Text -> Maybe DataLocation
 parseDataLocation t
   | Just rest <- "s3://" `T.stripPrefix` t
@@ -58,6 +64,19 @@ parseDataLocation t
 
   | otherwise
   = Just $ LocalFile $ T.unpack t
+
+-- | Produce the raw data from a 'DataLocation'
+produce :: (MonadSafe m)
+        => DataLocation
+        -> Producer ByteString m ()
+produce (LocalFile path) =
+    bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) P.BS.fromHandle
+produce (S3Object bucket object) =
+    P.S3.fromS3 bucket object $ \resp -> P.S3.responseBody resp
+
+-- | A compression method
+data Compression = GZip   -- ^ e.g. @file.gz@
+                 | Lzma   -- ^ e.g. @file.xz@
 
 decompress :: MonadIO m
            => Maybe Compression
@@ -84,10 +103,26 @@ withCompressedSource :: MonadSafe m
 withCompressedSource loc compr action =
     action $ decompress compr (produce loc)
 
-produce :: (MonadSafe m)
-        => DataLocation
-        -> Producer ByteString m ()
-produce (LocalFile path) =
-    bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) P.BS.fromHandle
-produce (S3Object bucket object) =
-    P.S3.fromS3 bucket object $ \resp -> P.S3.responseBody resp
+-- | A 'DataSource' describes the location of some bit of data, as well any
+-- decompression it may need
+data DataSource = DataSource { dsrcCompression :: Maybe Compression
+                             , dsrcLocation    :: DataLocation
+                             }
+
+-- | Produce the data from a 'DataSource'
+dataSource :: MonadSafe m => DataSource -> Producer ByteString m ()
+dataSource (DataSource compression location) =
+    decompress compression $ produce location
+
+-- | Parse a 'DataSource' from its textual representation, attempting to
+-- identify any compression from the file name.
+parseDataSource :: T.Text -> Maybe DataSource
+parseDataSource t = do
+    loc <- parseDataLocation t
+    let name = getFileName loc
+        compression
+          | ".gz" `T.isSuffixOf` name  = Just GZip
+          | ".xz" `T.isSuffixOf` name  = Just Lzma
+          | ".bz2" `T.isSuffixOf` name = error "parseDataSource: bzip2 not implemented"
+          | otherwise                  = Nothing
+    return $ DataSource compression loc
