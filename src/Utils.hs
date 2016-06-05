@@ -65,3 +65,7 @@ toJsonArray prod0 = yield "[\n" >> go prod0
         case mx of
           Right (x, prod') -> P.BS.fromLazy (Aeson.encode x) >> yield ",\n" >> go prod'
           Left () -> yield "]"
+
+-- | Print all items that come down a 'Pipe'.
+traceP :: (MonadIO m, Show a) => Pipe a a m r
+traceP = P.P.mapM (\x -> liftIO (print x) >> return x)
