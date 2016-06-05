@@ -49,6 +49,16 @@ import RetrievalModels.QueryLikelihood
 type QueryId = String
 type StatsFile = FilePath
 
+inputFiles :: Parser (IO [DataLocation])
+inputFiles =
+    concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
+  where
+    concatThem :: [IO [DataLocation]] -> IO [DataLocation]
+    concatThem = fmap concat . sequence
+    parse :: String -> IO [DataLocation]
+    parse ('@':rest) = map LocalFile . lines <$> readFile rest
+    parse fname      = return [LocalFile fname]
+
 scoreMode :: Parser (IO ())
 scoreMode =
     score
@@ -56,7 +66,7 @@ scoreMode =
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> option str (metavar "FILE" <> long "stats" <> short 's'
                       <> help "background corpus statistics file")
-      <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
+      <*> inputFiles
 
 corpusStatsMode :: Parser (IO ())
 corpusStatsMode =
@@ -64,7 +74,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option str (metavar "FILE" <> long "output" <> short 'o'
                       <> help "output file path")
-      <*> some (argument (LocalFile <$> str) (metavar "FILE" <> help "TREC input file"))
+      <*> inputFiles
 
 dumpDocumentMode :: Parser (IO ())
 dumpDocumentMode =
@@ -105,8 +115,9 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-corpusStats :: QueryFile -> StatsFile -> [DataLocation] -> IO ()
-corpusStats queryFile outputFile docs = do
+corpusStats :: QueryFile -> StatsFile -> IO [DataLocation] -> IO ()
+corpusStats queryFile outputFile readDocLocs = do
+    docs <- readDocLocs
     queries <- readQueries queryFile
     let queryTerms = foldMap S.fromList queries
     runSafeT $ do
@@ -149,8 +160,9 @@ indexPostings =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-score :: QueryFile -> Int -> FilePath -> [DataLocation] -> IO ()
-score queryFile resultCount statsFile docs = do
+score :: QueryFile -> Int -> FilePath -> IO [DataLocation] -> IO ()
+score queryFile resultCount statsFile readDocLocs = do
+    docs <- readDocLocs
     queries <- readQueries queryFile
 
     -- load background statistics
