@@ -58,13 +58,19 @@ mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id
 -- | Stream out a JSON array.
 toJsonArray :: (Monad m, Aeson.ToJSON a)
             => Producer a m () -> Producer BS.ByteString m ()
-toJsonArray prod0 = yield "[\n" >> go prod0
+toJsonArray prod0 = yield "[" >> go0 prod0
   where
+    go0 prod = do
+        mx <- lift $ next prod
+        case mx of
+          Right (x, prod') -> yield "\n" >> P.BS.fromLazy (Aeson.encode x) >> go prod'
+          Left () -> yield "]"
+
     go prod = do
         mx <- lift $ next prod
         case mx of
-          Right (x, prod') -> P.BS.fromLazy (Aeson.encode x) >> yield ",\n" >> go prod'
-          Left () -> yield "]"
+          Right (x, prod') -> yield ",\n" >> P.BS.fromLazy (Aeson.encode x) >> go prod'
+          Left () -> yield "\n]"
 
 -- | Print all items that come down a 'Pipe'.
 traceP :: (MonadIO m, Show a) => Pipe a a m r
