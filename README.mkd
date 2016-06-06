@@ -20,3 +20,79 @@ $ for i in $(find dist-newstyle/build/ -executable -a -type f -a -! -iname '*.so
 
 You will end up with a number of executables in the `bin` directory. If you are
 reading this file you likely know what to do from here.
+
+## Usage
+
+Create listing of corpus files. Save in `trec-kba-2015.list` (yes, we messed up
+the name)
+```
+$ find trec-kba-2014/ -iname '*news*.xz' > trec-kba-2015.list
+```
+
+Create corpus background statistics on a subsample of the corpus (here: every
+100'th archive). Store in file names `background`
+```
+$ ./bin/simplir corpus-stats -q queries/queries.tsv -o background $(awk 'NR % 1000 == 0 {print}' trec-kba-2015.list)
+```
+
+Score whole corpus in streaming fashion for a given list of queries using the
+given collection background.
+
+- Corpus is comprised of all files listed in `trec-kba-2015.list` - therefore `@`)
+- List of queries is given in `queries/queries/tsv`
+- Background needs to be computed with the `corpus-stats` command (see above)
+
+Two result files are written, both starting with filename prefix `results`: 
+
+- `*.run` contains the ranking in trec_eval run-file format (space-separated).
+- `*.json` contains positional matches of query terms together with score and
+  archive information in JSON format.
+
+```
+$ ./bin/simplir score -q queries/queries.tsv -s background -o results @trec-kba-2015.list
+$ ls results.*
+results.run
+results.json
+$ 
+```
+
+`results.json` format is roughly this (order of token occurrences within
+document might change soon):
+
+```
+[
+  {
+    "query_id": "Q1",
+    "results": [
+      {
+        "score": -2.718447427575901,
+        "doc_name": "81e4bbcca45920019e1e20df7d20ea8a",
+        "archive": "trec-kba-2014/2012-01-24-11/news-30-fd0b2f9a9096a16c9a14166a25306272-1d1e4a7ae7e43d21cfa0cb31ca253a9c-0097415001369a2ab033800d80f7aa91-7b2ad6e31345a96cbb48277d099e6444.sc.xz",
+        "length": 178,   # the document length
+        "postings": [
+          {
+            "term": "protest",
+            "positions": [
+              {
+                "char_pos": {     # character begin/end offsets of the term
+                  "begin": 1597,
+                  "end": 1603
+                },
+                "token_pos": 15   # i'th token in the document
+              },
+              {
+                "char_pos": {     # next term occurrence...
+                  "begin": 45,
+                  "end": 51
+                },
+                "token_pos": 3
+              }
+            ]
+          },
+      }
+     ...
+    ]
+  },
+  ...
+]
+```
