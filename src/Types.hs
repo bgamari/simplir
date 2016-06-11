@@ -11,6 +11,11 @@
 
 module Types ( module Term
              , module Types
+               -- * DocIdDelta
+             , DocIdDelta(..)
+             , toDocIdDelta
+             , docIdDelta
+             , applyDocIdDelta
              ) where
 
 import Data.String (IsString)
@@ -25,6 +30,8 @@ import Data.Aeson ((.=))
 import Test.QuickCheck
 import Term
 import qualified Data.SmallUtf8 as Utf8
+import Data.SmallNat
+import GHC.Stack (HasCallStack)
 
 newtype DocumentId = DocId Int
                    deriving (Show, Eq, Ord, Enum, Binary)
@@ -111,3 +118,31 @@ getTermFrequency (TermFreq x) = fromIntegral x
 instance Monoid TermFrequency where
     mempty = TermFreq 0
     TermFreq a `mappend` TermFreq b = TermFreq (a + b)
+
+
+-- | A difference between two 'DocumentId's
+newtype DocIdDelta = DocIdDelta SmallNat
+                   deriving (Show, Binary, Enum, Bounded, Ord, Eq)
+
+-- | Lift an 'Int' into a 'DocIdDelta'
+toDocIdDelta :: HasCallStack => Int -> DocIdDelta
+toDocIdDelta n
+  | n' >= minBound && n' < maxBound = DocIdDelta n'
+  | otherwise                       = error "toDocIdDelta: Bad delta"
+  where n' = fromIntegral n :: SmallNat
+{-# INLINE toDocIdDelta #-}
+
+instance Monoid DocIdDelta where
+    mempty = DocIdDelta 0
+    DocIdDelta a `mappend` DocIdDelta b = DocIdDelta (a + b)
+
+-- | Take the difference between two 'DocumentId's
+docIdDelta :: HasCallStack => DocumentId -> DocumentId -> DocIdDelta
+docIdDelta (DocId a) (DocId b)
+  | delta < 0  = error "negative DocIdDelta"
+  | otherwise  = DocIdDelta $ fromIntegral delta
+  where delta = b - a
+{-# INLINE docIdDelta #-}
+
+applyDocIdDelta :: DocumentId -> DocIdDelta -> DocumentId
+applyDocIdDelta (DocId n) (DocIdDelta d) = DocId (n + fromIntegral d)

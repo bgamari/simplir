@@ -40,7 +40,7 @@ data DiskIndex docmeta p
 -- The path should be the directory of a valid 'DiskIndex'
 open :: (Binary docmeta, Binary p) => FilePath -> IO (DiskIndex docmeta p)
 open path = do
-    doc <- Doc.open $ path </> "documents"
+    doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
     Right tf <- PostingIdx.open $ path </> "postings" -- TODO: Error handling
     return $ DiskIndex tf doc
 
@@ -53,7 +53,7 @@ fromDocuments :: (Binary docmeta, Binary p)
 fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
     PostingIdx.fromTermPostings postingChunkSize (dest </> "postings") postings
-    Doc.write (dest </> "documents") (M.fromList docs)
+    Doc.write (Doc.DocIndexPath $ dest </> "documents") (M.fromList docs)
 
 documents :: DiskIndex docmeta p -> [(DocumentId, docmeta)]
 documents = Doc.documents . docIdx
@@ -88,12 +88,12 @@ merge :: forall docmeta p. (Binary p, Binary docmeta)
 merge dest idxs = do
     createDirectoryIfMissing True dest
     -- First merge the document ids
-    let docIds0 :: [PostingIdx.DocIdDelta]
-        (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> PostingIdx.toDocIdDelta (Doc.size $ docIdx idx), docId0))
-                            (PostingIdx.DocIdDelta 0) idxs
+    let docIds0 :: [DocIdDelta]
+        (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> toDocIdDelta (Doc.size $ docIdx idx), docId0))
+                            (DocIdDelta 0) idxs
     -- then write the document index TODO
-    Doc.write (dest </> "documents") $ M.fromList $ concat
-        $ zipWith (\delta -> map (first (`PostingIdx.applyDocIdDelta` delta))) docIds0 (map documents idxs)
+    Doc.write (Doc.DocIndexPath $ dest </> "documents") $ M.fromList $ concat
+        $ zipWith (\delta -> map (first (`applyDocIdDelta` delta))) docIds0 (map documents idxs)
     -- then merge the postings themselves
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs

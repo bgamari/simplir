@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
- 
+
 module DiskIndex.Posting.Merge where
 
 import Data.Foldable
@@ -17,7 +17,7 @@ import Test.QuickCheck
 import Data.Binary
 
 import Pipes
-import DiskIndex.Posting as PostingIdx
+import DiskIndex.Posting.Internal as PostingIdx
 import DiskIndex.Posting.Types
 import Types
 import qualified Encoded as E

@@ -29,6 +29,7 @@ library
       Data.SmallUtf8
       DiskIndex
       DiskIndex.Posting
+      DiskIndex.Posting.Internal
       DiskIndex.Document
       DiskIndex.Posting.Tests
       DiskIndex.Tests
