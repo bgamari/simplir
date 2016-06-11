@@ -15,13 +15,12 @@ import DiskIndex.Posting.Types
 import qualified DiskIndex.Posting.Merge as Merge
 import Types
 
-newtype PostingIndexPath p = PostingIndexPath FilePath
-
 merge :: forall p. Binary p
       => PostingIndexPath p -> [(DocIdDelta, PostingIndexPath p)] -> IO ()
-merge (PostingIndexPath destDir) parts = do
-    idxs <- forM parts $ \(docIdMap, PostingIndexPath path) ->
-        either (const $ error $ "Failed to open posting index: "++path) id <$> open path
+merge destDir parts = do
+    idxs <- forM parts $ \(docIdMap, path) ->
+        either (const $ error $ "Failed to open posting index: "++getPostingIndexPath path) id
+            <$> open path
 
     let allPostings :: [[(Term, [PostingsChunk p])]]
         allPostings = map walkChunks idxs

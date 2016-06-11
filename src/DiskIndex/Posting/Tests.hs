@@ -26,8 +26,8 @@ roundTripPostings postings' = monadicIO $ do
     liftIO $ hClose hdl
     let postings :: M.Map Term [Posting p]
         postings = fmap (map (uncurry Posting) . M.toAscList) postings'
-    liftIO $ PostingIdx.fromTermPostings 64 tempFile postings
-    Right idx <- liftIO $ PostingIdx.open tempFile
+    liftIO $ PostingIdx.fromTermPostings 64 (PostingIdx.PostingIndexPath tempFile) postings
+    Right idx <- liftIO $ PostingIdx.open (PostingIdx.PostingIndexPath tempFile)
     let postings'' = PostingIdx.walk idx
     liftIO $ removeFile tempFile
     return $ M.toAscList postings == postings''

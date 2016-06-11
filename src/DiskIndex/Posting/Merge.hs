@@ -25,9 +25,9 @@ import qualified EncodedList as EL
 import BTree (BLeaf(..))
 
 merge :: forall p. (Binary p)
-      => Int          -- ^ Chunk size
-      -> FilePath     -- ^ Merged output
-      -> Int          -- ^ Merged index size (in terms)
+      => Int                -- ^ Chunk size
+      -> PostingIndexPath p -- ^ Merged output
+      -> Int                -- ^ Merged index size (in terms)
       -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
       -- ^ a set of posting sources, along with their 'DocumentId' offsets
       -> IO ()

@@ -4,6 +4,7 @@
 
 module DiskIndex.Posting.Internal
     ( DiskIndex
+    , PostingIndexPath(..)
     , fromTermPostings
     , open
     , lookup
@@ -31,10 +32,12 @@ import Types
 
 import Prelude hiding (lookup)
 
+newtype PostingIndexPath p = PostingIndexPath { getPostingIndexPath :: FilePath }
+
 -- | Build an inverted index from a set of postings.
 fromTermPostings :: forall p. (Binary p)
                  => Int                       -- ^ how many postings per chunk
-                 -> FilePath                  -- ^ file path
+                 -> PostingIndexPath p        -- ^ file path
                  -> M.Map Term [Posting p]    -- ^ postings for each term,
                                               -- must be sorted by document
                  -> IO ()
@@ -70,8 +73,8 @@ decodeChunk (Chunk firstDocId encPostings) =
 
 newtype DiskIndex p = DiskIndex (BTree.LookupTree Term (EL.EncodedList (PostingsChunk p)))
 
-open :: FilePath -> IO (Either String (DiskIndex p))
-open path = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
+open :: PostingIndexPath p -> IO (Either String (DiskIndex p))
+open (PostingIndexPath path) = liftIO $ fmap (fmap DiskIndex) (BTree.open path)
 
 lookup :: (Binary p)
        => DiskIndex p -> Term -> Maybe [Posting p]
@@ -92,13 +95,12 @@ walkChunks (DiskIndex btree) =
     fromBLeaf (BTree.BLeaf k v) = (k, v)
 
 write :: MonadIO m
-      => FilePath -> Int
+      => PostingIndexPath p -> Int
       -> Producer (BLeaf Term (EL.EncodedList (PostingsChunk p))) m ()
       -> m ()
-write path size prod =
+write (PostingIndexPath path) size prod =
     BTree.fromOrderedToFile 32 (fromIntegral size) path prod
 
 -- | How many terms are in a 'DiskIndex'?
 termCount :: DiskIndex p -> Int
 termCount (DiskIndex btree) = fromIntegral $ BTree.size btree
-
