@@ -51,10 +51,6 @@ zipWithList = go
         yield (i, x)
         go is
 
--- | Fold over a set of 'M.Map's, monoidally merging duplicates.
-mconcatMaps :: (Ord k, Monoid a) => Foldl.Fold (M.Map k a) (M.Map k a)
-mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id
-
 -- | Stream out a JSON array.
 toJsonArray :: (Monad m, Aeson.ToJSON a)
             => Producer a m () -> Producer BS.ByteString m ()

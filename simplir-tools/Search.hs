@@ -48,6 +48,7 @@ import Options.Applicative
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
 import AccumPostings
+import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise

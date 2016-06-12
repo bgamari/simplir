@@ -20,3 +20,7 @@ multiFoldM (Foldl.FoldM step initial extract) = Foldl.FoldM step' initial' extra
                   Just acc0 -> pure acc0
         acc' <- step acc0 x
         return $ M.insert k acc' acc
+
+-- | Fold over a set of 'M.Map's, monoidally merging duplicates.
+mconcatMaps :: (Ord k, Monoid a) => Foldl.Fold (M.Map k a) (M.Map k a)
+mconcatMaps = Foldl.Fold (M.unionWith mappend) M.empty id

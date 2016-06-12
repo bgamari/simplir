@@ -23,11 +23,11 @@ library
       SimplIR.DiskIndex.Posting.Types
       Data.SmallNat
       Control.Foldl.Vector
-      Control.Foldl.Map
 
   exposed-modules:
       BTree.File
       Data.SmallUtf8
+      Control.Foldl.Map
       SimplIR.DiskIndex
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
