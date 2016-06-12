@@ -82,7 +82,14 @@ derivingUnbox "Position"
   [| \(Position a b) -> (a, b) |]
   [| \(a, b) -> Position a b |]
 
-data Posting a = Posting { postingDocId :: !DocumentId, postingBody :: !a }
+-- | A posting is a document identifier paired with some content, representing
+-- one or more occurrences of a term in that document. You typically see 'Posting'
+-- used in a map over terms. For instance, term index for boolean retrieval
+-- might have type @Map Term ('Posting' ())@ whereas a positional index might
+-- have type @Map Term ('Posting' ['Position']@).
+data Posting a = Posting { postingDocId :: !DocumentId
+                         , postingBody :: !a
+                         }
                deriving (Show, Functor, Generic)
 
 instance Arbitrary p => Arbitrary (Posting p) where
@@ -100,10 +107,6 @@ derivingUnbox "Posting"
   [t| forall a. VU.Unbox a => Posting a -> (DocumentId, a) |]
   [| \(Posting a b) -> (a, b) |]
   [| \(a, b) -> Posting a b |]
-
-type BoolPosting = Posting ()
-type TermFreqPosting = Posting Int
-type PositionalPosting = Posting (VU.Vector Position)
 
 -- | The length of a document in tokens.
 newtype DocumentLength = DocLength Int
