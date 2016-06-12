@@ -26,6 +26,7 @@ library
       Control.Foldl.Map
 
   exposed-modules:
+      BTree.File
       Data.SmallUtf8
       DiskIndex
       DiskIndex.Posting
