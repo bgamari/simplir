@@ -9,6 +9,7 @@ module SimplIR.TrecStreaming
     , ContentItem(..)
     , readItems
     , DocumentId(..)
+    , StreamId(..)
     , Url(..)
     , Version(..)
     , AnnotatorId(..)
