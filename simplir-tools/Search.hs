@@ -75,6 +75,7 @@ inputFiles =
     parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
 
 type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+
 optDocumentSource :: Parser DocumentSource
 optDocumentSource =
     option (parse <$> str) (help "document type (kba or robust)" <> value kbaDocuments
@@ -150,14 +151,20 @@ corpusStats queryFile outputFile docSource readDocLocs = do
         stats <-
                 foldProducer (Foldl.generalize foldCorpusStats)
              $  docSource docs >-> normalizationPipeline
-            >-> cat'                                @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
-            >-> P.P.map (second $ map fst)
-            >-> cat'                                @((ArchiveName, DocumentName, DocumentLength), [Term])
-            >-> P.P.map (second $ filter ((`S.member` queryTerms)))
+            >-> cat'                                @(DocumentInfo, [(Term, Position)])
+            >-> P.P.map fst
+            >-> cat'                                @DocumentInfo
 
         liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength stats)
                           ++" documents with "++show (corpusCollectionSize stats)++" terms"
         liftIO $ BS.L.writeFile outputFile $ encode stats
+
+data DocumentInfo = DocInfo { docArchive :: ArchiveName
+                            , docName    :: DocumentName
+                            , docLength  :: DocumentLength
+                            }
+                  deriving (Generic, Eq, Ord)
+instance Binary DocumentInfo
 
 data CorpusStats = CorpusStats { corpusCollectionLength :: !Int
                                  -- ^ How many tokens in collection
@@ -174,10 +181,10 @@ instance Monoid CorpusStats where
                     , corpusCollectionSize = corpusCollectionSize a + corpusCollectionSize b
                     }
 
-foldCorpusStats :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), [Term]) CorpusStats
+foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
 foldCorpusStats =
     CorpusStats
-      <$> lmap (length . snd) Foldl.sum
+      <$> lmap (fromEnum . docLength) Foldl.sum
       <*> Foldl.length
 
 foldTermStats :: Foldl.Fold [Term] (M.Map Term (TermFrequency, DocumentFrequency))
@@ -194,7 +201,7 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-type ScoredDocument = (Score, (ArchiveName, DocumentName, DocumentLength, M.Map Term [Position]))
+type ScoredDocument = (Score, (DocumentInfo, M.Map Term [Position]))
 
 score :: QueryFile -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
 score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
@@ -215,11 +222,11 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
                   Nothing ->
                       0.5 / (realToFrac collLength)
 
-    let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position])
                                   (M.Map QueryId [ScoredDocument])
         queriesFold = traverse queryFold queries
 
-        queryFold :: [Term] -> Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+        queryFold :: [Term] -> Foldl.Fold (DocumentInfo, M.Map Term [Position])
                                           [ScoredDocument]
         queryFold queryTerms =
               Foldl.handles (Foldl.filtered (\(_, docTerms) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms))
@@ -229,11 +236,13 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
             queryTerms' :: M.Map Term Int
             queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
 
-            scoreTerms :: ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+            scoreTerms :: (DocumentInfo, M.Map Term [Position])
                        -> ScoredDocument
-            scoreTerms ((archive, docName, docLength), docTerms) =
-                ( queryLikelihood smoothing (M.assocs queryTerms') docLength (M.toList $ fmap length docTerms)
-                , (archive, docName, docLength, docTerms)
+            scoreTerms (info, docTerms) =
+                ( queryLikelihood smoothing (M.assocs queryTerms')
+                                  (docLength info)
+                                  (M.toList $ fmap length docTerms)
+                , (info, docTerms)
                 )
 
     runSafeT $ do
@@ -241,15 +250,15 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
                 foldProducer (Foldl.generalize queriesFold)
              $  docSource docs
             >-> normalizationPipeline
-            >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), [(Term, Position)])
+            >-> cat'                         @(DocumentInfo, [(Term, Position)])
             >-> P.P.map (second $ filter ((`S.member` allQueryTerms) . fst))
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
-            >-> cat'                         @((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
+            >-> cat'                         @(DocumentInfo, M.Map Term [Position])
 
         liftIO $ writeFile (outputRoot<.>"run") $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
             | (qid, scores) <- M.toList results
-            , (rank, (Exp score, (archive, DocName docName, _, _))) <- zip [1..] scores
+            , (rank, (Exp score, (DocInfo archive (DocName docName) _, _))) <- zip [1..] scores
             ]
 
         liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode
@@ -273,7 +282,7 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
                         | (term, poss) <- M.toList postings
                         ]
                   ]
-                | (Exp score, (archive, DocName docName, docLength, postings)) <- scores
+                | (Exp score, (DocInfo archive (DocName docName) docLength, postings)) <- scores
                 ]
               ]
             | (qid, scores) <- M.toList results
@@ -289,19 +298,16 @@ buildIndex docSource readDocLocs = do
                 foldChunks 1000 (Foldl.generalize $ indexPostings (TermFreq . V.G.length))
              $  docSource docs
             >-> normalizationPipeline
-            >-> cat'                                              @( (ArchiveName, DocumentName, DocumentLength)
-                                                                   , [(Term, Position)] )
+            >-> cat'                                              @(DocumentInfo, [(Term, Position)])
             >-> zipWithList [DocId 0..]
             >-> cat'                                              @( DocumentId
-                                                                   , ( (ArchiveName, DocumentName, DocumentLength)
-                                                                     , [(Term, Position)] )
+                                                                   , (DocumentInfo, [(Term, Position)])
                                                                    )
-            >-> P.P.map (\(docId, ((archive, docName, docLen), postings)) ->
-                           ((docId, archive, docName, docLen), (docId, postings)))
+            >-> P.P.map (\(docId, (info, postings)) -> ((docId, info), (docId, postings)))
             >-> P.P.map (second $ \(docId, postings) ->
                             toPostings docId $ M.assocs $ foldTokens accumPositions postings
                         )
-            >-> cat'                                              @( (DocumentId, ArchiveName, DocumentName, DocumentLength)
+            >-> cat'                                              @( (DocumentId, DocumentInfo)
                                                                    , [(Term, Posting (V.U.Vector Position))]
                                                                    )
 
@@ -313,7 +319,7 @@ buildIndex docSource readDocLocs = do
             postingsPath = PostingIdx.PostingIndexPath $ indexPath </> "postings"
         liftIO $ PostingIdx.fromTermPostings 1024 postingsPath (fmap V.toList postings)
 
-        let docsPath :: DocIdx.DocIndexPath (ArchiveName, DocumentName, DocumentLength)
+        let docsPath :: DocIdx.DocIndexPath DocumentInfo
             docsPath = DocIdx.DocIndexPath $ indexPath </> "documents"
         liftIO $ DocIdx.write docsPath docIds
 
@@ -326,7 +332,7 @@ buildIndex docSource readDocLocs = do
     mergeIndexes chunks
 
 mergeIndexes :: [( PostingIdx.PostingIndexPath (V.U.Vector Position)
-                 , DocIdx.DocIndexPath (ArchiveName, DocumentName, DocumentLength)
+                 , DocIdx.DocIndexPath DocumentInfo
                  , BTree.BTreePath Term (TermFrequency, DocumentFrequency)
                  , CorpusStats
                  )]
@@ -356,7 +362,7 @@ instance Monoid DocumentFrequency where
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
-    ( M.Map DocumentId (ArchiveName, DocumentName, DocumentLength)
+    ( M.Map DocumentId DocumentInfo
     , SavedPostings p
     , M.Map Term (TermFrequency, DocumentFrequency)
     , CorpusStats
@@ -364,31 +370,22 @@ type FragmentIndex p =
 
 indexPostings :: forall p. (Ord p)
               => (p -> TermFrequency)
-              -> Fold ( (DocumentId, ArchiveName, DocumentName, DocumentLength)
-                      , [(Term, Posting p)])
+              -> Fold ((DocumentId, DocumentInfo), [(Term, Posting p)])
                       (FragmentIndex p)
 indexPostings getTermFreq =
     (,,,)
       <$> lmap fst docMeta
       <*> lmap snd postings
       <*> lmap snd termFreqs
-      <*> lmap fst corpusStats
+      <*> lmap (snd . fst) foldCorpusStats
   where
-    docMeta  = lmap (\(docId, archive, docName, docLen) ->
-                       M.singleton docId (archive, docName, docLen)
-                    ) Foldl.mconcat
+    docMeta  = lmap (\(docId, docInfo) -> M.singleton docId docInfo) Foldl.mconcat
     postings = fmap (M.map $ V.G.modify sort . fromFoldable) foldPostings
 
     termFreqs :: Fold [(Term, Posting p)] (M.Map Term (TermFrequency, DocumentFrequency))
     termFreqs = Foldl.handles traverse
                 $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps, DocumentFrequency 1))
                 $ mconcatMaps
-
-    corpusStats =
-        CorpusStats
-          <$> collLength
-          <*> Foldl.length
-    collLength = lmap (\(_, _, _, DocLength c) -> c) Foldl.sum
 
 type ArchiveName = T.Text
 
@@ -420,7 +417,7 @@ kbaDocuments dsrcs =
 normalizationPipeline
     :: Monad m
     => Pipe ((ArchiveName, DocumentName), T.Text)
-            ((ArchiveName, DocumentName, DocumentLength), [(Term, Position)]) m ()
+            (DocumentInfo, [(Term, Position)]) m ()
 normalizationPipeline =
           cat'                                          @((ArchiveName, DocumentName), T.Text)
       >-> P.P.map (fmap $ T.map killPunctuation)
@@ -428,12 +425,10 @@ normalizationPipeline =
       >-> cat'                                          @((ArchiveName, DocumentName), [(T.Text, Position)])
       >-> P.P.map (\((archive, docName), terms) ->
                       let docLen = DocLength $ length $ filter (not . T.all (not . isAlphaNum) . fst) terms
-                      in ((archive, docName, docLen), terms))
-      >-> cat'                                          @( (ArchiveName, DocumentName, DocumentLength)
-                                                         , [(T.Text, Position)])
+                      in (DocInfo archive docName docLen, terms))
+      >-> cat'                                          @( DocumentInfo, [(T.Text, Position)])
       >-> P.P.map (fmap normTerms)
-      >-> cat'                                          @( (ArchiveName, DocumentName, DocumentLength)
-                                                         , [(Term, Position)])
+      >-> cat'                                          @( DocumentInfo, [(Term, Position)])
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
     normTerms = map (first Term.fromText) . filterTerms . caseNorm
