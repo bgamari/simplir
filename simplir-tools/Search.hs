@@ -5,6 +5,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 
@@ -50,7 +51,9 @@ import Types
 import Term
 import Tokenise
 import DataSource
-import qualified DiskIndex
+import qualified BTree
+import qualified DiskIndex.Posting as PostingIdx
+import qualified DiskIndex.Document as DocIdx
 import TopK
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
@@ -159,7 +162,7 @@ corpusStats queryFile outputFile docSource readDocLocs = do
 
 -- | How many documents in a collection?
 type CollectionLength = Int
-data CorpusStats = CorpusStats { corpusTermFreqs :: !(M.Map Term TermFrequency)
+data CorpusStats = CorpusStats { corpusTermFreqs :: !(M.Map Term (TermFrequency, DocumentFrequency))
                                , corpusCollectionLength :: !CollectionLength
                                }
                  deriving (Generic)
@@ -168,16 +171,23 @@ instance Binary CorpusStats
 instance Monoid CorpusStats where
     mempty = CorpusStats mempty 0
     a `mappend` b =
-        CorpusStats { corpusTermFreqs = corpusTermFreqs a <> corpusTermFreqs b
+        CorpusStats { corpusTermFreqs = M.unionWith (\(a,b) (c,d) -> (a<>c, b<>d)) (corpusTermFreqs a) (corpusTermFreqs b)
                     , corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
                     }
 
 foldCorpusStats :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), [Term]) CorpusStats
 foldCorpusStats =
     CorpusStats
-      <$> lmap snd termFreqs
+      <$> lmap snd corpusStats
       <*> lmap (const 1) Foldl.sum
   where
+    corpusStats :: Foldl.Fold [Term] (M.Map Term (TermFrequency, DocumentFrequency))
+    corpusStats =
+        M.mergeWithKey (\_ x y -> Just (x,y)) (fmap (\x -> (x, mempty))) (fmap (\y -> (mempty, y)))
+          <$> termFreqs
+          <*> docFreqs
+    docFreqs :: Foldl.Fold [Term] (M.Map Term DocumentFrequency)
+    docFreqs = lmap (\terms -> M.fromList $ zip terms (repeat $ DocumentFrequency 1)) mconcatMaps
     termFreqs :: Foldl.Fold [Term] (M.Map Term TermFrequency)
     termFreqs =
           Foldl.handles traverse
@@ -194,8 +204,15 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
 
     -- load background statistics
     CorpusStats termFreqs collLength <- decode <$> BS.L.readFile statsFile
-    let getTermFreq term = maybe mempty id $ M.lookup term termFreqs
-        smoothing = Dirichlet 2500 ((\n -> (n + 0.5) / (realToFrac collLength + 1)) . getTermFrequency . getTermFreq)
+    let getTermFreq term = maybe mempty snd $ M.lookup term termFreqs
+        smoothing =
+            Dirichlet 2500 $ \term ->
+                case M.lookup term termFreqs of
+                  Just (tf, _) ->
+                      let n = getTermFrequency tf
+                      in n / (realToFrac collLength)
+                  Nothing ->
+                      0.5 / (realToFrac collLength)
 
     let queriesFold :: Foldl.Fold ((ArchiveName, DocumentName, DocumentLength), M.Map Term [Position])
                                   (M.Map QueryId [ScoredDocument])
@@ -289,27 +306,38 @@ buildIndex docSource readDocLocs = do
                                                                    )
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs, collLength)) -> do
-        liftIO $ print (n, M.size docIds)
         let indexPath = "index-"++show n
-        liftIO $ DiskIndex.fromDocuments indexPath (M.toList docIds) (fmap V.toList postings)
-        yield (indexPath, (termFreqs, collLength))
+            postingsPath :: PostingIdx.PostingIndexPath (V.U.Vector Position)
+            postingsPath = PostingIdx.PostingIndexPath $ indexPath </> "postings"
+            docsPath :: DocIdx.DocIndexPath (ArchiveName, DocumentName, DocumentLength)
+            docsPath = DocIdx.DocIndexPath $ indexPath </> "documents"
 
-    chunkIdxs <- mapM DiskIndex.open $ map fst chunks
-              :: IO [DiskIndex.DiskIndex (ArchiveName, DocumentName, DocumentLength) (V.U.Vector Position)]
-    putStrLn $ "Merging "++show (length chunkIdxs)++" chunks"
-    DiskIndex.merge "index" chunkIdxs
+        liftIO $ print (n, M.size docIds)
+        liftIO $ DocIdx.write docsPath docIds
+        liftIO $ PostingIdx.fromTermPostings 1024 postingsPath (fmap V.toList postings)
+        yield (postingsPath, docsPath, CorpusStats termFreqs collLength)
 
-    let collLength = sum $ map (snd . snd) chunks
-        termFreqs = M.unionsWith (<>) $ map (fst . snd) chunks
-    BS.L.writeFile ("index" </> "coll-length") $ encode (CorpusStats termFreqs collLength)
+    docIds0 <- DocIdx.merge (DocIdx.DocIndexPath "out/documents")$ map (\(_,docs,_) -> docs) chunks
+    PostingIdx.merge (PostingIdx.PostingIndexPath "out/postings")
+        $ zip docIds0 $ map (\(postings,_,_) -> postings) chunks
+
+    let corpusStats = foldMap (\(_,_,x) -> x) chunks
+    BS.L.writeFile ("index" </> "coll-length") $ encode corpusStats
     return ()
+
+newtype DocumentFrequency = DocumentFrequency Int
+                          deriving (Show, Eq, Ord, Binary)
+instance Monoid DocumentFrequency where
+    mempty = DocumentFrequency 0
+    DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
     ( M.Map DocumentId (ArchiveName, DocumentName, DocumentLength)
     , SavedPostings p
-    , M.Map Term TermFrequency
-    , CollectionLength)
+    , M.Map Term (TermFrequency, DocumentFrequency)
+    , CollectionLength
+    )
 
 indexPostings :: forall p. (Ord p)
               => (p -> TermFrequency)
@@ -323,13 +351,14 @@ indexPostings getTermFreq =
       <*> lmap snd termFreqs
       <*> lmap fst collLength
   where
-    docMeta  = lmap (\((docId, archive, docName, docLen), _postings) -> M.singleton docId (archive, docName, docLen))
-                      Foldl.mconcat
+    docMeta  = lmap (\((docId, archive, docName, docLen), _postings) ->
+                       M.singleton docId (archive, docName, docLen)
+                    ) Foldl.mconcat
     postings = fmap (M.map $ V.G.modify sort . fromFoldable) foldPostings
 
-    termFreqs :: Fold [(Term, Posting p)] (M.Map Term TermFrequency)
+    termFreqs :: Fold [(Term, Posting p)] (M.Map Term (TermFrequency, DocumentFrequency))
     termFreqs = Foldl.handles traverse
-                $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps))
+                $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps, DocumentFrequency 1))
                 $ mconcatMaps
 
     collLength = lmap (\(_, _, _, DocLength c) -> c) Foldl.sum
