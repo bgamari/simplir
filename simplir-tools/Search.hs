@@ -212,7 +212,7 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
 
     -- load background statistics
     CorpusStats collLength collSize <- decode <$> BS.L.readFile statsFile
-    termFreqs <- BTree.open (BTree.BTreePath "index/term-freqs" :: BTree.BTreePath Term (TermFrequency, DocumentFrequency))
+    termFreqs <- BTree.open (BTree.BTreePath "index/term-stats" :: BTree.BTreePath Term (TermFrequency, DocumentFrequency))
     let getTermFreq term = maybe mempty snd $ BTree.lookup termFreqs term
         smoothing =
             Dirichlet 2500 $ \term ->
@@ -326,7 +326,7 @@ buildIndex docSource readDocLocs = do
         liftIO $ DocIdx.write docsPath docIds
 
         let termFreqsPath :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
-            termFreqsPath = BTree.BTreePath $ indexPath </> "term-freqs"
+            termFreqsPath = BTree.BTreePath $ indexPath </> "term-stats"
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toList termFreqs)
 
         yield (postingsPath, docsPath, termFreqsPath, corpusStats)
@@ -340,12 +340,15 @@ mergeIndexes :: [( PostingIdx.PostingIndexPath (V.U.Vector Position)
                  )]
              -> IO ()
 mergeIndexes chunks = do
-    createDirectoryIfMissing True "out"
-    docIds0 <- DocIdx.merge (DocIdx.DocIndexPath "out/documents") $ map (\(_,docs,_,_) -> docs) chunks
-    PostingIdx.merge (PostingIdx.PostingIndexPath "out/postings") $ zip docIds0 $ map (\(postings,_,_,_) -> postings) chunks
-    BTree.merge mappend (BTree.BTreePath "out/term-freqs") $ map (\(_,_,termFreqs,_) -> termFreqs) chunks
-
-    BS.L.writeFile ("index" </> "coll-length") $ encode $ foldMap (\(_,_,_,x) -> x) chunks
+    createDirectoryIfMissing True "index"
+    putStrLn "merging"
+    docIds0 <- DocIdx.merge (DocIdx.DocIndexPath "index/documents") $ map (\(_,docs,_,_) -> docs) chunks
+    putStrLn "documents done"
+    PostingIdx.merge (PostingIdx.PostingIndexPath "index/postings") $ zip docIds0 $ map (\(postings,_,_,_) -> postings) chunks
+    putStrLn "postings done"
+    BTree.merge mappend (BTree.BTreePath "index/term-stats") $ map (\(_,_,x,_) -> x) chunks
+    putStrLn "term stats done"
+    BS.L.writeFile ("index" </> "corpus-stats") $ encode $ foldMap (\(_,_,_,x) -> x) chunks
     return ()
 
 offlineMerge :: [FilePath] -> IO ()
@@ -355,7 +358,7 @@ offlineMerge = mergeIndexes . map toChunk
       where
         postingsPath = PostingIdx.PostingIndexPath $ indexPath </> "postings"
         docsPath = DocIdx.DocIndexPath $ indexPath </> "documents"
-        termFreqsPath = BTree.BTreePath $ indexPath </> "term-freqs"
+        termFreqsPath = BTree.BTreePath $ indexPath </> "term-stats"
 
 newtype DocumentFrequency = DocumentFrequency Int
                           deriving (Show, Eq, Ord, Binary)
