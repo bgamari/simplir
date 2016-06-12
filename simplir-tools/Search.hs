@@ -19,6 +19,7 @@ import Data.Char
 import GHC.Generics
 import System.IO
 import System.FilePath
+import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
 import qualified Data.Aeson as Aeson
@@ -313,6 +314,7 @@ buildIndex docSource readDocLocs = do
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs, corpusStats)) -> do
         let indexPath = "index-"++show n
+        liftIO $ createDirectoryIfMissing True indexPath
         liftIO $ print (n, M.size docIds)
 
         let postingsPath :: PostingIdx.PostingIndexPath (V.U.Vector Position)
@@ -338,6 +340,7 @@ mergeIndexes :: [( PostingIdx.PostingIndexPath (V.U.Vector Position)
                  )]
              -> IO ()
 mergeIndexes chunks = do
+    createDirectoryIfMissing True "out"
     docIds0 <- DocIdx.merge (DocIdx.DocIndexPath "out/documents") $ map (\(_,docs,_,_) -> docs) chunks
     PostingIdx.merge (PostingIdx.PostingIndexPath "out/postings") $ zip docIds0 $ map (\(postings,_,_,_) -> postings) chunks
     BTree.merge mappend (BTree.BTreePath "out/term-freqs") $ map (\(_,_,termFreqs,_) -> termFreqs) chunks

@@ -21,6 +21,7 @@ executable simplir
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       filepath,
+      directory,
       mtl,
       binary,
       foldl,
