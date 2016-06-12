@@ -14,6 +14,7 @@ import qualified Data.DList as DList
 import           Data.DList (DList)
 
 import SimplIR.Types
+import SimplIR.Term
 
 type TermPostings a = [(Term, Posting a)]
 

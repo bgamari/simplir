@@ -22,6 +22,7 @@ import Data.Monoid
 import Data.List (mapAccumL)
 import qualified Data.Map as M
 
+import           SimplIR.Term
 import           SimplIR.Types
 import qualified SimplIR.DiskIndex.Posting as PostingIdx
 import qualified SimplIR.DiskIndex.Posting.Types as PostingIdx

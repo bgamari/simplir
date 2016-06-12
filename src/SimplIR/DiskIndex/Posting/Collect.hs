@@ -15,6 +15,7 @@ import qualified Data.Heap as H
 
 import Pipes
 import SimplIR.Types
+import SimplIR.Term
 
 import qualified Data.Map as M
 import qualified Data.Set as S

@@ -20,6 +20,7 @@ import Pipes
 import SimplIR.DiskIndex.Posting.Internal as PostingIdx
 import SimplIR.DiskIndex.Posting.Types
 import SimplIR.Types
+import SimplIR.Term
 import qualified SimplIR.Encoded as E
 import qualified SimplIR.EncodedList as EL
 import BTree (BLeaf(..))

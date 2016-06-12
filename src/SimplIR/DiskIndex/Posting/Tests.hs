@@ -15,6 +15,7 @@ import Test.QuickCheck.Monadic
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
+import SimplIR.Term
 import SimplIR.Types
 import SimplIR.DiskIndex.Posting as PostingIdx
 

@@ -9,6 +9,7 @@ import Data.Tuple (swap)
 import qualified Data.Map.Strict as M
 
 import qualified SimplIR.DiskIndex as DiskIndex
+import           SimplIR.Term
 import           SimplIR.Types
 
 import Test.QuickCheck

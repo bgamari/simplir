@@ -15,6 +15,7 @@ import           SimplIR.DiskIndex.Posting.Internal
 import           SimplIR.DiskIndex.Posting.Types
 import qualified SimplIR.DiskIndex.Posting.Merge as Merge
 import           SimplIR.Types
+import           SimplIR.Term
 
 merge :: forall p. Binary p
       => PostingIndexPath p -> [(DocIdDelta, PostingIndexPath p)] -> IO ()

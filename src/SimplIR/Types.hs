@@ -10,9 +10,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module SimplIR.Types
-    ( module SimplIR.Term
-    , module SimplIR.Types
-      -- * DocIdDelta
+    ( -- * Often-needed types
+      DocumentName(..)
+    , DocumentLength(..)
+    , TermFrequency(..)
+    , getTermFrequency
+      -- * Positions within documents
+    , Span(..)
+    , Position(..)
+      -- * Postings and related types
+    , DocumentId(..)
+    , Posting(..)
+      -- ** Offset 'DocumentId's
     , DocIdDelta(..)
     , toDocIdDelta
     , docIdDelta
@@ -29,7 +38,6 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import Test.QuickCheck
-import SimplIR.Term
 import qualified Data.SmallUtf8 as Utf8
 import Data.SmallNat
 import GHC.Stack (HasCallStack)

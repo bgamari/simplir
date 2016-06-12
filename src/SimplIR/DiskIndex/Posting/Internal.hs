@@ -31,6 +31,7 @@ import qualified SimplIR.EncodedList as EL
 import qualified SimplIR.Encoded as E
 import SimplIR.DiskIndex.Posting.Types
 import SimplIR.Types
+import SimplIR.Term
 
 import Prelude hiding (lookup)
 

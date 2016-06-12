@@ -11,6 +11,7 @@ import qualified Data.HashMap.Strict as HM
 import Data.Maybe (fromMaybe)
 import Numeric.Log hiding (sum)
 import SimplIR.Types
+import SimplIR.Term
 
 type Score = Log Double
 
