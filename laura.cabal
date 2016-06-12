@@ -19,8 +19,8 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   other-modules:
-      DiskIndex.Posting.Merge
-      DiskIndex.Posting.Types
+      SimplIR.DiskIndex.Posting.Merge
+      SimplIR.DiskIndex.Posting.Types
       Data.SmallNat
       Control.Foldl.Vector
       Control.Foldl.Map
@@ -28,25 +28,25 @@ library
   exposed-modules:
       BTree.File
       Data.SmallUtf8
-      DiskIndex
-      DiskIndex.Posting
-      DiskIndex.Posting.Internal
-      DiskIndex.Document
-      DiskIndex.Posting.Tests
-      DiskIndex.Tests
-      RetrievalModels.QueryLikelihood
+      SimplIR.DiskIndex
+      SimplIR.DiskIndex.Posting
+      SimplIR.DiskIndex.Posting.Internal
+      SimplIR.DiskIndex.Posting.Collect
+      SimplIR.DiskIndex.Document
+      SimplIR.DiskIndex.Posting.Tests
+      SimplIR.DiskIndex.Tests
+      SimplIR.RetrievalModels.QueryLikelihood
       AccumPostings
-      CollectPostings
-      DataSource
-      Encoded
-      EncodedList
+      SimplIR.DataSource
+      SimplIR.Encoded
+      SimplIR.EncodedList
       Progress
-      Tokenise
-      TopK
-      Utils
-      Types
-      Term
-      WarcDocSource
+      SimplIR.Tokenise
+      SimplIR.TopK
+      SimplIR.Utils
+      SimplIR.Types
+      SimplIR.Term
+      SimplIR.WarcDocSource
 
   build-depends:
       base >=4.8 && <4.9,

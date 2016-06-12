@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Monad
-import qualified DiskIndex
-import qualified DiskIndex.Posting as PostingIdx
-import qualified Term
-import Types
+import qualified SimplIR.DiskIndex as DiskIndex
+import qualified SimplIR.DiskIndex.Posting as PostingIdx
+import qualified SimplIR.Term as Term
+import           SimplIR.Types
 import Options.Applicative
 
 args :: Parser (FilePath, [String])

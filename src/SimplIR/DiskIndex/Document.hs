@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Document metadata index
-module DiskIndex.Document
+module SimplIR.DiskIndex.Document
     ( DocIndex
     , open
     , write
@@ -25,7 +25,7 @@ import qualified Data.ByteString.Lazy as BSL
 import System.Directory
 import System.FilePath
 
-import Types
+import SimplIR.Types
 
 -- | TODO
 newtype DocIndex meta = DocIndex (M.Map DocumentId meta)

@@ -30,15 +30,15 @@ import qualified Pipes.Prelude as P.P
 import Data.Warc as Warc
 import qualified SimplIR.HTML.Clean as Clean
 
-import Utils
-import Types
-import Term
+import SimplIR.Utils
+import SimplIR.Types
+import SimplIR.Term as Term
 import Progress
-import Tokenise
-import WarcDocSource
+import SimplIR.Tokenise
+import SimplIR.WarcDocSource
 import AccumPostings
-import DataSource
-import DiskIndex
+import SimplIR.DataSource
+import SimplIR.DiskIndex as DiskIndex
 
 --dsrc = S3Object { s3Bucket = "aws-publicdatasets"
 --                , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"

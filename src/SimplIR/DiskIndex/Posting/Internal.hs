@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 
-module DiskIndex.Posting.Internal
+module SimplIR.DiskIndex.Posting.Internal
     ( DiskIndex
     , PostingIndexPath(..)
     , fromTermPostings
@@ -23,12 +23,14 @@ import qualified Data.Vector as V
 
 import Pipes
 import qualified Pipes.Prelude as PP
+
 import qualified BTree
 import BTree (BLeaf(..))
-import qualified EncodedList as EL
-import qualified Encoded as E
-import DiskIndex.Posting.Types
-import Types
+
+import qualified SimplIR.EncodedList as EL
+import qualified SimplIR.Encoded as E
+import SimplIR.DiskIndex.Posting.Types
+import SimplIR.Types
 
 import Prelude hiding (lookup)
 

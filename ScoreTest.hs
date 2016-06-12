@@ -17,16 +17,17 @@ import Pipes
 import qualified Pipes.Prelude as PP
 
 import Numeric.Log
-import qualified Data.SmallUtf8 as Utf8
-import Utils
-import DiskIndex
-import CollectPostings
-import Types
-import Term
-import RetrievalModels.QueryLikelihood
-import TopK
-import Options.Applicative
 import qualified BTree
+import qualified Data.SmallUtf8 as Utf8
+import SimplIR.Utils
+import SimplIR.DiskIndex as DiskIndex
+import SimplIR.DiskIndex.Posting.Collect
+import SimplIR.Types
+import SimplIR.Term as Term
+import SimplIR.RetrievalModels.QueryLikelihood
+import SimplIR.TopK
+
+import Options.Applicative
 
 type QueryId = String
 

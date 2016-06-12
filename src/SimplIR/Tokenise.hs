@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Tokenise where
+module SimplIR.Tokenise where
 
 import Data.List (unfoldr)
 import Data.Foldable
@@ -17,8 +17,8 @@ import qualified Data.Text.Internal as T.I
 import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
-import Types
-import Term
+import SimplIR.Types
+import SimplIR.Term
 
 tokenise :: T.Text -> [T.Text]
 tokenise = T.words . T.toCaseFold

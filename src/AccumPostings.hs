@@ -13,7 +13,7 @@ import qualified Data.Map as M
 import qualified Data.DList as DList
 import           Data.DList (DList)
 
-import Types
+import SimplIR.Types
 
 type TermPostings a = [(Term, Posting a)]
 

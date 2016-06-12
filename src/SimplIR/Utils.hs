@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Utils where
+module SimplIR.Utils where
 
 import qualified Control.Foldl as Foldl
 import Pipes

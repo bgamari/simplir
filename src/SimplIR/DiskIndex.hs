@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 
-module DiskIndex
+module SimplIR.DiskIndex
     ( DiskIndex(..)
       -- * Creation
     , open
@@ -22,11 +22,11 @@ import Data.Monoid
 import Data.List (mapAccumL)
 import qualified Data.Map as M
 
-import Types
-import qualified DiskIndex.Posting as PostingIdx
-import qualified DiskIndex.Posting.Types as PostingIdx
-import qualified DiskIndex.Posting.Merge as PostingIdx.Merge
-import qualified DiskIndex.Document as Doc
+import           SimplIR.Types
+import qualified SimplIR.DiskIndex.Posting as PostingIdx
+import qualified SimplIR.DiskIndex.Posting.Types as PostingIdx
+import qualified SimplIR.DiskIndex.Posting.Merge as PostingIdx.Merge
+import qualified SimplIR.DiskIndex.Document as Doc
 
 -- | @DiskIndex docmeta p@ is an on-disk index with document metadata @docmeta@
 -- and posting-type @p@.

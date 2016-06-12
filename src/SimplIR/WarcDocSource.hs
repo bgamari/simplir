@@ -4,7 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
-module WarcDocSource
+module SimplIR.WarcDocSource
     ( readRecord
     , decodeDocuments
     ) where
@@ -37,7 +37,7 @@ import Data.Warc as Warc
 import qualified Network.HTTP.Types as Http
 import qualified Network.HTTP.Parse as Http
 import Network.HTTP.Media
-import Types
+import SimplIR.Types
 
 data MsgType = MsgResponse | MsgRequest
              deriving (Show, Eq, Ord, Bounded, Enum)

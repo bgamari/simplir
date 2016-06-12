@@ -1,4 +1,4 @@
-module RetrievalModels.QueryLikelihood
+module SimplIR.RetrievalModels.QueryLikelihood
     ( Score
     , queryLikelihood
       -- * Smoothing models
@@ -10,7 +10,7 @@ import Data.Foldable
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (fromMaybe)
 import Numeric.Log hiding (sum)
-import Types
+import SimplIR.Types
 
 type Score = Log Double
 

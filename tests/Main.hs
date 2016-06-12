@@ -1,15 +1,15 @@
 import Test.Tasty
 
-import qualified DiskIndex.Tests
-import qualified DiskIndex.Posting.Tests
-import qualified TopK
-import qualified CollectPostings
+import qualified SimplIR.DiskIndex.Tests
+import qualified SimplIR.DiskIndex.Posting.Tests
+import qualified SimplIR.DiskIndex.Posting.Collect
+import qualified SimplIR.TopK
 
 main :: IO ()
 main =
     defaultMain $ testGroup "tests"
-        [ DiskIndex.Tests.tests
-        , DiskIndex.Posting.Tests.tests
-        , TopK.tests
-        , CollectPostings.tests
+        [ SimplIR.DiskIndex.Tests.tests
+        , SimplIR.DiskIndex.Posting.Tests.tests
+        , SimplIR.DiskIndex.Posting.Collect.tests
+        , SimplIR.TopK.tests
         ]

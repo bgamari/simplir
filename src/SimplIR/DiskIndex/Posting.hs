@@ -1,8 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module DiskIndex.Posting
-    ( module DiskIndex.Posting.Internal
+module SimplIR.DiskIndex.Posting
+    ( module SimplIR.DiskIndex.Posting.Internal
       -- * On disk
     , PostingIndexPath(..)
     , merge
@@ -10,10 +10,11 @@ module DiskIndex.Posting
 
 import Data.Binary
 import Data.Traversable
-import DiskIndex.Posting.Internal
-import DiskIndex.Posting.Types
-import qualified DiskIndex.Posting.Merge as Merge
-import Types
+
+import           SimplIR.DiskIndex.Posting.Internal
+import           SimplIR.DiskIndex.Posting.Types
+import qualified SimplIR.DiskIndex.Posting.Merge as Merge
+import           SimplIR.Types
 
 merge :: forall p. Binary p
       => PostingIndexPath p -> [(DocIdDelta, PostingIndexPath p)] -> IO ()

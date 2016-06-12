@@ -1,11 +1,12 @@
 {-# LANGUAGE TypeApplications #-}
 
-module TopK
+module SimplIR.TopK
     ( -- * Computing top-k lists
       topK, topK'
     , H.Entry(..)
       -- * Tests
-    , tests ) where
+    , tests
+    ) where
 
 import Data.Foldable
 import Data.Profunctor

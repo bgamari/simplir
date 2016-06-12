@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Encoded
+module SimplIR.Encoded
     ( Encoded, decode, encode
     ) where
 

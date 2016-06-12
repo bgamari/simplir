@@ -3,7 +3,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 
-module CollectPostings
+module SimplIR.DiskIndex.Posting.Collect
     ( collectPostings
     , tests
     ) where
@@ -14,7 +14,7 @@ import Data.Function (on)
 import qualified Data.Heap as H
 
 import Pipes
-import Types
+import SimplIR.Types
 
 import qualified Data.Map as M
 import qualified Data.Set as S

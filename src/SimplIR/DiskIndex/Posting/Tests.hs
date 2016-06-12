@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module DiskIndex.Posting.Tests where
+module SimplIR.DiskIndex.Posting.Tests where
 
 import Data.Binary (Binary)
 import Control.Monad.IO.Class
@@ -15,8 +15,8 @@ import Test.QuickCheck.Monadic
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
-import Types
-import DiskIndex.Posting as PostingIdx
+import SimplIR.Types
+import SimplIR.DiskIndex.Posting as PostingIdx
 
 roundTripPostings :: forall p. (Binary p, Eq p)
                   => M.Map Term (M.Map DocumentId p) -> Property

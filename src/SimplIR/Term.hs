@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Term where
+module SimplIR.Term where
 
 import Data.String (IsString)
 import Control.DeepSeq

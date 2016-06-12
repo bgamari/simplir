@@ -9,14 +9,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Types ( module Term
-             , module Types
-               -- * DocIdDelta
-             , DocIdDelta(..)
-             , toDocIdDelta
-             , docIdDelta
-             , applyDocIdDelta
-             ) where
+module SimplIR.Types
+    ( module SimplIR.Term
+    , module SimplIR.Types
+      -- * DocIdDelta
+    , DocIdDelta(..)
+    , toDocIdDelta
+    , docIdDelta
+    , applyDocIdDelta
+    ) where
 
 import Data.String (IsString)
 import Data.Binary
@@ -28,7 +29,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import Test.QuickCheck
-import Term
+import SimplIR.Term
 import qualified Data.SmallUtf8 as Utf8
 import Data.SmallNat
 import GHC.Stack (HasCallStack)

@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module EncodedList
+module SimplIR.EncodedList
     ( EncodedList
     , toList
     , fromList

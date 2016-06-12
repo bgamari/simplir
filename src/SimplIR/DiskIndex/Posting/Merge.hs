@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module DiskIndex.Posting.Merge where
+module SimplIR.DiskIndex.Posting.Merge where
 
 import Data.Foldable
 import Data.Monoid
@@ -17,11 +17,11 @@ import Test.QuickCheck
 import Data.Binary
 
 import Pipes
-import DiskIndex.Posting.Internal as PostingIdx
-import DiskIndex.Posting.Types
-import Types
-import qualified Encoded as E
-import qualified EncodedList as EL
+import SimplIR.DiskIndex.Posting.Internal as PostingIdx
+import SimplIR.DiskIndex.Posting.Types
+import SimplIR.Types
+import qualified SimplIR.Encoded as E
+import qualified SimplIR.EncodedList as EL
 import BTree (BLeaf(..))
 
 merge :: forall p. (Binary p)

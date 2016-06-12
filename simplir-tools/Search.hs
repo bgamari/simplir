@@ -46,19 +46,19 @@ import qualified Pipes.Prelude as P.P
 import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
-import Utils
+import SimplIR.Utils
 import AccumPostings
-import Types
-import Term
-import Tokenise
-import DataSource
+import SimplIR.Types
+import SimplIR.Term as Term
+import SimplIR.Tokenise
+import SimplIR.DataSource
 import qualified BTree.File as BTree
-import qualified DiskIndex.Posting as PostingIdx
-import qualified DiskIndex.Document as DocIdx
-import TopK
+import qualified SimplIR.DiskIndex.Posting as PostingIdx
+import qualified SimplIR.DiskIndex.Document as DocIdx
+import SimplIR.TopK
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
-import RetrievalModels.QueryLikelihood
+import SimplIR.RetrievalModels.QueryLikelihood
 
 type QueryId = String
 type StatsFile = FilePath

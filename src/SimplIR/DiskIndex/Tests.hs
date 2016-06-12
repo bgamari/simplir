@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
-module DiskIndex.Tests where
+module SimplIR.DiskIndex.Tests where
 
 import Data.List (sort)
 import Control.Monad.IO.Class
@@ -8,8 +8,8 @@ import Data.Traversable (forM)
 import Data.Tuple (swap)
 import qualified Data.Map.Strict as M
 
-import qualified DiskIndex
-import Types
+import qualified SimplIR.DiskIndex as DiskIndex
+import           SimplIR.Types
 
 import Test.QuickCheck
 import Test.QuickCheck.Monadic

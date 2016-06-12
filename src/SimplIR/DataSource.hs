@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module DataSource
+module SimplIR.DataSource
    (
      -- * Data sources
      DataSource(..)
