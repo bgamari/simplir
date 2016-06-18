@@ -21,7 +21,7 @@ main = do
 
     let toDocName :: DocumentId -> String
         toDocName = maybe "none" show . flip DiskIndex.lookupDoc idx
-        showTermPostings :: Term -> [Posting [Position]] -> String
+        showTermPostings :: Term.Term -> [Posting [Position]] -> String
         showTermPostings term postings =
             show term ++ "\n"
             ++ unlines [ "  "++toDocName (postingDocId p) ++ " " ++ show (length $ postingBody p)
