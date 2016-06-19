@@ -124,6 +124,8 @@ readQueries fname = do
         $ Query { queryTerms    = map Term.fromText $ T.words terms
                 , queryEntities = map Fac.EntityId $ T.words entityIds
                 }
+      | otherwise
+      = error $ "error parsing line: "++show line
 
 main :: IO ()
 main = do
