@@ -1,38 +1,41 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module SimplIR.RetrievalModels.QueryLikelihood
     ( Score
     , queryLikelihood
       -- * Smoothing models
-    , TermProb
+    , Distribution
     , Smoothing(..)
     ) where
 
 import Data.Foldable
+import Data.Hashable
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe (fromMaybe)
 import Numeric.Log hiding (sum)
 import SimplIR.Types
-import SimplIR.Term
 
 type Score = Log Double
 
 -- | An oracle providing a term's probability under the background language
 -- model.
-type TermProb = Term -> Log Double
+type Distribution a = a -> Log Double
 
-data Smoothing
+data Smoothing term
     = NoSmoothing
-    | Dirichlet !(Log Double) TermProb
+    | Dirichlet !(Log Double) (Distribution term)
       -- ^ Given by Dirichlet factor $mu$ and background
       -- term probability. Values around the average
       -- document length or of order 100 are good guesses.
     | Laplace
-    | JelinekMercer !(Log Double) TermProb
+    | JelinekMercer !(Log Double) (Distribution term)
       -- ^ Jelinek-Mercer smoothing.
 
 -- | Score a term
-score :: Smoothing
+score ::
+         Smoothing term
       -> DocumentLength -- ^ the length of the document which we are scoring
-      -> Term           -- ^ the term
+      -> term           -- ^ the term
       -> Int            -- ^ how many times does it occur?
       -> Score
 score smoothing (DocLength docLen) term tf =
@@ -47,23 +50,24 @@ score smoothing (DocLength docLen) term tf =
     docLen' = realToFrac docLen :: Log Double
 
 -- | Score a document under the query likelihood model.
-queryLikelihood :: Smoothing                -- ^ what smoothing to apply
-                -> [(Term, Int)]            -- ^ the query's term frequencies
+queryLikelihood :: forall term. (Hashable term, Eq term)
+                => Smoothing term           -- ^ what smoothing to apply
+                -> [(term, Int)]            -- ^ the query's term frequencies
                 -> DocumentLength           -- ^ the length of the document being scored
-                -> [(Term, Int)]            -- ^ the document's term frequencies
+                -> [(term, Int)]            -- ^ the document's term frequencies
                 -> Score                    -- ^ the score under the query likelihood model
 queryLikelihood smoothing query = \docLen docTerms ->
-    let docTfs :: HM.HashMap Term Int
+    let docTfs :: HM.HashMap term Int
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
-        accum :: HM.HashMap Term Int -> (Term, Int) -> HM.HashMap Term Int
+        accum :: HM.HashMap term Int -> (term, Int) -> HM.HashMap term Int
         accum acc (term, tf) = HM.adjust (+tf) term acc
     in product [ (score smoothing docLen term tf)^(queryTf term)
                | (term, tf) <- HM.toList docTfs
                ]
   where
-    queryTerms :: HM.HashMap Term Int
+    queryTerms :: HM.HashMap term Int
     queryTerms = HM.fromList query
 
-    queryTf :: Term -> Int
+    queryTf :: term -> Int
     queryTf term = fromMaybe 0 $ HM.lookup term queryTerms

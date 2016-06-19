@@ -6,16 +6,13 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
-import GHC.Generics
 import System.FilePath
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 import System.IO.Temp
@@ -43,6 +40,8 @@ import SimplIR.Tokenise
 import SimplIR.DataSource
 import qualified BTree.File as BTree
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
+import SimplIR.TrecStreaming.FacAnnotations (EntityId)
+import Types
 
 main :: IO ()
 main = do
@@ -92,13 +91,13 @@ inputFiles =
 
 
 facEntities :: [DataSource]
-            -> Producer (DocumentInfo, [Term]) (SafeT IO) ()
+            -> Producer (DocumentInfo, [Fac.EntityId]) (SafeT IO) ()
 facEntities dsrcs =
     mapM_ (\dsrc -> Fac.parseDocuments (P.T.decodeUtf8 $ dataSource dsrc)
                     >-> P.P.map (\d -> ( DocInfo (Fac.docArchive d)
                                                  (DocName $ Utf8.fromText $ Fac.docId d)
                                                  (DocLength $ length $ Fac.docAnnotations d)
-                                       , map (Term.fromText . Fac.getEntityId . Fac.annEntity) (Fac.docAnnotations d)))
+                                       , map Fac.annEntity (Fac.docAnnotations d)))
           ) dsrcs
 
 buildIndex :: DiskIndex -> IO [DataSource] -> IO ()
@@ -109,10 +108,10 @@ buildIndex output readDocLocs = do
         chunkIndexes =
                 foldChunks 50000 (Foldl.generalize $ indexPostings id)
              $  facEntities dsrcs
-            >-> cat'                                              @(DocumentInfo, [Term])
+            >-> cat'                                              @(DocumentInfo, [EntityId])
             >-> P.P.map (second $ \postings -> foldTokens Foldl.mconcat $ zip postings (repeat $ TermFreq 1))
             >-> cat'                                              @( DocumentInfo
-                                                                   , M.Map Term TermFrequency
+                                                                   , M.Map EntityId TermFrequency
                                                                    )
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docs, termFreqs, corpusStats)) -> do
@@ -120,11 +119,11 @@ buildIndex output readDocLocs = do
         root <- liftIO $ createTempDirectory "." "index"
         let indexPaths = diskIndexPaths root
 
-        let docsPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
+        let docsPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map EntityId TermFrequency)
             docsPath = diskDocuments indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size docs) docsPath (each $ M.toAscList docs)
 
-        let termFreqsPath :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
+        let termFreqsPath :: BTree.BTreePath EntityId (TermFrequency, DocumentFrequency)
             termFreqsPath = diskTermStats indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toAscList termFreqs)
 
@@ -148,30 +147,9 @@ mergeIndexes output chunks = do
     BinaryFile.write (diskCorpusStats output) corpusStats
     return ()
 
-diskIndexPaths :: FilePath -> DiskIndex
-diskIndexPaths root =
-    DiskIndex { diskRootDir     = root
-              , diskDocuments   = BTree.BTreePath $ root </> "documents"
-              , diskTermStats   = BTree.BTreePath $ root </> "term-stats"
-              , diskCorpusStats = BinaryFile.BinaryFile $ root </> "corpus-stats"
-              }
-
--- | Paths to the parts of an index on disk
-data DiskIndex = DiskIndex { diskRootDir     :: FilePath
-                           , diskDocuments   :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
-                           , diskTermStats   :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
-                           , diskCorpusStats :: BinaryFile CorpusStats
-                           }
-
-type FragmentIndex p =
-    ( M.Map DocumentName (DocumentInfo, M.Map Term p)
-    , M.Map Term (TermFrequency, DocumentFrequency)
-    , CorpusStats
-    )
-
 indexPostings :: forall p. ()
               => (p -> TermFrequency)
-              -> Fold (DocumentInfo, M.Map Term p)
+              -> Fold (DocumentInfo, M.Map EntityId p)
                       (FragmentIndex p)
 indexPostings getTermFreq =
     (,,)
@@ -179,10 +157,10 @@ indexPostings getTermFreq =
       <*> lmap snd termFreqs
       <*> lmap fst foldCorpusStats
   where
-    docMeta :: Fold (DocumentInfo, M.Map Term p) (M.Map DocumentName (DocumentInfo, M.Map Term p))
+    docMeta :: Fold (DocumentInfo, M.Map EntityId p) (M.Map DocumentName (DocumentInfo, M.Map EntityId p))
     docMeta  = lmap (\(docInfo, terms) -> M.singleton (docName docInfo) (docInfo, terms)) Foldl.mconcat
 
-    termFreqs :: Fold (M.Map Term p) (M.Map Term (TermFrequency, DocumentFrequency))
+    termFreqs :: Fold (M.Map EntityId p) (M.Map EntityId (TermFrequency, DocumentFrequency))
     termFreqs = lmap M.assocs
                 $ Foldl.handles traverse
                 $ lmap (\(term, ps) -> M.singleton term (getTermFreq ps, DocumentFrequency 1))
@@ -194,32 +172,3 @@ foldCorpusStats =
       <$> lmap (fromEnum . docLength) Foldl.sum
       <*> Foldl.length
 
-data DocumentInfo = DocInfo { docArchive :: ArchiveName
-                            , docName    :: DocumentName
-                            , docLength  :: DocumentLength
-                            }
-                  deriving (Generic, Eq, Ord, Show)
-instance Binary DocumentInfo
-
-newtype DocumentFrequency = DocumentFrequency Int
-                          deriving (Show, Eq, Ord, Binary)
-instance Monoid DocumentFrequency where
-    mempty = DocumentFrequency 0
-    DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
-
-type ArchiveName = T.Text
-
-data CorpusStats = CorpusStats { corpusCollectionLength :: !Int
-                                 -- ^ How many tokens in collection
-                               , corpusCollectionSize   :: !Int
-                                 -- ^ How many documents in collection
-                               }
-                 deriving (Generic)
-
-instance Binary CorpusStats
-instance Monoid CorpusStats where
-    mempty = CorpusStats 0 0
-    a `mappend` b =
-        CorpusStats { corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
-                    , corpusCollectionSize = corpusCollectionSize a + corpusCollectionSize b
-                    }

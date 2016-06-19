@@ -22,6 +22,8 @@ library
                        text >=1.2 && <1.3,
                        time >=1.6 && <1.7,
                        pinch >=0.3 && <0.4,
+                       binary,
+                       hashable,
                        attoparsec,
                        pipes-attoparsec,
                        pipes,
@@ -42,6 +44,39 @@ executable trec-streaming-ls-documents
 
 executable index-fac
   main-is:             IndexFac.hs
+  build-depends:
+      base >=4.8 && <4.9,
+      pipes-bytestring >=2.1 && <2.2,
+      pipes,
+      bytestring >=0.10 && <0.11,
+      transformers >=0.4 && <0.5,
+      filepath,
+      directory,
+      temporary,
+      mtl,
+      binary,
+      foldl,
+      vector,
+      vector-algorithms,
+      profunctors,
+      text >=1.2 && <1.3,
+      containers >=0.5 && <0.6,
+      unordered-containers >= 0.2,
+      log-domain,
+      optparse-applicative >= 0.12,
+      pipes-text,
+      pipes-safe,
+      aeson,
+      warc,
+      b-tree,
+      laura,
+      simplir-trec-streaming,
+      simplir-trec
+  default-language:    Haskell2010
+  ghc-options:         -rtsopts -Wall
+
+executable kba-streaming
+  main-is:             Streaming.hs
   build-depends:
       base >=4.8 && <4.9,
       pipes-bytestring >=2.1 && <2.2,

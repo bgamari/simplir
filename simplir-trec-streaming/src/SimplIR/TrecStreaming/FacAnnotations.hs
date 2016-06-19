@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module SimplIR.TrecStreaming.FacAnnotations where
 
@@ -8,6 +9,8 @@ import qualified Data.Text as T
 import Data.Text (Text)
 import Data.Attoparsec.Text as A
 import SimplIR.Types
+import Data.Binary
+import Data.Hashable
 
 data Document = Document { docArchive :: Text
                          , docId      :: Text
@@ -26,7 +29,7 @@ data Annotation = Annotation { annSurfaceForm      :: Text
                 deriving (Show)
 
 newtype EntityId = EntityId {getEntityId :: Text}
-                 deriving (Eq, Ord, Show)
+                 deriving (Eq, Ord, Show, Binary, Hashable)
 
 parseDocument :: Parser Document
 parseDocument = do
