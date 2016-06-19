@@ -52,6 +52,7 @@ modes :: Parser (IO ())
 modes = subparser
     $  command "index" (info indexMode fullDesc)
     <> command "merge" (info mergeIndexesMode fullDesc)
+    <> command "query" (info queryMode fullDesc)
 
 indexMode :: Parser (IO ())
 indexMode = buildIndex <$> inputFiles
@@ -61,6 +62,17 @@ mergeIndexesMode =
     mergeIndexes
       <$> option (diskIndexPaths <$> str) (help "output index" <> short 'o' <> long "output")
       <*> some (argument (diskIndexPaths <$> str) (help "indexes to merge"))
+
+queryMode :: Parser (IO ())
+queryMode =
+    query
+      <$> option (diskIndexPaths <$> str) (help "index to query" <> short 'i' <> long "index")
+      <*> argument (DocName . Utf8.fromString <$> str) (help "document names to find")
+  where
+    query :: DiskIndex -> DocumentName -> IO ()
+    query index docName = do
+        docs <- BTree.open (diskDocuments index)
+        print $ BTree.lookup docs docName
 
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
@@ -181,7 +193,7 @@ data DocumentInfo = DocInfo { docArchive :: ArchiveName
                             , docName    :: DocumentName
                             , docLength  :: DocumentLength
                             }
-                  deriving (Generic, Eq, Ord)
+                  deriving (Generic, Eq, Ord, Show)
 instance Binary DocumentInfo
 
 newtype DocumentFrequency = DocumentFrequency Int
