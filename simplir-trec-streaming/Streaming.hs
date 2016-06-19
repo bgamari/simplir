@@ -76,6 +76,7 @@ streamMode :: Parser (IO ())
 streamMode =
     scoreStreaming
       <$> optQueryFile
+      <*> option (Fac.diskIndexPaths <$> str) (metavar "DIR" <> long "fac-index" <> short 'f')
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> option str (metavar "FILE" <> long "stats" <> short 's'
                       <> help "background corpus statistics file")
@@ -246,14 +247,13 @@ queryFold termSmoothing entitySmoothing resultCount (weightTerm, weightEntity) q
                           , scoredEntityScore = entityScore
                           }
 
-scoreStreaming :: QueryFile -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
-scoreStreaming queryFile resultCount statsFile outputRoot docSource readDocLocs = do
+scoreStreaming :: QueryFile -> Fac.DiskIndex -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap (S.fromList . queryTerms) queries
 
     -- load FAC annotations
-    let facIndexPath = Fac.diskIndexPaths "fac"
     facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
     facEntityIdStats <- BTree.open $ Fac.diskTermStats facIndexPath
     facCorpusStats <- BinaryFile.read $ Fac.diskCorpusStats facIndexPath
