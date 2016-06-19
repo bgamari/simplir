@@ -30,7 +30,6 @@ import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.IO as T.IO
 import qualified Control.Foldl as Foldl
-import qualified Data.Vector as V
 
 import           Pipes
 import           Pipes.Safe
@@ -309,7 +308,7 @@ scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource
                       , show scoredRankScore
                       , "simplir" ]
             | (qid, scores) <- M.toList results
-            , (rank, ScoredDocument {..}) <- zip [1..] scores
+            , (rank, ScoredDocument {..}) <- zip [1 :: Integer ..] scores
             , let DocInfo {..} = scoredDocumentInfo
             ]
 
@@ -347,14 +346,6 @@ newtype DocumentFrequency = DocumentFrequency Int
 instance Monoid DocumentFrequency where
     mempty = DocumentFrequency 0
     DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
-
-type SavedPostings p = M.Map Term (V.Vector (Posting p))
-type FragmentIndex p =
-    ( M.Map DocumentId DocumentInfo
-    , SavedPostings p
-    , M.Map Term (TermFrequency, DocumentFrequency)
-    , CorpusStats
-    )
 
 type ArchiveName = T.Text
 
