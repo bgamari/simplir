@@ -10,7 +10,11 @@ tests: false
 benchmarks: false
 jobs: 4
 
+package simplir-tools
+    ghc-options: -fprint-expanded-synonyms
+
 package laura
+    ghc-options: -fprint-expanded-synonyms
     profiling-detail: all
     tests: true
     --ghc-options: -ddump-to-file -ddump-simpl -dsuppress-coercions -dsuppress-idinfo -ddump-stg
