@@ -55,7 +55,10 @@ modes = subparser
     <> command "query" (info queryMode fullDesc)
 
 indexMode :: Parser (IO ())
-indexMode = buildIndex <$> inputFiles
+indexMode =
+    buildIndex
+      <$> option (diskIndexPaths <$> str) (help "output index" <> short 'o' <> long "output")
+      <*> inputFiles
 
 mergeIndexesMode :: Parser (IO ())
 mergeIndexesMode =
@@ -97,8 +100,8 @@ facEntities dsrcs =
                                        , map (Term.fromText . Fac.getEntityId . Fac.annEntity) (Fac.docAnnotations d)))
           ) dsrcs
 
-buildIndex :: IO [DataSource] -> IO ()
-buildIndex readDocLocs = do
+buildIndex :: DiskIndex -> IO [DataSource] -> IO ()
+buildIndex output readDocLocs = do
     dsrcs <- readDocLocs
 
     let chunkIndexes :: Producer (FragmentIndex TermFrequency) (SafeT IO) ()
@@ -127,7 +130,7 @@ buildIndex readDocLocs = do
         liftIO $ BinaryFile.write (diskCorpusStats indexPaths) corpusStats
         yield indexPaths
 
-    mergeIndexes (diskIndexPaths "index") chunks
+    mergeIndexes output chunks
 
 mergeIndexes :: DiskIndex
              -> [DiskIndex]
