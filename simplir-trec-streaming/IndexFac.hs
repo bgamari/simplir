@@ -72,7 +72,7 @@ buildIndex readDocLocs = do
 
     let chunkIndexes :: Producer (FragmentIndex TermFrequency) (SafeT IO) ()
         chunkIndexes =
-                foldChunks 10000 (Foldl.generalize $ indexPostings id)
+                foldChunks 100000 (Foldl.generalize $ indexPostings id)
              $  facEntities dsrcs
             >-> cat'                                              @(DocumentInfo, [Term])
             >-> P.P.map (second $ \postings -> foldTokens Foldl.mconcat $ zip postings (repeat $ TermFreq 1))
