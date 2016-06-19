@@ -38,7 +38,7 @@ tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
         in Just ((tok, pos), s')
 
     f :: (Int, Int, Int, Int) -> Maybe ((T.Text, Position), (Int, Int, Int, Int))
-    f (off, _tokN, _startChar, !curChar)
+    f (off, _tokN, _startChar, !_curChar)
         -- Done, nothing left over
       | off > len
       = Nothing
