@@ -13,11 +13,9 @@ import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
-import System.FilePath
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 import System.IO.Temp
 
-import Data.Binary
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Control.Foldl as Foldl
@@ -35,7 +33,6 @@ import SimplIR.Utils
 import Control.Foldl.Map
 import SimplIR.BinaryFile as BinaryFile
 import SimplIR.Types
-import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
 import qualified BTree.File as BTree
@@ -115,7 +112,7 @@ buildIndex output readDocLocs = do
                                                                    )
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docs, termFreqs, corpusStats)) -> do
-        liftIO $ print (n, M.size docs)
+        liftIO $ print (n :: Integer, M.size docs)
         root <- liftIO $ createTempDirectory "." "index"
         let indexPaths = diskIndexPaths root
 

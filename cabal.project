@@ -10,6 +10,9 @@ tests: false
 benchmarks: false
 jobs: 4
 
+package simplir-trec-streaming
+    ghc-options: -fprint-expanded-synonyms
+
 package simplir-tools
     ghc-options: -fprint-expanded-synonyms
 

@@ -18,7 +18,6 @@ import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import SimplIR.Types
-import SimplIR.Term
 
 tokenise :: T.Text -> [T.Text]
 tokenise = T.words . T.toCaseFold
@@ -61,7 +60,7 @@ tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
         T.Unsafe.Iter !c !delta = T.Unsafe.iter t off
         !off' = off + delta
 
-foldTokens :: Fold a b -> [(Term, a)] -> M.Map Term b
+foldTokens :: Ord term => Fold a b -> [(term, a)] -> M.Map term b
 foldTokens (Fold step initial extract) =
     fmap extract
     . foldl' (\acc (term, x) -> M.alter (f x) term acc) M.empty
