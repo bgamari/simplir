@@ -28,6 +28,7 @@ library
       BTree.File
       Data.SmallUtf8
       Control.Foldl.Map
+      SimplIR.BinaryFile
       SimplIR.DiskIndex
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
