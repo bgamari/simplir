@@ -25,9 +25,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Control.Foldl as Foldl
 import           Control.Foldl (Fold)
-import qualified Data.Vector as V
 import qualified Data.Vector.Generic as V.G
-import           Data.Vector.Algorithms.Heap (sort)
 
 import           Pipes
 import           Pipes.Safe
@@ -38,15 +36,12 @@ import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
-import AccumPostings
 import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
 import qualified BTree.File as BTree
-import qualified SimplIR.DiskIndex.Posting as PostingIdx
-import qualified SimplIR.DiskIndex.Document as DocIdx
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
 inputFiles :: Parser (IO [DataSource])
@@ -80,39 +75,29 @@ buildIndex readDocLocs = do
                 foldChunks 10000 (Foldl.generalize $ indexPostings id)
              $  facEntities dsrcs
             >-> cat'                                              @(DocumentInfo, [Term])
-            >-> zipWithList [DocId 0..]
-            >-> cat'                                              @(DocumentId, (DocumentInfo, [Term]))
-            >-> P.P.map (\(docId, (info, postings)) -> ((docId, info), (docId, postings)))
-            >-> P.P.map (second $ \(docId, postings) ->
-                            toPostings docId $ M.assocs $ foldTokens Foldl.mconcat $ zip postings (repeat $ TermFreq 1)
-                        )
-            >-> cat'                                              @( (DocumentId, DocumentInfo)
-                                                                   , [(Term, Posting TermFrequency)]
+            >-> P.P.map (second $ \postings -> foldTokens Foldl.mconcat $ zip postings (repeat $ TermFreq 1))
+            >-> cat'                                              @( DocumentInfo
+                                                                   , M.Map Term TermFrequency
                                                                    )
 
-    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docIds, postings, termFreqs, corpusStats)) -> do
+    chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docs, termFreqs, corpusStats)) -> do
         let indexPath = "index-"++show n
         liftIO $ createDirectoryIfMissing True indexPath
-        liftIO $ print (n, M.size docIds)
+        liftIO $ print (n, M.size docs)
 
-        let postingsPath :: PostingIdx.PostingIndexPath TermFrequency
-            postingsPath = PostingIdx.PostingIndexPath $ indexPath </> "postings"
-        liftIO $ PostingIdx.fromTermPostings 1024 postingsPath (fmap V.toList postings)
-
-        let docsPath :: DocIdx.DocIndexPath DocumentInfo
-            docsPath = DocIdx.DocIndexPath $ indexPath </> "documents"
-        liftIO $ DocIdx.write docsPath docIds
+        let docsPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
+            docsPath = BTree.BTreePath $ indexPath </> "documents"
+        liftIO $ BTree.fromOrdered (fromIntegral $ M.size docs) docsPath (each $ M.toAscList docs)
 
         let termFreqsPath :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
             termFreqsPath = BTree.BTreePath $ indexPath </> "term-stats"
-        liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toList termFreqs)
+        liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toAscList termFreqs)
 
-        yield (postingsPath, docsPath, termFreqsPath, corpusStats)
+        yield (docsPath, termFreqsPath, corpusStats)
 
     mergeIndexes chunks
 
-mergeIndexes :: [( PostingIdx.PostingIndexPath TermFrequency
-                 , DocIdx.DocIndexPath DocumentInfo
+mergeIndexes :: [( BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
                  , BTree.BTreePath Term (TermFrequency, DocumentFrequency)
                  , CorpusStats
                  )]
@@ -120,40 +105,36 @@ mergeIndexes :: [( PostingIdx.PostingIndexPath TermFrequency
 mergeIndexes chunks = do
     createDirectoryIfMissing True "index"
     putStrLn "merging"
-    docIds0 <- DocIdx.merge (DocIdx.DocIndexPath "index/documents") $ map (\(_,docs,_,_) -> docs) chunks
+    BTree.merge (const id) (BTree.BTreePath "index/documents") $ map (\(docs,_,_) -> docs) chunks
     putStrLn "documents done"
-    PostingIdx.merge (PostingIdx.PostingIndexPath "index/postings") $ zip docIds0 $ map (\(postings,_,_,_) -> postings) chunks
-    putStrLn "postings done"
-    BTree.merge mappend (BTree.BTreePath "index/term-stats") $ map (\(_,_,x,_) -> x) chunks
+    BTree.merge mappend (BTree.BTreePath "index/term-stats") $ map (\(_,x,_) -> x) chunks
     putStrLn "term stats done"
-    BS.L.writeFile ("index" </> "corpus-stats") $ encode $ foldMap (\(_,_,_,x) -> x) chunks
+    BS.L.writeFile ("index" </> "corpus-stats") $ encode $ foldMap (\(_,_,x) -> x) chunks
     return ()
 
-type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =
-    ( M.Map DocumentId DocumentInfo
-    , SavedPostings p
+    ( M.Map DocumentName (DocumentInfo, M.Map Term p)
     , M.Map Term (TermFrequency, DocumentFrequency)
     , CorpusStats
     )
 
-indexPostings :: forall p. (Ord p)
+indexPostings :: forall p. ()
               => (p -> TermFrequency)
-              -> Fold ((DocumentId, DocumentInfo), [(Term, Posting p)])
+              -> Fold (DocumentInfo, M.Map Term p)
                       (FragmentIndex p)
 indexPostings getTermFreq =
-    (,,,)
-      <$> lmap fst docMeta
-      <*> lmap snd postings
+    (,,)
+      <$> docMeta
       <*> lmap snd termFreqs
-      <*> lmap (snd . fst) foldCorpusStats
+      <*> lmap fst foldCorpusStats
   where
-    docMeta  = lmap (\(docId, docInfo) -> M.singleton docId docInfo) Foldl.mconcat
-    postings = fmap (M.map $ V.G.modify sort . fromFoldable) foldPostings
+    docMeta :: Fold (DocumentInfo, M.Map Term p) (M.Map DocumentName (DocumentInfo, M.Map Term p))
+    docMeta  = lmap (\(docInfo, terms) -> M.singleton (docName docInfo) (docInfo, terms)) Foldl.mconcat
 
-    termFreqs :: Fold [(Term, Posting p)] (M.Map Term (TermFrequency, DocumentFrequency))
-    termFreqs = Foldl.handles traverse
-                $ lmap (\(term, ps) -> M.singleton term (getTermFreq $ postingBody ps, DocumentFrequency 1))
+    termFreqs :: Fold (M.Map Term p) (M.Map Term (TermFrequency, DocumentFrequency))
+    termFreqs = lmap M.assocs
+                $ Foldl.handles traverse
+                $ lmap (\(term, ps) -> M.singleton term (getTermFreq ps, DocumentFrequency 1))
                 $ mconcatMaps
 
 foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
@@ -200,7 +181,3 @@ main = do
 indexMode :: Parser (IO ())
 indexMode =
     buildIndex <$> inputFiles
-
-fromFoldable :: (Foldable f, V.G.Vector v a)
-             => f a -> v a
-fromFoldable xs = V.G.fromListN (length xs) (toList xs)
