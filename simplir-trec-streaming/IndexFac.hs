@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
@@ -11,7 +12,6 @@
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
-import Data.Foldable (toList)
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
@@ -20,12 +20,10 @@ import System.FilePath
 import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
-import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Control.Foldl as Foldl
 import           Control.Foldl (Fold)
-import qualified Data.Vector.Generic as V.G
 
 import           Pipes
 import           Pipes.Safe
@@ -37,12 +35,32 @@ import Options.Applicative
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
 import Control.Foldl.Map
+import SimplIR.BinaryFile as BinaryFile
 import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
 import qualified BTree.File as BTree
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
+
+main :: IO ()
+main = do
+    mode <- execParser $ info (helper <*> modes) fullDesc
+    mode
+
+modes :: Parser (IO ())
+modes = subparser
+    $  command "index" (info indexMode fullDesc)
+    <> command "merge" (info mergeIndexesMode fullDesc)
+
+indexMode :: Parser (IO ())
+indexMode = buildIndex <$> inputFiles
+
+mergeIndexesMode :: Parser (IO ())
+mergeIndexesMode =
+    mergeIndexes
+      <$> option (diskIndexPaths <$> str) (help "output index" <> short 'o' <> long "output")
+      <*> some (argument (diskIndexPaths <$> str) (help "indexes to merge"))
 
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
@@ -55,6 +73,7 @@ inputFiles =
     parse ('@':rest) = map parse' . lines <$> readFile rest
     parse fname      = return [parse' fname]
     parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
+
 
 facEntities :: [DataSource]
             -> Producer (DocumentInfo, [Term]) (SafeT IO) ()
@@ -81,36 +100,51 @@ buildIndex readDocLocs = do
                                                                    )
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docs, termFreqs, corpusStats)) -> do
-        let indexPath = "index-"++show n
-        liftIO $ createDirectoryIfMissing True indexPath
+        let indexPaths = diskIndexPaths ("index-"++show n)
+        liftIO $ createDirectoryIfMissing True (diskRootDir indexPaths)
         liftIO $ print (n, M.size docs)
 
         let docsPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
-            docsPath = BTree.BTreePath $ indexPath </> "documents"
+            docsPath = diskDocuments indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size docs) docsPath (each $ M.toAscList docs)
 
         let termFreqsPath :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
-            termFreqsPath = BTree.BTreePath $ indexPath </> "term-stats"
+            termFreqsPath = diskTermStats indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toAscList termFreqs)
 
-        yield (docsPath, termFreqsPath, corpusStats)
+        liftIO $ BinaryFile.write (diskCorpusStats indexPaths) corpusStats
+        yield indexPaths
 
-    mergeIndexes chunks
+    mergeIndexes (diskIndexPaths "index") chunks
 
-mergeIndexes :: [( BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
-                 , BTree.BTreePath Term (TermFrequency, DocumentFrequency)
-                 , CorpusStats
-                 )]
+mergeIndexes :: DiskIndex
+             -> [DiskIndex]
              -> IO ()
-mergeIndexes chunks = do
-    createDirectoryIfMissing True "index"
+mergeIndexes output chunks = do
+    createDirectoryIfMissing True (diskRootDir output)
     putStrLn "merging"
-    BTree.merge (const id) (BTree.BTreePath "index/documents") $ map (\(docs,_,_) -> docs) chunks
+    BTree.merge (const id) (diskDocuments output) $ map diskDocuments chunks
     putStrLn "documents done"
-    BTree.merge mappend (BTree.BTreePath "index/term-stats") $ map (\(_,x,_) -> x) chunks
+    BTree.merge mappend (diskTermStats output) $ map diskTermStats chunks
     putStrLn "term stats done"
-    BS.L.writeFile ("index" </> "corpus-stats") $ encode $ foldMap (\(_,_,x) -> x) chunks
+    corpusStats <- BinaryFile.mconcat $ map diskCorpusStats chunks
+    BinaryFile.write (diskCorpusStats output) corpusStats
     return ()
+
+diskIndexPaths :: FilePath -> DiskIndex
+diskIndexPaths root =
+    DiskIndex { diskRootDir     = root
+              , diskDocuments   = BTree.BTreePath $ root </> "documents"
+              , diskTermStats   = BTree.BTreePath $ root </> "term-stats"
+              , diskCorpusStats = BinaryFile.BinaryFile $ root </> "corpus-stats"
+              }
+
+-- | Paths to the parts of an index on disk
+data DiskIndex = DiskIndex { diskRootDir     :: FilePath
+                           , diskDocuments   :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
+                           , diskTermStats   :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
+                           , diskCorpusStats :: BinaryFile CorpusStats
+                           }
 
 type FragmentIndex p =
     ( M.Map DocumentName (DocumentInfo, M.Map Term p)
@@ -172,12 +206,3 @@ instance Monoid CorpusStats where
         CorpusStats { corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
                     , corpusCollectionSize = corpusCollectionSize a + corpusCollectionSize b
                     }
-
-main :: IO ()
-main = do
-    mode <- execParser $ info (helper <*> indexMode) fullDesc
-    mode
-
-indexMode :: Parser (IO ())
-indexMode =
-    buildIndex <$> inputFiles
