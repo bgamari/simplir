@@ -68,6 +68,7 @@ foldTokens (Fold step initial extract) =
   where
     f x Nothing   = Just $ step initial x
     f x (Just !x0) = Just $ step x0 x
+{-# INLINE foldTokens #-}
 
 data Pair a b = Pair !a !b
 
