@@ -17,7 +17,8 @@ import Data.Monoid
 import Data.Profunctor
 import GHC.Generics
 import System.FilePath
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
+import System.IO.Temp
 
 import Data.Binary
 import qualified Data.Map.Strict as M
@@ -115,9 +116,9 @@ buildIndex output readDocLocs = do
                                                                    )
 
     chunks <- runSafeT $ P.P.toListM $ for (chunkIndexes >-> zipWithList [0..]) $ \(n, (docs, termFreqs, corpusStats)) -> do
-        let indexPaths = diskIndexPaths ("index-"++show n)
-        liftIO $ createDirectoryIfMissing True (diskRootDir indexPaths)
         liftIO $ print (n, M.size docs)
+        root <- liftIO $ createTempDirectory "." "index"
+        let indexPaths = diskIndexPaths root
 
         let docsPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
             docsPath = diskDocuments indexPaths
@@ -131,6 +132,7 @@ buildIndex output readDocLocs = do
         yield indexPaths
 
     mergeIndexes output chunks
+    mapM_ (removeDirectoryRecursive . diskRootDir) chunks
 
 mergeIndexes :: DiskIndex
              -> [DiskIndex]

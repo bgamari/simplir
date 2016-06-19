@@ -50,6 +50,7 @@ executable index-fac
       transformers >=0.4 && <0.5,
       filepath,
       directory,
+      temporary,
       mtl,
       binary,
       foldl,
