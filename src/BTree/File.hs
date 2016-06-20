@@ -23,8 +23,10 @@ merge :: (Ord k, Binary k, Binary a)
 merge f (BTreePath outPath) trees = do
     trees' <- mapM open trees
     BTree.mergeTrees (\a b -> pure $ f a b) 64 outPath trees'
+{-# INLINE merge #-}
 
 fromOrdered :: (MonadIO m, Binary k, Binary a)
             => BTree.Size -> BTreePath k a -> Producer (k, a) m () -> m ()
 fromOrdered maxSize (BTreePath path) xs =
     BTree.fromOrderedToFile 64 maxSize path (xs >-> P.P.map (uncurry BTree.BLeaf))
+{-# INLINE fromOrdered #-}
