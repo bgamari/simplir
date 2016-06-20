@@ -105,7 +105,9 @@ facEntities :: [DataSource]
 facEntities dsrcs =
     mapM_ (\dsrc -> Fac.parseDocuments (P.T.decodeUtf8 $ dataSource dsrc)
                     >-> P.P.map (\d -> ( DocInfo (Fac.docArchive d)
-                                                 (DocName $ Utf8.fromText $ Fac.docId d)
+                                                 (DocName $ Utf8.fromText
+                                                            -- Drop timestamp prefix
+                                                          $ T.drop 1 $ T.dropWhile (/= '-') $ Fac.docId d)
                                                  (DocLength $ length $ Fac.docAnnotations d)
                                        , map Fac.annEntity (Fac.docAnnotations d)))
           ) dsrcs

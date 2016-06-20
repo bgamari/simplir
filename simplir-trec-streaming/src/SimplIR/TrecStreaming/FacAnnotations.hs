@@ -12,8 +12,8 @@ import SimplIR.Types
 import Data.Binary
 import Data.Hashable
 
-data Document = Document { docArchive :: Text
-                         , docId      :: Text
+data Document = Document { docArchive     :: Text
+                         , docId          :: Text
                          , docAnnotations :: [Annotation]
                          }
               deriving (Show)
@@ -24,7 +24,7 @@ data Annotation = Annotation { annSurfaceForm      :: Text
                                -- ^ Confidence given document context and surface form
                              , annPosteriorContext :: Double
                                -- ^ Confidence given only document context
-                             , annEntity            :: EntityId
+                             , annEntity           :: EntityId
                              }
                 deriving (Show)
 
