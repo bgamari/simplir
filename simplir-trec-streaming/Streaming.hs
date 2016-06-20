@@ -272,8 +272,8 @@ scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource
             Dirichlet 250 $ \entity ->
                 let collLength = Fac.corpusCollectionLength facCorpusStats
                 in case BTree.lookup facEntityIdStats entity of
-                     Just (tf, _) -> getTermFrequency tf / realToFrac collLength
-                     Nothing      -> 0.05 / realToFrac collLength
+                     Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                     Nothing                   -> 0.05 / realToFrac collLength
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                                   (M.Map QueryId [ScoredDocument])
