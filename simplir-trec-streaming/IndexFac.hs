@@ -40,6 +40,8 @@ import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import SimplIR.TrecStreaming.FacAnnotations (EntityId)
 import Types
 
+import qualified BTree as BT
+
 main :: IO ()
 main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
@@ -50,6 +52,7 @@ modes = subparser
     $  command "index" (info indexMode fullDesc)
     <> command "merge" (info mergeIndexesMode fullDesc)
     <> command "query" (info queryMode fullDesc)
+    <> command "list"  (info listMode fullDesc)
 
 indexMode :: Parser (IO ())
 indexMode =
@@ -62,6 +65,16 @@ mergeIndexesMode =
     mergeIndexes
       <$> option (diskIndexPaths <$> str) (help "output index" <> short 'o' <> long "output")
       <*> some (argument (diskIndexPaths <$> str) (help "indexes to merge"))
+
+listMode :: Parser (IO ())
+listMode =
+    list <$> option (diskIndexPaths <$> str) (help "index to list" <> short 'i' <> long "index")
+  where
+    list :: DiskIndex -> IO ()
+    list index = do
+        docs <- BTree.open (diskDocuments index)
+        _ <- runEffect $ for (BT.walkLeaves docs) (liftIO . print)
+        return ()
 
 queryMode :: Parser (IO ())
 queryMode =
