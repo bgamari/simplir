@@ -54,15 +54,22 @@ diskIndexPaths root =
               , diskCorpusStats = BinaryFile.BinaryFile $ root </> "corpus-stats"
               }
 
+data TermStats = TermStats !TermFrequency !DocumentFrequency
+               deriving (Show, Generic)
+instance Binary TermStats
+instance Monoid TermStats where
+    mempty = TermStats mempty mempty
+    TermStats a b `mappend` TermStats c d = TermStats (a `mappend` c) (b `mappend` d)
+
 -- | Paths to the parts of an index on disk
 data DiskIndex = DiskIndex { diskRootDir     :: FilePath
                            , diskDocuments   :: BTree.BTreePath DocumentName (DocumentInfo, M.Map EntityId TermFrequency)
-                           , diskTermStats   :: BTree.BTreePath EntityId (TermFrequency, DocumentFrequency)
+                           , diskTermStats   :: BTree.BTreePath EntityId TermStats
                            , diskCorpusStats :: BinaryFile CorpusStats
                            }
 
 type FragmentIndex p =
     ( M.Map DocumentName (DocumentInfo, M.Map EntityId p)
-    , M.Map EntityId (TermFrequency, DocumentFrequency)
+    , M.Map EntityId TermStats
     , CorpusStats
     )

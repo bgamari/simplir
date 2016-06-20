@@ -120,7 +120,7 @@ buildIndex output readDocLocs = do
             docsPath = diskDocuments indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size docs) docsPath (each $ M.toAscList docs)
 
-        let termFreqsPath :: BTree.BTreePath EntityId (TermFrequency, DocumentFrequency)
+        let termFreqsPath :: BTree.BTreePath EntityId TermStats
             termFreqsPath = diskTermStats indexPaths
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toAscList termFreqs)
 
@@ -157,10 +157,10 @@ indexPostings getTermFreq =
     docMeta :: Fold (DocumentInfo, M.Map EntityId p) (M.Map DocumentName (DocumentInfo, M.Map EntityId p))
     docMeta  = lmap (\(docInfo, terms) -> M.singleton (docName docInfo) (docInfo, terms)) Foldl.mconcat
 
-    termFreqs :: Fold (M.Map EntityId p) (M.Map EntityId (TermFrequency, DocumentFrequency))
+    termFreqs :: Fold (M.Map EntityId p) (M.Map EntityId TermStats)
     termFreqs = lmap M.assocs
                 $ Foldl.handles traverse
-                $ lmap (\(term, ps) -> M.singleton term (getTermFreq ps, DocumentFrequency 1))
+                $ lmap (\(term, ps) -> M.singleton term $ TermStats (getTermFreq ps) (DocumentFrequency 1))
                 $ mconcatMaps
 
 foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
