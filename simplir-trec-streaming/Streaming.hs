@@ -290,14 +290,10 @@ scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
             >-> cat'                         @(DocumentInfo, M.Map Term [Position])
             >-> P.P.map (\(docInfo, termPostings) ->
-                           let fac = fromMaybe (DocLength 0, M.empty) $ do
-                                   -- The KBA corpus document names include a timestamp and a hash
-                                   -- whereas the FAC annotations are keyed only on the hash. Arg...
-                                   let kbaDocName = Utf8.toText $ getDocName $ docName docInfo
-                                   [_time, docId] <- pure $ T.split (== '-') kbaDocName
-                                   (facDocInfo, entityIdPostings) <- BTree.lookup facIndex (DocName $ Utf8.fromText docId)
-                                   return $ trace "good" (Fac.docLength facDocInfo, entityIdPostings)
-                            in (docInfo, termPostings, fac)
+                            let (facDocLen, entityIdPostings) =
+                                    maybe (DocLength 0, M.empty) (trace "good" $ first Fac.docLength)
+                                    $ BTree.lookup facIndex (docName docInfo)
+                            in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
             >-> cat'                         @( DocumentInfo
                                               , M.Map Term [Position]
