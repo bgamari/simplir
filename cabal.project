@@ -11,7 +11,8 @@ benchmarks: false
 jobs: 4
 
 package simplir-trec-streaming
-    ghc-options: -fprint-expanded-synonyms
+    ghc-options: -fprint-expanded-synonyms -O2
+    --ghc-options: -ddump-to-file -ddump-simpl -dsuppress-idinfo -dsuppress-coercions
 
 package simplir-tools
     ghc-options: -fprint-expanded-synonyms
