@@ -52,9 +52,9 @@ import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
 import qualified Types as Fac
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
-import Debug.Trace
 
 type QueryId = T.Text
+
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
     concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
@@ -315,7 +315,7 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
             >-> cat'                         @(DocumentInfo, M.Map Term [Position])
             >-> P.P.map (\(docInfo, termPostings) ->
                             let (facDocLen, entityIdPostings) =
-                                    maybe (DocLength 0, M.empty) (trace "good" $ first Fac.docLength)
+                                    maybe (DocLength 0, M.empty) (first Fac.docLength)
                                     $ BTree.lookup facIndex (docName docInfo)
                             in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
