@@ -106,4 +106,4 @@ executable kba-streaming
       simplir-trec-streaming,
       simplir-trec
   default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall
+  ghc-options:         -rtsopts -Wall -O2
