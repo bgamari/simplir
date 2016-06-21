@@ -147,7 +147,7 @@ corpusStats queryFile output docSource readDocLocs = do
             >-> cat'                                @(DocumentInfo, [Term])
 
         liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength corpusStats)
-                          ++" documents with "++show (corpusCollectionSize corpusStats)++" terms"
+                          ++" tokens with "++show (corpusCollectionSize corpusStats)++" documents"
         liftIO $ BinaryFile.write (diskCorpusStats output) corpusStats
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termStats) (diskTermStats output) (each $ M.assocs termStats)
 
