@@ -55,8 +55,6 @@ import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import Debug.Trace
 
 type QueryId = T.Text
-type StatsFile = FilePath
-
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
     concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
@@ -77,9 +75,10 @@ streamMode =
       <$> optQueryFile
       <*> option (Fac.diskIndexPaths <$> str) (metavar "DIR" <> long "fac-index" <> short 'f')
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
-      <*> option str (metavar "FILE" <> long "stats" <> short 's'
-                      <> help "background corpus statistics file")
-      <*> option str (metavar "FILE" <> long "output" <> short 'o'
+      <*> option (corpusStatsPaths <$> str)
+                 (metavar "PATH" <> long "stats" <> short 's'
+                 <> help "background corpus statistics index")
+      <*> option str (metavar "PATH" <> long "output" <> short 'o'
                       <> help "output file name")
       <*> pure kbaDocuments
       <*> inputFiles
@@ -88,8 +87,8 @@ corpusStatsMode :: Parser (IO ())
 corpusStatsMode =
     corpusStats
       <$> optQueryFile
-      <*> option str (metavar "FILE" <> long "output" <> short 'o'
-                      <> help "output file path")
+      <*> option (corpusStatsPaths <$> str) (metavar "FILE" <> long "output" <> short 'o'
+                                             <> help "output file path")
       <*> pure kbaDocuments
       <*> inputFiles
 
@@ -132,21 +131,23 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-corpusStats :: QueryFile -> StatsFile -> DocumentSource -> IO [DataSource] -> IO ()
-corpusStats queryFile outputFile docSource readDocLocs = do
+corpusStats :: QueryFile -> CorpusStatsPaths -> DocumentSource -> IO [DataSource] -> IO ()
+corpusStats queryFile output docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
+    let allQueryTerms = foldMap (S.fromList . queryTerms) queries
     runSafeT $ do
-        stats <-
+        (corpusStats, termStats) <-
                 foldProducer (Foldl.generalize foldCorpusStats)
              $  docSource docs >-> normalizationPipeline
             >-> cat'                                @(DocumentInfo, [(Term, Position)])
-            >-> P.P.map fst
-            >-> cat'                                @DocumentInfo
+            >-> P.P.map (second $ filter (`S.member` allQueryTerms) . map fst)
+            >-> cat'                                @(DocumentInfo, [Term])
 
-        liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength stats)
-                          ++" documents with "++show (corpusCollectionSize stats)++" terms"
-        liftIO $ BS.L.writeFile outputFile $ encode stats
+        liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength corpusStats)
+                          ++" documents with "++show (corpusCollectionSize corpusStats)++" terms"
+        liftIO $ BinaryFile.write (diskCorpusStats output) corpusStats
+        liftIO $ BTree.fromOrdered (fromIntegral $ M.size termStats) (diskTermStats output) (each $ M.assocs termStats)
 
 data DocumentInfo = DocInfo { docArchive :: ArchiveName
                             , docName    :: DocumentName
@@ -170,15 +171,38 @@ instance Monoid CorpusStats where
                     , corpusCollectionSize = corpusCollectionSize a + corpusCollectionSize b
                     }
 
-foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
+data TermStats = TermStats !TermFrequency !DocumentFrequency
+               deriving (Generic)
+instance Binary TermStats
+instance Monoid TermStats where
+    mempty = TermStats mempty mempty
+    TermStats a b `mappend` TermStats c d = TermStats (a `mappend` c) (b `mappend` d)
+
+data CorpusStatsPaths = CorpusStatsPaths { diskCorpusStats :: BinaryFile CorpusStats
+                                         , diskTermStats   :: BTree.BTreePath Term TermStats
+                                         }
+
+corpusStatsPaths :: FilePath -> CorpusStatsPaths
+corpusStatsPaths root =
+    CorpusStatsPaths { diskCorpusStats = BinaryFile $ root </> "corpus-stats"
+                     , diskTermStats = BTree.BTreePath $ root </> "term-freqs"
+                     }
+
+foldCorpusStats :: Foldl.Fold (DocumentInfo, [Term]) (CorpusStats, M.Map Term TermStats)
 foldCorpusStats =
+    (,)
+      <$> lmap fst foldCorpusStats'
+      <*> lmap snd foldTermStats
+
+foldCorpusStats' :: Foldl.Fold DocumentInfo CorpusStats
+foldCorpusStats' =
     CorpusStats
       <$> lmap (fromEnum . docLength) Foldl.sum
       <*> Foldl.length
 
-foldTermStats :: Foldl.Fold [Term] (M.Map Term (TermFrequency, DocumentFrequency))
+foldTermStats :: Foldl.Fold [Term] (M.Map Term TermStats)
 foldTermStats =
-    M.mergeWithKey (\_ x y -> Just (x,y)) (fmap (\x -> (x, mempty))) (fmap (\y -> (mempty, y)))
+    M.mergeWithKey (\_ x y -> Just (TermStats x y)) (fmap (\x -> TermStats x mempty)) (fmap (\y -> TermStats mempty y))
       <$> termFreqs
       <*> docFreqs
   where
@@ -246,8 +270,8 @@ queryFold termSmoothing entitySmoothing resultCount (weightTerm, weightEntity) q
                           , scoredEntityScore = entityScore
                           }
 
-scoreStreaming :: QueryFile -> Fac.DiskIndex -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
-scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource readDocLocs = do
+scoreStreaming :: QueryFile -> Fac.DiskIndex -> Int -> CorpusStatsPaths -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+scoreStreaming queryFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap (S.fromList . queryTerms) queries
@@ -258,14 +282,14 @@ scoreStreaming queryFile facIndexPath resultCount statsFile outputRoot docSource
     facCorpusStats <- BinaryFile.read $ Fac.diskCorpusStats facIndexPath
 
     -- load background statistics
-    CorpusStats collLength _collSize <- decode <$> BS.L.readFile statsFile
-    termFreqs <- BTree.open (BTree.BTreePath "index/term-stats" :: BTree.BTreePath Term (TermFrequency, DocumentFrequency))
+    CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
+    termFreqs <- BTree.open (diskTermStats background)
     let termSmoothing :: Smoothing Term
         termSmoothing =
             Dirichlet 2500 $ \term ->
                 case BTree.lookup termFreqs term of
-                  Just (tf, _) -> getTermFrequency tf / realToFrac collLength
-                  Nothing      -> 0.5 / realToFrac collLength
+                  Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                  Nothing               -> 0.5 / realToFrac collLength
 
         entitySmoothing :: Smoothing Fac.EntityId
         entitySmoothing =
