@@ -18,6 +18,7 @@ import Data.Char
 import GHC.Generics
 import System.IO
 import System.FilePath
+import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
 import qualified Data.Aeson as Aeson
@@ -135,6 +136,7 @@ corpusStats :: QueryFile -> CorpusStatsPaths -> DocumentSource -> IO [DataSource
 corpusStats queryFile output docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
+    createDirectoryIfMissing True (corpusStatsRoot output)
     let allQueryTerms = foldMap (S.fromList . queryTerms) queries
     runSafeT $ do
         (corpusStats, termStats) <-
@@ -178,13 +180,15 @@ instance Monoid TermStats where
     mempty = TermStats mempty mempty
     TermStats a b `mappend` TermStats c d = TermStats (a `mappend` c) (b `mappend` d)
 
-data CorpusStatsPaths = CorpusStatsPaths { diskCorpusStats :: BinaryFile CorpusStats
+data CorpusStatsPaths = CorpusStatsPaths { corpusStatsRoot :: FilePath
+                                         , diskCorpusStats :: BinaryFile CorpusStats
                                          , diskTermStats   :: BTree.BTreePath Term TermStats
                                          }
 
 corpusStatsPaths :: FilePath -> CorpusStatsPaths
 corpusStatsPaths root =
-    CorpusStatsPaths { diskCorpusStats = BinaryFile $ root </> "corpus-stats"
+    CorpusStatsPaths { corpusStatsRoot = root
+                     , diskCorpusStats = BinaryFile $ root </> "corpus-stats"
                      , diskTermStats = BTree.BTreePath $ root </> "term-freqs"
                      }
 
