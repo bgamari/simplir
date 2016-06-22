@@ -16,6 +16,7 @@ module SimplIR.DataSource
 
      -- * Compression
    , Compression(..)
+   , guessCompression
    , decompress
    , withCompressedSource
    ) where
@@ -121,13 +122,18 @@ dataSource (DataSource compression location) =
 
 -- | Parse a 'DataSource' from its textual representation, attempting to
 -- identify any compression from the file name.
-parseDataSource :: T.Text -> Maybe DataSource
+parseDataSource :: T.Text             -- ^ location
+                -> Maybe DataSource
 parseDataSource t = do
     loc <- parseDataLocation t
-    let name = getFileName loc
-        compression
-          | ".gz" `T.isSuffixOf` name  = Just GZip
-          | ".xz" `T.isSuffixOf` name  = Just Lzma
-          | ".bz2" `T.isSuffixOf` name = error "parseDataSource: bzip2 not implemented"
-          | otherwise                  = Nothing
+    let compression = guessCompression (getFileName loc)
     return $ DataSource compression loc
+
+-- | Try to identify the compression method of a file.
+guessCompression :: T.Text            -- ^ file name
+                 -> Maybe Compression
+guessCompression name
+  | ".gz" `T.isSuffixOf` name  = Just GZip
+  | ".xz" `T.isSuffixOf` name  = Just Lzma
+  | ".bz2" `T.isSuffixOf` name = error "parseDataSource: bzip2 not implemented"
+  | otherwise                  = Nothing
