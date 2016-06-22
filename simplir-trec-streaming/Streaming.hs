@@ -45,7 +45,7 @@ import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
-import SimplIR.DataSource
+import SimplIR.DataSource as DataSource
 import qualified SimplIR.DataSource.Gpg as Gpg
 import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
@@ -388,8 +388,9 @@ kbaDocuments dsrcs =
                       | otherwise   = id
                       where
                         isEncrypted = ".gpg" `T.isInfixOf` getFileName (dsrcLocation src)
-                bs <- lift $ P.BS.toLazyM $ maybeDecrypt $ dataSource src
-                mapM_ (yield . (getFilePath $ dsrcLocation src,)) (Kba.readItems $ BS.L.toStrict bs)
+                let DataSource{..} = src
+                bs <- lift $ P.BS.toLazyM $ DataSource.decompress dsrcCompression $ maybeDecrypt $ DataSource.produce dsrcLocation
+                mapM_ (yield . (getFilePath dsrcLocation,)) (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
               (\(archive, d) -> do
