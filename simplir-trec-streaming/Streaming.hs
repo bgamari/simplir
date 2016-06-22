@@ -389,7 +389,11 @@ kbaDocuments dsrcs =
                       where
                         isEncrypted = ".gpg" `T.isInfixOf` getFileName (dsrcLocation src)
                 let DataSource{..} = src
-                bs <- lift $ P.BS.toLazyM $ DataSource.decompress dsrcCompression $ maybeDecrypt $ DataSource.produce dsrcLocation
+                    compression
+                      | ".gpg" `T.isInfixOf` getFileName dsrcLocation = Just Lzma
+                      | otherwise = Nothing
+                bs <- lift $ P.BS.toLazyM $ DataSource.decompress compression $ maybeDecrypt
+                                          $ DataSource.produce dsrcLocation
                 mapM_ (yield . (getFilePath dsrcLocation,)) (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
