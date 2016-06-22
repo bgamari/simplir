@@ -39,6 +39,7 @@ library
       SimplIR.RetrievalModels.QueryLikelihood
       AccumPostings
       SimplIR.DataSource
+      SimplIR.DataSource.Gpg
       SimplIR.Encoded
       SimplIR.EncodedList
       Progress
@@ -87,6 +88,10 @@ library
       vector >= 0.11,
       vector-th-unbox >= 0.2,
       primitive,
+
+      monad-control,
+      process,
+      lifted-async,
 
       b-tree,
       heaps,
