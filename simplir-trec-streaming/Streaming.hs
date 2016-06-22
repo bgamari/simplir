@@ -388,7 +388,7 @@ kbaDocuments dsrcs =
                       | otherwise   = id
                       where
                         isEncrypted = ".gpg" `T.isInfixOf` getFileName (dsrcLocation src)
-                bs <- P.BS.toLazyM $ maybeDecrypt (dataSource src)
+                bs <- lift $ P.BS.toLazyM $ maybeDecrypt $ dataSource src
                 mapM_ (yield . (getFilePath $ dsrcLocation src,)) (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
