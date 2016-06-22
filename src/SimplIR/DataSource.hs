@@ -76,7 +76,7 @@ produce :: (MonadSafe m)
 produce (LocalFile path) =
     bracket (liftIO $ openFile path ReadMode) (liftIO . hClose) P.BS.fromHandle
 produce (S3Object bucket object) =
-    P.S3.fromS3 bucket object $ \resp -> P.S3.responseBody resp
+    P.S3.fromS3 bucket object
 
 -- | A compression method
 data Compression = GZip   -- ^ e.g. @file.gz@
