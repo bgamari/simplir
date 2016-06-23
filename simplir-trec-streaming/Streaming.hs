@@ -76,7 +76,7 @@ streamMode =
     scoreStreaming
       <$> optQueryFile
       <*> option (Fac.diskIndexPaths <$> str) (metavar "DIR" <> long "fac-index" <> short 'f')
-      <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
+      <*> option auto (metavar "N" <> long "count" <> short 'n')
       <*> option (corpusStatsPaths <$> str)
                  (metavar "PATH" <> long "stats" <> short 's'
                  <> help "background corpus statistics index")
