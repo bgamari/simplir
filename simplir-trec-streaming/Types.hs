@@ -70,7 +70,7 @@ instance FromJSON ScoredDocument where
             <$> fmap Exp (o .: "score")
             <*> pure (DocInfo {..})
             <*> withArray "postings" parsePostings postings
-            <*> fmap Exp (o .: "term_score")
+            <*> pure 0 -- <*> fmap Exp (o .: "term_score")
             <*> pure mempty -- fmap parseEntity (o .: "entities") -- TODO
             <*> fmap Exp (o .: "entity_score")
       where
