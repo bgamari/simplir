@@ -6,7 +6,7 @@ module SimplIR.DataSource.Gpg
     , encrypt
     ) where
 
-import           Control.Monad (void, when)
+import           Control.Monad (when)
 import           System.Process
 import           System.Exit
 import           System.IO (hClose)
@@ -14,7 +14,6 @@ import           System.IO (hClose)
 import           Control.Concurrent.Async.Lifted
 import           Control.Monad.Trans.Control
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 
 import           Pipes
 import           Pipes.Safe
@@ -26,12 +25,14 @@ processIt :: (MonadSafe m, MonadBaseControl IO m)
           -> Producer ByteString m ()
 processIt cmd args prod0 = do
     code <- bracket (liftIO $ createProcess cp)
-            (\(_,_,_,pid) -> liftIO $ terminateProcess pid)
+            (\(Just stdin,_,_,_) -> liftIO $ hClose stdin)
             $ \(Just stdin, Just stdout, _, pid) -> do
-        void $ lift $ async $ runEffect $ do
-            prod0 >-> P.BS.toHandle stdin
-            liftIO $ hClose stdin
+        pusher <- lift $ async $
+            (runEffect $ prod0 >-> P.BS.toHandle stdin)
+            `finally`
+            (liftIO $ hClose stdin)
         P.BS.fromHandle stdout
+        () <- lift $ wait pusher
         liftIO $ waitForProcess pid
     when (code /= ExitSuccess) $ fail $ "gpg failed with "++show code
   where
@@ -49,4 +50,5 @@ encrypt :: (MonadSafe m, MonadBaseControl IO m)
         => UserId    -- ^ recipient identity
         -> Producer ByteString m ()
         -> Producer ByteString m ()
-encrypt recip = processIt "gpg2" ["--batch", "--encrypt", "-r", recip]
+encrypt recipient =
+    processIt "gpg2" ["--batch", "--encrypt", "-r", recipient]
