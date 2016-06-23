@@ -25,6 +25,7 @@ type QueryId = T.Text
 data Ranking = Ranking { rankingQueryId :: QueryId
                        , rankingResults :: [ScoredDocument]
                        }
+             deriving (Show)
 
 instance ToJSON Ranking where
     toJSON Ranking{..} = object
