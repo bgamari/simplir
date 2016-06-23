@@ -54,7 +54,8 @@ derivingUnbox "DocumentId"
   [| DocId |]
 
 newtype DocumentName = DocName { getDocName :: Utf8.SmallUtf8 }
-                     deriving (Show, Eq, Ord, Binary, IsString)
+                     deriving (Show, Eq, Ord, Binary, IsString,
+                               Aeson.ToJSON, Aeson.FromJSON)
 
 instance Arbitrary DocumentName where
     arbitrary = do
@@ -69,6 +70,8 @@ instance Binary Span
 instance Aeson.ToJSON Span where
     toJSON (Span{..}) = Aeson.object [ "begin" .= begin, "end" .= end ]
     toEncoding (Span{..}) = Aeson.pairs ("begin" .= begin <> "end" .= end)
+instance Aeson.FromJSON Span where
+    parseJSON = Aeson.withObject "span" $ \o -> Span <$> o Aeson..: "begin" <*> o Aeson..: "end"
 
 derivingUnbox "Span"
   [t| Span -> (Int, Int) |]
@@ -84,6 +87,11 @@ data Position = Position { charOffset :: !Span
 instance Binary Position
 instance NFData Position where
     rnf (Position {}) = ()
+instance Aeson.ToJSON Position where
+    toJSON (Position{..}) = Aeson.object [ "token_pos" .= tokenN, "char_pos" .= charOffset ]
+    toEncoding (Position{..}) = Aeson.pairs ("token_pos" .= tokenN <> "char_pos" .= charOffset)
+instance Aeson.FromJSON Position where
+    parseJSON = Aeson.withObject "position" $ \o -> Position <$> o Aeson..: "token_pos" <*> o Aeson..: "char_pos"
 
 derivingUnbox "Position"
   [t| Position -> (Span, Int) |]
