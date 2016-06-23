@@ -38,7 +38,7 @@ import SimplIR.DataSource
 import qualified BTree.File as BTree
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import SimplIR.TrecStreaming.FacAnnotations (EntityId)
-import Types
+import Fac.Types
 
 import qualified BTree as BT
 

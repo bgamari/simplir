@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Types where
+module Fac.Types where
 
 import qualified Data.Text as T
 import qualified Data.Map.Strict as M
@@ -10,10 +10,8 @@ import GHC.Generics
 import System.FilePath
 
 import qualified BTree.File as BTree
-import SimplIR.Term as Term
 import SimplIR.BinaryFile as BinaryFile
 import SimplIR.Types
-import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import SimplIR.TrecStreaming.FacAnnotations (EntityId)
 
 data DocumentInfo = DocInfo { docArchive :: ArchiveName

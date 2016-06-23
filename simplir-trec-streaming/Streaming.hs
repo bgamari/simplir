@@ -52,7 +52,7 @@ import qualified BTree.File as BTree
 import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
-import qualified Types as Fac
+import qualified Fac.Types as Fac
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
 type QueryId = T.Text
