@@ -37,12 +37,12 @@ instance FromJSON Ranking where
     parseJSON = withObject "ranking" $ \o ->
         Ranking <$> o .: "query_id" <*> o .: "results"
 
-data ScoredDocument = ScoredDocument { scoredRankScore     :: Score
-                                     , scoredDocumentInfo  :: DocumentInfo
-                                     , scoredTermPositions :: M.Map Term [Position]
-                                     , scoredTermScore     :: Score
-                                     , scoredEntityFreqs   :: M.Map Fac.EntityId TermFrequency
-                                     , scoredEntityScore   :: Score
+data ScoredDocument = ScoredDocument { scoredRankScore     :: !Score
+                                     , scoredDocumentInfo  :: !DocumentInfo
+                                     , scoredTermPositions :: !(M.Map Term [Position])
+                                     , scoredTermScore     :: !Score
+                                     , scoredEntityFreqs   :: !(M.Map Fac.EntityId TermFrequency)
+                                     , scoredEntityScore   :: !Score
                                      }
                     deriving (Show, Ord, Eq)
 
@@ -81,9 +81,9 @@ instance FromJSON ScoredDocument where
 
 type ArchiveName = T.Text
 
-data DocumentInfo = DocInfo { docArchive :: ArchiveName
-                            , docName    :: DocumentName
-                            , docLength  :: DocumentLength
+data DocumentInfo = DocInfo { docArchive :: !ArchiveName
+                            , docName    :: !DocumentName
+                            , docLength  :: !DocumentLength
                             }
                   deriving (Generic, Eq, Ord, Show)
 instance Binary DocumentInfo
