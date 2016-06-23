@@ -91,7 +91,8 @@ instance Aeson.ToJSON Position where
     toJSON (Position{..}) = Aeson.object [ "token_pos" .= tokenN, "char_pos" .= charOffset ]
     toEncoding (Position{..}) = Aeson.pairs ("token_pos" .= tokenN <> "char_pos" .= charOffset)
 instance Aeson.FromJSON Position where
-    parseJSON = Aeson.withObject "position" $ \o -> Position <$> o Aeson..: "token_pos" <*> o Aeson..: "char_pos"
+    parseJSON = Aeson.withObject "position" $ \o ->
+        Position <$> o Aeson..: "char_pos" <*> o Aeson..: "token_pos"
 
 derivingUnbox "Position"
   [t| Position -> (Span, Int) |]
