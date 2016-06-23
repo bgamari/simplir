@@ -163,6 +163,7 @@ corpusStats queryFile output docSource readDocLocs = do
 
 mergeCorpusStats :: CorpusStatsPaths -> [CorpusStatsPaths] -> IO ()
 mergeCorpusStats output statss = do
+    createDirectoryIfMissing True (corpusStatsRoot output)
     BinaryFile.write (diskCorpusStats output) =<< BinaryFile.mconcat (map diskCorpusStats statss)
     BTree.merge mappend (diskTermStats output) (map diskTermStats statss)
 
