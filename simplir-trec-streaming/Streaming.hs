@@ -85,6 +85,14 @@ streamMode =
       <*> pure kbaDocuments
       <*> inputFiles
 
+mergeCorpusStatsMode :: Parser (IO ())
+mergeCorpusStatsMode =
+    mergeCorpusStats
+      <$> option (corpusStatsPaths <$> str) (metavar "DIR" <> long "output" <> short 'o'
+                                             <> help "output file path")
+      <*> some (argument (corpusStatsPaths <$> str)
+                         (metavar "DIR" <> help "corpus statistics indexes to merge"))
+
 corpusStatsMode :: Parser (IO ())
 corpusStatsMode =
     corpusStats
@@ -99,6 +107,7 @@ modes :: Parser (IO ())
 modes = subparser
     $  command "score" (info streamMode fullDesc)
     <> command "corpus-stats" (info corpusStatsMode fullDesc)
+    <> command "merge-corpus-stats" (info mergeCorpusStatsMode fullDesc)
 
 type QueryFile = FilePath
 
@@ -151,6 +160,11 @@ corpusStats queryFile output docSource readDocLocs = do
                           ++" tokens with "++show (corpusCollectionSize corpusStats)++" documents"
         liftIO $ BinaryFile.write (diskCorpusStats output) corpusStats
         liftIO $ BTree.fromOrdered (fromIntegral $ M.size termStats) (diskTermStats output) (each $ M.assocs termStats)
+
+mergeCorpusStats :: CorpusStatsPaths -> [CorpusStatsPaths] -> IO ()
+mergeCorpusStats output statss = do
+    BinaryFile.write (diskCorpusStats output) =<< BinaryFile.mconcat (map diskCorpusStats statss)
+    BTree.merge mappend (diskTermStats output) (map diskTermStats statss)
 
 data DocumentInfo = DocInfo { docArchive :: ArchiveName
                             , docName    :: DocumentName
