@@ -52,7 +52,7 @@ instance ToJSON ScoredDocument where
         , "length"       .= docLength
         , "archive"      .= docArchive
         , "score"        .= ln scoredRankScore
-        , "term_score"   .= ln scoredTermScore
+        --, "term_score"        .= ln scoredTermScore
         , "postings"     .= [ object ["term" .= term, "positions" .= positions]
                             | (term, positions) <- M.toAscList scoredTermPositions
                             ]
