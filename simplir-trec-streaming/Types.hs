@@ -51,12 +51,12 @@ instance ToJSON ScoredDocument where
         , "length"       .= docLength
         , "archive"      .= docArchive
         , "score"        .= ln scoredRankScore
-        --, "term_score"        .= ln scoredTermScore
+        , "term_score"        .= ln scoredTermScore
         , "postings"     .= [ object ["term" .= term, "positions" .= positions]
                             | (term, positions) <- M.toAscList scoredTermPositions
                             ]
         , "entity_score" .= ln scoredEntityScore
-        -- , "entities"     .= object (map (bimap Fac.getEntityId toJSON) $ M.toAscList scoredEntityFreqs)
+        , "entities"     .= object (map (bimap Fac.getEntityId toJSON) $ M.toAscList scoredEntityFreqs)
         ]
 
 instance FromJSON ScoredDocument where
@@ -71,7 +71,7 @@ instance FromJSON ScoredDocument where
             <*> withArray "postings" parsePostings postings
             <*> pure 0 -- <*> fmap Exp (o .: "term_score")
             <*> pure mempty -- fmap parseEntity (o .: "entities") -- TODO
-            <*> fmap Exp (o .: "entity_score")
+            <*> pure 0 -- fmap Exp (o .: "entity_score")
       where
         parsePostings = fmap M.unions . traverse parsePosting . toList
         parsePosting = withObject "posting" $ \o ->
