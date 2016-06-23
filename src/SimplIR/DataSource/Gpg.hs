@@ -31,6 +31,8 @@ processIt cmd args prod0 = do
             (runEffect $ prod0 >-> P.BS.toHandle stdin)
             `finally`
             (liftIO $ hClose stdin)
+
+        lift $ link pusher
         P.BS.fromHandle stdout
         () <- lift $ wait pusher
         liftIO $ waitForProcess pid
