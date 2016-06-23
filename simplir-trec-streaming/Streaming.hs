@@ -53,9 +53,8 @@ import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
 import qualified Fac.Types as Fac
+import Types
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
-
-type QueryId = T.Text
 
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
@@ -167,13 +166,6 @@ mergeCorpusStats output statss = do
     BinaryFile.write (diskCorpusStats output) =<< BinaryFile.mconcat (map diskCorpusStats statss)
     BTree.merge mappend (diskTermStats output) (map diskTermStats statss)
 
-data DocumentInfo = DocInfo { docArchive :: ArchiveName
-                            , docName    :: DocumentName
-                            , docLength  :: DocumentLength
-                            }
-                  deriving (Generic, Eq, Ord, Show)
-instance Binary DocumentInfo
-
 data CorpusStats = CorpusStats { corpusCollectionLength :: !Int
                                  -- ^ How many tokens in collection
                                , corpusCollectionSize   :: !Int
@@ -234,14 +226,7 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-data ScoredDocument = ScoredDocument { scoredRankScore     :: Score
-                                     , scoredDocumentInfo  :: DocumentInfo
-                                     , scoredTermPositions :: M.Map Term [Position]
-                                     , scoredTermScore     :: Score
-                                     , scoredEntityFreqs   :: M.Map Fac.EntityId TermFrequency
-                                     , scoredEntityScore   :: Score
-                                     }
-                    deriving (Show, Ord, Eq)
+
 
 queryFold :: Smoothing Term
           -> Smoothing Fac.EntityId
@@ -357,32 +342,7 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
             ]
 
         liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode
-            [ Aeson.object
-              [ "query_id" .= qid
-              , "results"  .=
-                [ Aeson.object
-                  [ "doc_name" .= getDocName docName
-                  , "length"   .= docLength
-                  , "archive"  .= docArchive
-                  , "score"    .= ln scoredRankScore
-                  , "postings" .= [
-                        Aeson.object
-                          [ "term" .= term
-                          , "positions" .= [
-                                Aeson.object
-                                  [ "token_pos" .= tokenN pos
-                                  , "char_pos" .= charOffset pos
-                                  ]  | pos <- poss ]
-                          ]
-                        | (term, poss) <- M.toList scoredTermPositions
-                        ]
-                  ]
-                | ScoredDocument {..} <- scores
-                , let DocInfo {..} = scoredDocumentInfo
-                ]
-              ]
-            | (qid, scores) <- M.toList results
-            ]
+            [ Ranking qid scores | (qid, scores) <- M.toList results]
         return ()
 
 newtype DocumentFrequency = DocumentFrequency Int
@@ -390,8 +350,6 @@ newtype DocumentFrequency = DocumentFrequency Int
 instance Monoid DocumentFrequency where
     mempty = DocumentFrequency 0
     DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
-
-type ArchiveName = T.Text
 
 kbaDocuments :: [DataSource]
              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()

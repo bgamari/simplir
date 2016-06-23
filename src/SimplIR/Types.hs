@@ -130,7 +130,7 @@ newtype DocumentLength = DocLength Int
 
 -- | A number of occurrences of a 'Term'
 newtype TermFrequency = TermFreq Int
-                      deriving (Eq, Ord, Show, Enum, Binary)
+                      deriving (Eq, Ord, Show, Enum, Binary, Aeson.ToJSON, Aeson.FromJSON)
 
 getTermFrequency :: Real a => TermFrequency -> a
 getTermFrequency (TermFreq x) = fromIntegral x
