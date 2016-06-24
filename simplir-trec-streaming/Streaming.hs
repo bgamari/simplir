@@ -46,12 +46,13 @@ import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource as DataSource
-import qualified SimplIR.DataSource.Gpg as Gpg
 import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
 import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
+
+import ReadKba
 import qualified Fac.Types as Fac
 import Types
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
@@ -356,17 +357,7 @@ kbaDocuments :: [DataSource]
 kbaDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
-                let maybeDecrypt
-                      | isEncrypted = Gpg.decrypt
-                      | otherwise   = id
-                      where
-                        isEncrypted = ".gpg" `T.isInfixOf` getFileName (dsrcLocation src)
-                let DataSource{..} = src
-                    compression
-                      | ".gpg" `T.isInfixOf` getFileName dsrcLocation = Just Lzma
-                      | otherwise = Nothing
-                bs <- lift $ P.BS.toLazyM $ DataSource.decompress compression $ maybeDecrypt
-                                          $ DataSource.produce dsrcLocation
+                bs <- readKbaFile src
                 mapM_ (yield . (getFilePath dsrcLocation,)) (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
