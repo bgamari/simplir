@@ -42,7 +42,7 @@ data DataLocation = LocalFile { filePath :: FilePath }
                   | S3Object { s3Bucket :: P.S3.Bucket
                              , s3Object :: P.S3.Object
                              }
-                  deriving (Show)
+                  deriving (Show, Ord, Eq)
 
 -- | Get some sensible approximation of a file name for the given
 -- 'DataLocation'.
@@ -81,7 +81,7 @@ produce (S3Object bucket object) =
 -- | A compression method
 data Compression = GZip   -- ^ e.g. @file.gz@
                  | Lzma   -- ^ e.g. @file.xz@
-                 deriving (Show)
+                 deriving (Show, Ord, Eq)
 
 decompress :: MonadIO m
            => Maybe Compression
@@ -113,7 +113,7 @@ withCompressedSource loc compr action =
 data DataSource = DataSource { dsrcCompression :: Maybe Compression
                              , dsrcLocation    :: DataLocation
                              }
-                deriving (Show)
+                deriving (Show, Ord, Eq)
 
 -- | Produce the data from a 'DataSource'
 dataSource :: MonadSafe m => DataSource -> Producer ByteString m ()
