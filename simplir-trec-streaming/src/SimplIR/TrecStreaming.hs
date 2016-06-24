@@ -13,6 +13,8 @@ module SimplIR.TrecStreaming
     , Url(..)
     , Version(..)
     , AnnotatorId(..)
+      -- ** Raw parser
+    , parseStreamItem
     ) where
 
 import Control.Applicative
