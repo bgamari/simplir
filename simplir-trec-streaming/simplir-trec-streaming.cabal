@@ -38,6 +38,11 @@ executable trec-streaming-ls-documents
   build-depends:       base,
                        bytestring,
                        text,
+                       monad-control,
+                       pipes-safe,
+                       pipes-bytestring,
+                       monad-control,
+                       laura,
                        optparse-applicative,
                        lzma,
                        simplir-trec-streaming
