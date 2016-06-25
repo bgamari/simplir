@@ -46,6 +46,7 @@ main = do
 
 dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
 dumpDocuments dsrc docs = do
+    putStrLn $ "Dumping "++show dsrc
     takenDocs <- takeDocuments docs . BS.L.toStrict <$> runSafeT (readKbaFile dsrc)
     let outPath = T.unpack (getFileName $ dsrcLocation dsrc) <.> "extracted"
     BS.writeFile outPath
