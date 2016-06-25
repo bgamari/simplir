@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
+import Data.Monoid
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -42,6 +43,8 @@ main = do
       >-> P.P.mapFoldable (map $ map getDocs . take 100 . rankingResults)
       >-> P.P.concat
 
+    let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
+    putStrLn $ "Extracting "++show nDocs++" documents in "++show (M.size neededDocs)++" archives"
     mapM_ (uncurry dumpDocuments) $ M.assocs neededDocs
 
 dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
