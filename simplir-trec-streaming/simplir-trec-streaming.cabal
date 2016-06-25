@@ -84,6 +84,7 @@ executable kba-streaming
       bytestring >=0.10 && <0.11,
       transformers >=0.4 && <0.5,
       filepath,
+      monad-control,
       directory,
       temporary,
       mtl,
