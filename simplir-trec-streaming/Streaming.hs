@@ -22,7 +22,6 @@ import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
 import qualified Data.Aeson as Aeson
-import Data.Aeson ((.=))
 import Numeric.Log hiding (sum)
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
@@ -34,7 +33,6 @@ import qualified Control.Foldl as Foldl
 
 import           Pipes
 import           Pipes.Safe
-import qualified Pipes.ByteString as P.BS
 import qualified Pipes.Prelude as P.P
 
 import Options.Applicative
@@ -357,8 +355,9 @@ kbaDocuments :: [DataSource]
 kbaDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
-                bs <- readKbaFile src
-                mapM_ (yield . (getFilePath dsrcLocation,)) (Kba.readItems $ BS.L.toStrict bs)
+                bs <- lift $ readKbaFile src
+                mapM_ (yield . (getFilePath $ dsrcLocation src,))
+                      (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
               (\(archive, d) -> do
