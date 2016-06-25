@@ -4,7 +4,6 @@
 
 module ReadKba where
 
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Pipes.Safe
 import qualified Data.ByteString.Lazy as BS.L

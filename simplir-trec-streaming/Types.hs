@@ -13,10 +13,8 @@ import qualified Data.Text as T
 import GHC.Generics
 import Numeric.Log
 
-import qualified SimplIR.Term as Term
 import           SimplIR.Term (Term)
 import           SimplIR.Types
-import qualified Fac.Types as Fac
 import           SimplIR.RetrievalModels.QueryLikelihood (Score)
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
