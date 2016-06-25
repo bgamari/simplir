@@ -56,6 +56,7 @@ takeDocuments :: S.Set DocumentName -> BS.ByteString -> [Pinch.Value Pinch.TStru
 takeDocuments docs = go
   where
     go bs
+      | BS.null bs = []
       | docName `S.member` docs = val : go bs'
       | otherwise = go bs'
       where
