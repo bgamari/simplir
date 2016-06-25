@@ -48,7 +48,7 @@ data DataLocation = LocalFile { filePath :: FilePath }
 -- 'DataLocation'.
 getFileName :: DataLocation -> T.Text
 getFileName (LocalFile path) = T.pack $ takeFileName path
-getFileName (S3Object _ (P.S3.Object obj)) = obj
+getFileName (S3Object _ (P.S3.Object obj)) = T.pack $ takeFileName $ T.unpack obj
 
 -- | Get some sensible approximation of a "path" for the given
 -- 'DataLocation'.
