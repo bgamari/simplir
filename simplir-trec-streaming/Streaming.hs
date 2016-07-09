@@ -25,7 +25,7 @@ import System.FilePath
 import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
-import qualified Data.Aeson as Aeson
+import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
@@ -123,7 +123,7 @@ newtype WikiId = WikiId Utf8.SmallUtf8
 
 readQueries :: QueryFile -> IO (M.Map QueryId QueryNode)
 readQueries fname = do
-    Just queries' <- Aeson.decode <$> BS.L.readFile fname
+    Just queries' <- Yaml.decodeFile fname
     let queries = getQueries queries'
     let allTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
     hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
@@ -248,7 +248,7 @@ interpretQuery termBg entityBg params node0 doc = go node0
                             docTerms = M.toList $ fmap fromEnum entityFreqs
                             smooth = runParametricOrFail params smoothing $ entityBg
                         in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) docTerms
-            (info, docTermPositions, (entityDocLen, entityFreqs)) = doc
+            (info, docTermPositions, (_entityDocLen, entityFreqs)) = doc
         in (score, mempty)
 
 queryFold :: Distribution Term
@@ -302,7 +302,7 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
                   Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
                   Nothing                   -> 0.05 / realToFrac collLength
 
-    Just paramSets <- fmap getParamSets . Aeson.decode <$> BS.L.readFile "parameters"
+    Just paramSets <- fmap getParamSets <$> Yaml.decodeFile "parameters.json"
                    :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))

@@ -110,6 +110,7 @@ executable kba-streaming
       pipes-text,
       pipes-safe,
       aeson,
+      yaml,
       warc,
       b-tree,
       laura,
