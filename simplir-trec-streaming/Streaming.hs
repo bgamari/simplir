@@ -19,6 +19,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
 import Data.Char
+import Control.Exception (throw)
 import GHC.Generics
 import System.IO
 import System.FilePath
@@ -123,7 +124,7 @@ newtype WikiId = WikiId Utf8.SmallUtf8
 
 readQueries :: QueryFile -> IO (M.Map QueryId QueryNode)
 readQueries fname = do
-    Just queries' <- Yaml.decodeFile fname
+    queries' <- either throw id <$> Yaml.decodeFileEither fname
     let queries = getQueries queries'
     let allTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
     hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
@@ -302,7 +303,7 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
                   Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
                   Nothing                   -> 0.05 / realToFrac collLength
 
-    Just paramSets <- fmap getParamSets <$> Yaml.decodeFile "parameters.json"
+    Just paramSets <- fmap getParamSets . either throw id <$> Yaml.decodeFileEither "parameters.json"
                    :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
