@@ -61,7 +61,7 @@ import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
 
-type QueryId = String
+type QueryId = T.Text
 type StatsFile = FilePath
 
 inputFiles :: Parser (IO [DataSource])
@@ -89,7 +89,7 @@ optDocumentSource =
 
 streamMode :: Parser (IO ())
 streamMode =
-    score
+    scoreStreaming
       <$> optQueryFile
       <*> option auto (metavar "N" <> long "count" <> short 'n' <> value 10)
       <*> option str (metavar "FILE" <> long "stats" <> short 's'
@@ -127,7 +127,7 @@ optQueryFile :: Parser QueryFile
 optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
 
-readQueries :: QueryFile -> IO (M.Map QueryId [Term])
+readQueries :: QueryFile -> IO (M.Map QueryId ([Term], [EntityId]))
 readQueries fname = do
     queries <- M.unions . mapMaybe parse . lines <$> readFile fname
     let allTerms = foldMap S.fromList queries
@@ -136,8 +136,9 @@ readQueries fname = do
   where
     parse "" = Nothing
     parse line
-      | (qid, body) <- span (/= '\t') line
-      = Just $ M.singleton qid (map Term.fromString $ words body)
+      | [qid, terms, names, entityIds] <- split (== '\t') line
+      = Just $ M.singleton qid ( map Term.fromString $ words terms
+                               , map EntityId $ words entityIds)
 
 main :: IO ()
 main = do
@@ -165,7 +166,7 @@ data DocumentInfo = DocInfo { docArchive :: ArchiveName
                             , docName    :: DocumentName
                             , docLength  :: DocumentLength
                             }
-                  deriving (Generic, Eq, Ord)
+                  deriving (Generic, Eq, Ord, Show)
 instance Binary DocumentInfo
 
 data CorpusStats = CorpusStats { corpusCollectionLength :: !Int
@@ -203,13 +204,47 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-type ScoredDocument = (Score, (DocumentInfo, M.Map Term [Position]))
+data ScoredDocument = ScoredDocument { scoredRankScore     :: Score
+                                     , scoredDocumentInfo  :: DocumentInfo
+                                     , scoredTermPositions :: M.Map Term [Position]
+                                     , scoredTermScore     :: Score
+                                     , scoredEntityFreqs   :: M.Map EntityId TermFreq
+                                     , scoredEntityScore   :: Score
+                                     }
 
-score :: QueryFile -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
-score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
+query :: QueryFile -> Int -> FilePath -> FilePath -> IO ()
+query queryFile resultCount indexPath outputRoot = do
+    queries <- readQueries queryFile
+    PostingIdx.open $ PostingIdx.PostingIndexPath $ indexPath </> "postings"
+
+
+queryFold :: Int
+          -> [Term]   -- ^ query terms
+          -> Foldl.Fold (DocumentInfo, M.Map Term [Position]) [ScoredDocument]
+queryFold resultCount queryTerms =
+      Foldl.handles (Foldl.filtered (\(_, docTerms) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms))
+    $ lmap scoreTerms
+    $ topK resultCount
+  where
+    queryTerms' :: M.Map Term Int
+    queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
+
+    scoreTerms :: (DocumentInfo, M.Map Term [Position])
+                -> ScoredDocument
+    scoreTerms (info, docTerms) =
+        ( queryLikelihood smoothing (M.assocs queryTerms')
+                          (docLength info)
+                          (M.toList $ fmap length docTerms)
+        , (info, docTerms)
+        )
+
+scoreStreaming :: QueryFile -> Int -> FilePath -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+scoreStreaming queryFile resultCount statsFile outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap S.fromList queries
+    let facIndexPath :: BTree.BTreePath DocumentName (DocumentInfo, M.Map Term TermFrequency)
+        facIndexPath = BTree.BTreePath "fac"
 
     -- load background statistics
     CorpusStats collLength collSize <- decode <$> BS.L.readFile statsFile
@@ -218,34 +253,12 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
         smoothing =
             Dirichlet 2500 $ \term ->
                 case BTree.lookup termFreqs term of
-                  Just (tf, _) ->
-                      let n = getTermFrequency tf
-                      in n / (realToFrac collLength)
-                  Nothing ->
-                      0.5 / (realToFrac collLength)
+                  Just (tf, _) -> getTermFrequency tf / realToFrac collLength
+                  Nothing      -> 0.5 / realToFrac collLength
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position])
                                   (M.Map QueryId [ScoredDocument])
         queriesFold = traverse queryFold queries
-
-        queryFold :: [Term] -> Foldl.Fold (DocumentInfo, M.Map Term [Position])
-                                          [ScoredDocument]
-        queryFold queryTerms =
-              Foldl.handles (Foldl.filtered (\(_, docTerms) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms))
-            $ lmap scoreTerms
-            $ topK resultCount
-          where
-            queryTerms' :: M.Map Term Int
-            queryTerms' = M.fromListWith (+) $ zip queryTerms (repeat 1)
-
-            scoreTerms :: (DocumentInfo, M.Map Term [Position])
-                       -> ScoredDocument
-            scoreTerms (info, docTerms) =
-                ( queryLikelihood smoothing (M.assocs queryTerms')
-                                  (docLength info)
-                                  (M.toList $ fmap length docTerms)
-                , (info, docTerms)
-                )
 
     runSafeT $ do
         results <-
@@ -256,6 +269,12 @@ score queryFile resultCount statsFile outputRoot docSource readDocLocs = do
             >-> P.P.map (second $ filter ((`S.member` allQueryTerms) . fst))
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
             >-> cat'                         @(DocumentInfo, M.Map Term [Position])
+            >-> P.P.map (\ (docInfo, termPostings) ->
+                            let (facDocLen, entityIdPostings) = maybe (0, M.empty) (first docLength) . (second M.filter entityIdPostings  ) $ BTree.lookup facindex (docName docInfo)
+                           let facDocLen = fst $ facEntry
+            >-> cat'                         @( DocumentInfo
+                                              , M.Map Term [Position]
+                                              , M.Map EntityId TermFrequency )
 
         liftIO $ writeFile (outputRoot<.>"run") $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]
@@ -328,7 +347,7 @@ buildIndex docSource readDocLocs = do
 
         let termFreqsPath :: BTree.BTreePath Term (TermFrequency, DocumentFrequency)
             termFreqsPath = BTree.BTreePath $ indexPath </> "term-stats"
-        liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toList termFreqs)
+        liftIO $ BTree.fromOrdered (fromIntegral $ M.size termFreqs) termFreqsPath (each $ M.toAscList termFreqs)
 
         yield (postingsPath, docsPath, termFreqsPath, corpusStats)
 

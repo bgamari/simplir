@@ -1,9 +1,13 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -22,13 +26,11 @@ import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
 import qualified Data.Aeson as Aeson
-import Numeric.Log hiding (sum)
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import qualified Data.Text as T
-import qualified Data.Text.IO as T.IO
 import qualified Control.Foldl as Foldl
 
 import           Pipes
@@ -48,11 +50,13 @@ import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
 import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
-import SimplIR.RetrievalModels.QueryLikelihood
+import SimplIR.RetrievalModels.QueryLikelihood as QL
 
 import ReadKba
 import qualified Fac.Types as Fac
 import Types
+import Query
+import Parametric
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
 inputFiles :: Parser (IO [DataSource])
@@ -113,27 +117,17 @@ optQueryFile :: Parser QueryFile
 optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
 
-data Query = Query { queryTerms :: [Term]
-                   , queryEntities :: [Fac.EntityId]
-                   }
+newtype WikiId = WikiId Utf8.SmallUtf8
+               deriving (Show, Eq, Ord)
 
-readQueries :: QueryFile -> IO (M.Map QueryId Query)
+
+readQueries :: QueryFile -> IO (M.Map QueryId QueryNode)
 readQueries fname = do
-    queries <- M.unions . mapMaybe parse . T.lines <$> T.IO.readFile fname
-    let allTerms = foldMap (S.fromList . queryTerms) queries
+    Just queries' <- Aeson.decode <$> BS.L.readFile fname
+    let queries = getQueries queries'
+    let allTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
     hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
     return queries
-  where
-    parse line
-      | T.null line
-      = Nothing
-      | [qid, terms, _names, entityIds] <- T.split (== '\t') line
-      = Just $ M.singleton qid
-        $ Query { queryTerms    = map Term.fromText $ T.words terms
-                , queryEntities = map Fac.EntityId $ T.words entityIds
-                }
-      | otherwise
-      = error $ "error parsing line: "++show line
 
 main :: IO ()
 main = do
@@ -145,7 +139,7 @@ corpusStats queryFile output docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     createDirectoryIfMissing True (corpusStatsRoot output)
-    let allQueryTerms = foldMap (S.fromList . queryTerms) queries
+    let allQueryTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
     runSafeT $ do
         (corpusStats, termStats) <-
                 foldProducer (Foldl.generalize foldCorpusStats)
@@ -226,59 +220,66 @@ foldTermStats =
         $ mconcatMaps
 
 
+interpretQuery :: Distribution Term
+               -> Distribution Fac.EntityId
+               -> Parameters Double
+               -> QueryNode
+               -> (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+               -> (Score, M.Map RecordedValueName Double)
+interpretQuery termBg entityBg params node0 doc = go node0
+  where
+    go :: QueryNode -> (Score, M.Map RecordedValueName Double)
+    go SumNode {..}       = first getSum $ foldMap (first Sum . go) children
+    go ProductNode {..}   = first getProduct $ foldMap (first Product . go) children
+    go ScaleNode {..}     = first (s *) $ go child
+      where s = realToFrac $ runParametricOrFail params scalar
+    go RetrievalNode {..} =
+        let score = case retrievalModel of
+              QueryLikelihood smoothing ->
+                  case field of
+                    FieldText ->
+                        let queryTerms = M.fromListWith (+) $ zip terms (repeat 1)
+                            docTerms = M.toList $ fmap length docTermPositions
+                            smooth = runParametricOrFail params smoothing $ termBg
+                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) docTerms
 
-queryFold :: Smoothing Term
-          -> Smoothing Fac.EntityId
+                    FieldFreebaseIds ->
+                        let queryTerms = M.fromListWith (+) $ zip terms (repeat 1)
+                            docTerms = M.toList $ fmap fromEnum entityFreqs
+                            smooth = runParametricOrFail params smoothing $ entityBg
+                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) docTerms
+            (info, docTermPositions, (entityDocLen, entityFreqs)) = doc
+        in (score, mempty)
+
+queryFold :: Distribution Term
+          -> Distribution Fac.EntityId
+          -> Parameters Double
           -> Int                        -- ^ how many results should we collect?
-          -> (Log Double, Log Double)   -- ^ weights for document subscores
-          -> Query
+          -> QueryNode
           -> Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
-queryFold termSmoothing entitySmoothing resultCount (weightTerm, weightEntity) query =
-      Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms))
-    $ lmap scoreQuery
+queryFold termBg entityBg params resultCount query =
+      --Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
+    lmap scoreQuery
     $ topK resultCount
   where
-    queryTerms' :: M.Map Term Int   -- query term frequency
-    queryTerms' = M.fromListWith (+) $ zip (queryTerms query) (repeat 1)
-
-    queryEntities' :: M.Map Fac.EntityId Int   -- query entity frequency
-    queryEntities' = M.fromListWith (+) $ zip (queryEntities query) (repeat 1)
-
-    scoreTerms :: (DocumentInfo, M.Map Term [Position])
-                -> Score
-    scoreTerms (info, docTerms) =
-        queryLikelihood termSmoothing (M.assocs queryTerms')
-                        (docLength info)
-                        (M.toList $ fmap length docTerms)
-
-    scoreEntities :: (DocumentLength, M.Map Fac.EntityId TermFrequency)
-                  -> Score
-    scoreEntities (entityDocLen, entityFreqs) =
-        queryLikelihood entitySmoothing (M.assocs queryEntities')
-                        entityDocLen
-                        (M.toList $ fmap fromEnum entityFreqs)
-
     scoreQuery :: (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
-    scoreQuery (info, docTermPositions, (entityDocLen, entityFreqs)) =
-        let termScore  = scoreTerms (info, docTermPositions)
-            entityScore = scoreEntities (entityDocLen, entityFreqs)
-            score = weightTerm * termScore
-                    + weightEntity * entityScore
-        in ScoredDocument { scoredRankScore = score
-                          , scoredDocumentInfo = info
-                          , scoredTermPositions = docTermPositions
-                          , scoredTermScore = termScore
-                          , scoredEntityFreqs = entityFreqs
-                          , scoredEntityScore = entityScore
-                          }
+    scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
+        ScoredDocument { scoredRankScore = score
+                       , scoredDocumentInfo = info
+                       , scoredTermPositions = docTermPositions
+                       , scoredEntityFreqs = entityFreqs
+                       , scoredRecordedValues = recorded
+                       }
+      where
+        (score, recorded) = interpretQuery termBg entityBg params query doc
 
 scoreStreaming :: QueryFile -> Fac.DiskIndex -> Int -> CorpusStatsPaths -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
 scoreStreaming queryFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
-    let allQueryTerms = foldMap (S.fromList . queryTerms) queries
+    let allQueryTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
 
     -- load FAC annotations
     facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
@@ -288,25 +289,29 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
     -- load background statistics
     CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
     termFreqs <- BTree.open (diskTermStats background)
-    let termSmoothing :: Smoothing Term
-        termSmoothing =
-            Dirichlet 2500 $ \term ->
-                case BTree.lookup termFreqs term of
-                  Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-                  Nothing               -> 0.5 / realToFrac collLength
+    let termBg :: Distribution Term
+        termBg term =
+            case BTree.lookup termFreqs term of
+              Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+              Nothing               -> 0.5 / realToFrac collLength
 
-        entitySmoothing :: Smoothing Fac.EntityId
-        entitySmoothing =
-            Dirichlet 250 $ \entity ->
-                let collLength = Fac.corpusCollectionLength facCorpusStats
-                in case BTree.lookup facEntityIdStats entity of
-                     Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-                     Nothing                   -> 0.05 / realToFrac collLength
+        entityBg :: Distribution Fac.EntityId
+        entityBg entity =
+            let collLength = Fac.corpusCollectionLength facCorpusStats
+            in case BTree.lookup facEntityIdStats entity of
+                  Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                  Nothing                   -> 0.05 / realToFrac collLength
+
+    Just paramSets <- fmap getParamSets . Aeson.decode <$> BS.L.readFile "parameters"
+                   :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
-                                  (M.Map QueryId [ScoredDocument])
-        queriesFold = traverse (queryFold termSmoothing entitySmoothing resultCount (0.5, 0.5))
-                               queries
+                                  (M.Map (QueryId, ParamSettingName) [ScoredDocument])
+        queriesFold = sequenceA $ M.fromList
+                      [ ((queryId, paramSetting), queryFold termBg entityBg params resultCount queryNode)
+                      | (paramSetting, params) <- M.assocs paramSets
+                      , (queryId, queryNode) <- M.assocs queries
+                      ]
 
     runSafeT $ do
         results <-
@@ -328,20 +333,8 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
-        liftIO $ writeFile (outputRoot<.>"run") $ unlines
-            [ unwords [ T.unpack qid
-                      , T.unpack docArchive
-                      , Utf8.toString $ getDocName docName
-                      , show rank
-                      , show scoredRankScore
-                      , "simplir" ]
-            | (qid, scores) <- M.toList results
-            , (rank, ScoredDocument {..}) <- zip [1 :: Integer ..] scores
-            , let DocInfo {..} = scoredDocumentInfo
-            ]
-
-        liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode
-            [ Ranking qid scores | (qid, scores) <- M.toList results]
+        -- TODO
+        --liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode results
         return ()
 
 newtype DocumentFrequency = DocumentFrequency Int

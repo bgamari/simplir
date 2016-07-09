@@ -5,10 +5,12 @@
 module Types where
 
 import Data.Aeson
+import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor
 import Data.Foldable (toList)
 import Data.Binary
 import qualified Data.Map as M
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import GHC.Generics
 import Numeric.Log
@@ -17,8 +19,7 @@ import           SimplIR.Term (Term)
 import           SimplIR.Types
 import           SimplIR.RetrievalModels.QueryLikelihood (Score)
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
-
-type QueryId = T.Text
+import Query
 
 data Ranking = Ranking { rankingQueryId :: QueryId
                        , rankingResults :: [ScoredDocument]
@@ -35,12 +36,11 @@ instance FromJSON Ranking where
     parseJSON = withObject "ranking" $ \o ->
         Ranking <$> o .: "query_id" <*> o .: "results"
 
-data ScoredDocument = ScoredDocument { scoredRankScore     :: !Score
-                                     , scoredDocumentInfo  :: !DocumentInfo
-                                     , scoredTermPositions :: !(M.Map Term [Position])
-                                     , scoredTermScore     :: !Score
-                                     , scoredEntityFreqs   :: !(M.Map Fac.EntityId TermFrequency)
-                                     , scoredEntityScore   :: !Score
+data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
+                                     , scoredDocumentInfo   :: !DocumentInfo
+                                     , scoredTermPositions  :: !(M.Map Term [Position])
+                                     , scoredEntityFreqs    :: !(M.Map Fac.EntityId TermFrequency)
+                                     , scoredRecordedValues :: !(M.Map RecordedValueName Double)
                                      }
                     deriving (Show, Ord, Eq)
 
@@ -50,12 +50,14 @@ instance ToJSON ScoredDocument where
         , "length"       .= docLength
         , "archive"      .= docArchive
         , "score"        .= ln scoredRankScore
-        , "term_score"        .= ln scoredTermScore
         , "postings"     .= [ object ["term" .= term, "positions" .= positions]
                             | (term, positions) <- M.toAscList scoredTermPositions
                             ]
-        , "entity_score" .= ln scoredEntityScore
         , "entities"     .= object (map (bimap Fac.getEntityId toJSON) $ M.toAscList scoredEntityFreqs)
+        , "recorded_values" .= object
+          [ valueName .= value
+          | (RecordedValueName valueName, value) <- M.assocs scoredRecordedValues
+          ]
         ]
 
 instance FromJSON ScoredDocument where
@@ -64,13 +66,13 @@ instance FromJSON ScoredDocument where
         docLength <- o .: "length"
         docArchive <- o .: "archive"
         postings <- o .: "postings"
+        recordedValues <- o .: "recorded_values" >>= parseMap (pure . RecordedValueName) parseJSON
         ScoredDocument
             <$> fmap Exp (o .: "score")
             <*> pure (DocInfo {..})
             <*> withArray "postings" parsePostings postings
-            <*> pure 0 -- <*> fmap Exp (o .: "term_score")
             <*> pure mempty -- fmap parseEntity (o .: "entities") -- TODO
-            <*> pure 0 -- fmap Exp (o .: "entity_score")
+            <*> pure recordedValues
       where
         parsePostings = fmap M.unions . traverse parsePosting . toList
         parsePosting = withObject "posting" $ \o ->
@@ -85,3 +87,11 @@ data DocumentInfo = DocInfo { docArchive :: !ArchiveName
                             }
                   deriving (Generic, Eq, Ord, Show)
 instance Binary DocumentInfo
+
+parseMap :: Ord k
+         => (T.Text -> Aeson.Parser k)
+         -> (Value -> Aeson.Parser a)
+         -> Object
+         -> Aeson.Parser (M.Map k a)
+parseMap parseKey parseValue o =
+    M.unions <$> traverse (\(k,v) -> M.singleton <$> parseKey k <*> parseValue v) (HM.toList o)

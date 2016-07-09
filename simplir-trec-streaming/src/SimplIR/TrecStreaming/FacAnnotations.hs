@@ -3,6 +3,7 @@
 
 module SimplIR.TrecStreaming.FacAnnotations where
 
+import Data.Aeson (ToJSON, FromJSON)
 import Pipes
 import Pipes.Attoparsec as P.A
 import qualified Data.Text as T
@@ -29,7 +30,7 @@ data Annotation = Annotation { annSurfaceForm      :: Text
                 deriving (Show)
 
 newtype EntityId = EntityId {getEntityId :: Text}
-                 deriving (Eq, Ord, Show, Binary, Hashable)
+                 deriving (Eq, Ord, Show, Binary, Hashable, ToJSON, FromJSON)
 
 parseDocument :: Parser Document
 parseDocument = do
