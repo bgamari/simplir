@@ -14,15 +14,16 @@ import qualified SimplIR.DataSource.Gpg as Gpg
 
 readKbaFile :: (MonadSafe m, MonadBaseControl IO m)
             => DataSource -> m BS.L.ByteString
-readKbaFile src = do
-    let maybeDecrypt
-          | isEncrypted = Gpg.decrypt
-          | otherwise   = id
-          where
-            isEncrypted = ".gpg" `T.isInfixOf` getFileName (dsrcLocation src)
-    let DataSource{..} = src
-        compression
-          | ".gpg" `T.isInfixOf` getFileName dsrcLocation = Just Lzma
-          | otherwise = Nothing
+readKbaFile src =
     P.BS.toLazyM $ DataSource.decompress compression $ maybeDecrypt
-                    $ DataSource.produce dsrcLocation
+                 $ DataSource.produce dsrcLocation
+  where
+    DataSource{..} = src
+    maybeDecrypt
+      | isEncrypted = Gpg.decrypt
+      | otherwise   = id
+      where
+        isEncrypted = ".gpg" `T.isInfixOf` getFileName dsrcLocation
+    compression
+      | ".xz" `T.isInfixOf` getFileName dsrcLocation = Just Lzma
+      | otherwise = Nothing
