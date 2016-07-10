@@ -29,6 +29,7 @@ import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
 import qualified Data.Yaml as Yaml
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
@@ -377,9 +378,9 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
-        -- TODO
-        --liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode results
+        liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode $ encodeResults results
         return ()
+
 
 -- | Find occurrences of a set of phrases in an ordered sequence of 'Term's.
 findPhrases :: [[Term]] -> [(Term, Position)] -> [([Term], Position)]
@@ -390,6 +391,21 @@ findPhrases phrases terms =
     mergeMatches :: ([(Term, Position)], [Term]) -> ([Term], Position)
     mergeMatches (matchedTerms, phrase) =
         (phrase, fromMaybe (error "findPhrases: Empty phrase") $ getOption $ foldMap (Option . Just . snd) matchedTerms)
+
+encodeResults :: M.Map (QueryId, ParamSettingName) [ScoredDocument] -> Aeson.Value
+encodeResults results =
+    Aeson.object
+    [ qid Aeson..= Aeson.object
+      [ pset Aeson..= docs
+      | (ParamSettingName pset, docs) <- M.toList psets
+      ]
+    | (QueryId qid, psets) <- M.toList results'
+    ]
+  where
+    results' = M.unionsWith M.union
+        [ M.singleton qid (M.singleton pset docs)
+        | ((qid, pset), docs) <- M.toList results
+        ]
 
 newtype DocumentFrequency = DocumentFrequency Int
                           deriving (Show, Eq, Ord, Binary)
