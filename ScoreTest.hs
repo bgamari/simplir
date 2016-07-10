@@ -59,9 +59,9 @@ main = do
     results <- foldProducer (Fold.generalize $ topK resultCount)
         $ collectPostings termPostings
        >-> PP.mapFoldable (\(docId, terms) -> case DiskIndex.lookupDoc docId idx of
-                                                Just (docName, docLen) -> Just (docId, docName, docLen, map (second length) terms)
+                                                Just (docName, docLen) -> Just (docId, docName, docLen, map (second (realToFrac . length)) terms)
                                                 Nothing                -> Nothing)
-       >-> cat'                            @(DocumentId, DocumentName, DocumentLength, [(Term, Int)])
+       >-> cat'                            @(DocumentId, DocumentName, DocumentLength, [(Term, Double)])
        >-> PP.map (\(docId, docName, docLen, terms) -> let score = queryLikelihood smoothing query' docLen terms
                                                        in Entry score docId)
        >-> cat'                            @(Entry Score DocumentId)
