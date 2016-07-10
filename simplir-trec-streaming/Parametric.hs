@@ -17,9 +17,7 @@ import Control.Monad (void)
 import Control.Applicative
 import Data.Foldable (toList)
 import Data.Aeson
-import Data.Bifunctor
 import qualified Data.Map as M
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import Data.Text (Text)
 import qualified Text.Trifecta as Tri
@@ -28,8 +26,10 @@ newtype Parameters a = Parameters (M.Map ParamName a)
                      deriving (Show)
 
 instance FromJSON a => FromJSON (Parameters a) where
-    parseJSON = withObject "parameters" $ \o ->
-        Parameters . M.fromList <$> traverse (traverse parseJSON . first ParamName) (HM.toList o)
+    parseJSON = withArray "parameters" $ fmap (Parameters . M.fromList) . mapM param . toList
+      where
+        param = withObject "parameter" $ \o -> (,) <$> o .: "name"
+                                                   <*> o .: "value"
 
 newtype ParamSets = ParamSets { getParamSets :: M.Map ParamSettingName (Parameters Double) }
                   deriving (Show)
@@ -38,13 +38,16 @@ instance FromJSON ParamSets where
     parseJSON = withArray "parameter sets" $ \arr ->
         ParamSets . M.fromList <$> traverse paramSet (toList arr)
       where paramSet = withObject "parameter set" $ \o ->
-              (,) <$> o .: "name" <*> o .: "values"
+              (,) <$> o .: "name" <*> o .: "params"
 
 newtype ParamSettingName = ParamSettingName Text
                          deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
 newtype ParamName = ParamName Text
-                  deriving (Show, Eq, Ord, ToJSON, FromJSON)
+                  deriving (Show, Eq, Ord, ToJSON)
+
+instance FromJSON ParamName where
+    parseJSON = withText "parameter name" $ pure . ParamName
 
 paramName :: Tri.Parser ParamName
 paramName = do
@@ -91,9 +94,9 @@ instance FromJSON (Parametric Double) where
               Tri.Failure err -> fail $ show err
         parse = do
             void $ Tri.string "{{"
-            param <- paramName
+            name <- paramName
             void $ Tri.string "}}"
-            return $ Parameter param
+            return $ Parameter name
 
 instance ToJSON (Parametric Double) where
     toJSON (Pure x) = toJSON x
