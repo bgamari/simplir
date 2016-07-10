@@ -46,6 +46,12 @@ newtype ParamSettingName = ParamSettingName Text
 newtype ParamName = ParamName Text
                   deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
+paramName :: Tri.Parser ParamName
+paramName = do
+    x <- Tri.letter
+    xs <- many (Tri.alphaNum <|> Tri.char '_')
+    return $ ParamName $ T.pack (x:xs)
+
 data Parametric a where
     Parameter :: ParamName -> Parametric Double
     Pure      :: a  -> Parametric a
@@ -85,10 +91,7 @@ instance FromJSON (Parametric Double) where
               Tri.Failure err -> fail $ show err
         parse = do
             void $ Tri.string "{{"
-            param <- fmap (ParamName . T.pack) $ do
-                x <- Tri.letter
-                xs <- many Tri.alphaNum
-                return (x:xs)
+            param <- paramName
             void $ Tri.string "}}"
             return $ Parameter param
 
