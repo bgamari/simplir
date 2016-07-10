@@ -79,6 +79,7 @@ streamMode :: Parser (IO ())
 streamMode =
     scoreStreaming
       <$> optQueryFile
+      <*> optParamsFile
       <*> option (Fac.diskIndexPaths <$> str) (metavar "DIR" <> long "fac-index" <> short 'f')
       <*> option auto (metavar "N" <> long "count" <> short 'n')
       <*> option (corpusStatsPaths <$> str)
@@ -118,6 +119,12 @@ type QueryFile = FilePath
 optQueryFile :: Parser QueryFile
 optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
+
+type ParamsFile = FilePath
+
+optParamsFile :: Parser ParamsFile
+optParamsFile =
+    option str (metavar "FILE" <> long "params" <> short 'p' <> help "parameters file")
 
 newtype WikiId = WikiId Utf8.SmallUtf8
                deriving (Show, Eq, Ord)
@@ -278,8 +285,8 @@ queryFold termBg entityBg params resultCount query =
       where
         (score, recorded) = interpretQuery termBg entityBg params query doc
 
-scoreStreaming :: QueryFile -> Fac.DiskIndex -> Int -> CorpusStatsPaths -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
-scoreStreaming queryFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
+scoreStreaming :: QueryFile -> ParamsFile -> Fac.DiskIndex -> Int -> CorpusStatsPaths -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
@@ -305,7 +312,7 @@ scoreStreaming queryFile facIndexPath resultCount background outputRoot docSourc
                   Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
                   Nothing                   -> 0.05 / realToFrac collLength
 
-    Just paramSets <- fmap getParamSets . either throw id <$> Yaml.decodeFileEither "parameters.json"
+    Just paramSets <- fmap getParamSets . either throw id <$> Yaml.decodeFileEither paramsFile
                    :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
