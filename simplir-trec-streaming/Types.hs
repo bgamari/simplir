@@ -7,6 +7,7 @@ module Types where
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor
+import Data.Function (on)
 import Data.Foldable (toList)
 import Data.Binary
 import qualified Data.Map as M
@@ -40,9 +41,15 @@ data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
                                      , scoredDocumentInfo   :: !DocumentInfo
                                      , scoredTermPositions  :: !(M.Map Term [Position])
                                      , scoredEntityFreqs    :: !(M.Map Fac.EntityId TermFrequency)
-                                     , scoredRecordedValues :: !(M.Map RecordedValueName Double)
+                                     , scoredRecordedValues :: !(M.Map RecordedValueName Aeson.Value)
                                      }
-                    deriving (Show, Ord, Eq)
+                    deriving (Show)
+
+instance Ord ScoredDocument where
+    compare = compare `on` scoredRankScore
+
+instance Eq ScoredDocument where
+    (==) = (==) `on` scoredRankScore
 
 instance ToJSON ScoredDocument where
     toJSON ScoredDocument{scoredDocumentInfo=DocInfo{..}, ..} = object

@@ -228,20 +228,23 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-
 interpretQuery :: Distribution Term
                -> Distribution Fac.EntityId
                -> Parameters Double
                -> QueryNode
                -> (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
-               -> (Score, M.Map RecordedValueName Double)
+               -> (Score, M.Map RecordedValueName Yaml.Value)
 interpretQuery termBg entityBg params node0 doc = go node0
   where
-    go :: QueryNode -> (Score, M.Map RecordedValueName Double)
+    recording :: Maybe RecordedValueName -> (Score, M.Map RecordedValueName Yaml.Value)
+              -> (Score, M.Map RecordedValueName Yaml.Value)
+    recording mbName (score, r) = (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r)
+
+    go :: QueryNode -> (Score, M.Map RecordedValueName Yaml.Value)
     go ConstNode {..}     = (realToFrac $ runParametricOrFail params value, mempty)
-    go SumNode {..}       = first getSum $ foldMap (first Sum . go) children
-    go ProductNode {..}   = first getProduct $ foldMap (first Product . go) children
-    go ScaleNode {..}     = first (s *) $ go child
+    go SumNode {..}       = recording recordOutput (first getSum $ foldMap (first Sum . go) children)
+    go ProductNode {..}   = recording recordOutput (first getProduct $ foldMap (first Product . go) children)
+    go ScaleNode {..}     = recording recordOutput (first (s *) $ go child)
       where s = realToFrac $ runParametricOrFail params scalar
     go RetrievalNode {..} =
         let score = case retrievalModel of
@@ -259,7 +262,8 @@ interpretQuery termBg entityBg params node0 doc = go node0
                             smooth = runParametricOrFail params smoothing $ entityBg
                         in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
             (info, docTermPositions, (_entityDocLen, entityFreqs)) = doc
-        in (score, mempty)
+            recorded = mempty
+        in (score, recorded)
 
 queryFold :: Distribution Term
           -> Distribution Fac.EntityId
