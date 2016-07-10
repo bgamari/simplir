@@ -25,8 +25,9 @@ module Query
 
 import Control.Monad (guard)
 import Control.Applicative
-import Data.Foldable (toList)
+import Data.Foldable (fold, toList)
 import Data.Aeson
+import qualified Data.Vector as V
 import qualified Data.Aeson.Types as Aeson
 import Data.Type.Equality
 import qualified Data.Map as M
@@ -50,10 +51,10 @@ deriving instance FromJSON Score
 newtype Queries = Queries { getQueries :: M.Map QueryId QueryNode }
 
 instance FromJSON Queries where
-    parseJSON = withArray "queries" $ fmap (Queries . M.fromList . toList) . traverse query
+    parseJSON = withArray "queries" $ fmap (Queries . fold) . traverse query
       where
         query = withObject "query" $ \o ->
-          (,) <$> o .: "name" <*> o .: "query"
+          M.singleton <$> o .: "name" <*> o .: "query"
 
 newtype RecordedValueName = RecordedValueName Text
                           deriving (Show, Eq, Ord, ToJSON, FromJSON)
@@ -76,7 +77,8 @@ deriving instance Eq (FieldName a)
 data RetrievalModel term
     = QueryLikelihood (Parametric (QL.Distribution term -> QL.Smoothing term))
 
-data QueryNode = SumNode { name     :: Maybe QueryNodeName
+data QueryNode = ConstNode { value :: Parametric Double }
+               | SumNode { name     :: Maybe QueryNodeName
                          , children :: [QueryNode]
                          }
                | ProductNode { name     :: Maybe QueryNodeName
@@ -90,62 +92,64 @@ data QueryNode = SumNode { name     :: Maybe QueryNodeName
                  RetrievalNode { name           :: Maybe QueryNodeName
                                , retrievalModel :: RetrievalModel term
                                , field          :: FieldName term
-                               , terms          :: [term]
+                               , terms          :: V.Vector (term, Double)
                                }
 
 instance FromJSON QueryNode where
     parseJSON = withObject "query node" $ \o ->
       let nodeName = fmap QueryNodeName <$> o .:? "name"
+          weightedTerm val = weighted val <|> unweighted val
+            where
+              unweighted val = (\x -> (x, 1)) <$> parseJSON val
+              weighted = withObject "weighted term" $ \t ->
+                (,) <$> t .: "term" <*> t .: "weight"
 
-          hasType :: String -> Aeson.Parser ()
-          hasType ty = o .: "type" >>= guard . (ty ==)
+          constNode = ConstNode <$> o .: "value"
 
-          isAggregator :: String -> Aeson.Parser ()
-          isAggregator operator = do
-              hasType "aggregator"
+          aggregatorNode = do
               op <- o .: "op"
-              guard (op == operator)
+              case op :: String of
+                "product" -> ProductNode <$> nodeName <*> o .: "children"
+                "sum"     -> SumNode <$> nodeName <*> o .: "children"
 
-          sumNode = SumNode
-              <$> nodeName
-              <*  isAggregator "sum"
-              <*> o .: "children"
-          productNode = ProductNode
-              <$> nodeName
-              <*  isAggregator "product"
-              <*> o .: "children"
           scaleNode = ScaleNode
               <$> nodeName
-              <*  hasType "weight"
-              <*> o .: "weight"
+              <*> o .: "scalar"
               <*> o .: "child"
+
           retrievalNode = do
-              hasType "score"
               modelObj <- o .: "retrieval_model"
               fieldName <- o .: "field"
+              let terms :: FromJSON term => Aeson.Parser (V.Vector (term, Double))
+                  terms = mapM weightedTerm =<< o .: "terms"
               case fieldName :: String of
                   "freebase_id" -> do
                       model <- parseModel modelObj
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldFreebaseIds
-                                    <*> modelObj .: "terms"
+                                    <*> terms
                   "text"        -> do
                       model <- parseModel modelObj
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldText
-                                    <*> modelObj .: "terms"
-                  _             ->
-                      fail $ "Unknown field name "++fieldName
-      in sumNode <|> productNode <|> scaleNode <|> retrievalNode
+                                    <*> terms
+                  _             -> fail $ "Unknown field name "++fieldName
+      in do ty <- o .: "type"
+            case ty :: String of
+              "aggregator" -> aggregatorNode
+              "constant" -> constNode
+              "scale" -> scaleNode
+              "scoring_model" -> retrievalNode
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
+collectFieldTerms _ ConstNode {..}     = []
 collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
 collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
 collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
 collectFieldTerms f RetrievalNode {..}
-  | Just Refl <- field `eqFieldName` f = terms
+  | Just Refl <- field `eqFieldName` f = map fst $ toList terms
   | otherwise                          = []
 
 parseModel :: Object -> Aeson.Parser (RetrievalModel term)
@@ -154,19 +158,23 @@ parseModel o = do
     case modelType of
       "ql" -> do
           s <- o .: "smoothing"
-          smoothingType <- s .: "type"
+          smoothingType <-  s .: "type"
           QueryLikelihood <$> case smoothingType :: String of
-              "dirichlet" -> pure . Dirichlet <$> o .: "mu"
+              "dirichlet" -> pure . Dirichlet <$> s .: "mu"
               "jm"        -> do
                   fg <- o .: "alpha_foreground"
                   bg <- o .: "alpha_background"
-                  let alpha = fg / (fg + bg) + undefined -- FIXME
+                  let alpha = fg / (fg + bg) + 1
                   pure . JelinekMercer <$> pure alpha
               _           -> fail $ "Unknown smoothing method "++smoothingType
       _  -> fail $ "Unknown retrieval model "++modelType
 
 
 instance ToJSON QueryNode where
+    toJSON (ConstNode {..}) = object
+        [ "type"     .= str "constant"
+        , "value"    .= value
+        ]
     toJSON (SumNode {..}) = object
         $ withName name
         [ "type"     .= str "aggregator"

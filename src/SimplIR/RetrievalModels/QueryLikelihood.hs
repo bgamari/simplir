@@ -36,7 +36,7 @@ score ::
          Smoothing term
       -> DocumentLength -- ^ the length of the document which we are scoring
       -> term           -- ^ the term
-      -> Int            -- ^ how many times does it occur?
+      -> Double         -- ^ how many times does it occur?
       -> Score
 score smoothing (DocLength docLen) term tf =
     case smoothing of
@@ -52,22 +52,22 @@ score smoothing (DocLength docLen) term tf =
 -- | Score a document under the query likelihood model.
 queryLikelihood :: forall term. (Hashable term, Eq term)
                 => Smoothing term           -- ^ what smoothing to apply
-                -> [(term, Int)]            -- ^ the query's term frequencies
+                -> [(term, Double)]         -- ^ the query's term frequencies
                 -> DocumentLength           -- ^ the length of the document being scored
-                -> [(term, Int)]            -- ^ the document's term frequencies
+                -> [(term, Double)]         -- ^ the document's term frequencies
                 -> Score                    -- ^ the score under the query likelihood model
 queryLikelihood smoothing query = \docLen docTerms ->
-    let docTfs :: HM.HashMap term Int
+    let docTfs :: HM.HashMap term Double
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
-        accum :: HM.HashMap term Int -> (term, Int) -> HM.HashMap term Int
+        accum :: HM.HashMap term Double -> (term, Double) -> HM.HashMap term Double
         accum acc (term, tf) = HM.adjust (+tf) term acc
-    in product [ (score smoothing docLen term tf)^(queryTf term)
+    in product [ (score smoothing docLen term tf)**(realToFrac $ queryTf term)
                | (term, tf) <- HM.toList docTfs
                ]
   where
-    queryTerms :: HM.HashMap term Int
+    queryTerms :: HM.HashMap term Double
     queryTerms = HM.fromList query
 
-    queryTf :: term -> Int
+    queryTf :: term -> Double
     queryTf term = fromMaybe 0 $ HM.lookup term queryTerms

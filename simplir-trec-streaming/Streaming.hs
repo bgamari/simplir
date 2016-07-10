@@ -15,6 +15,7 @@
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
+import Data.Foldable (toList)
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
@@ -230,6 +231,7 @@ interpretQuery :: Distribution Term
 interpretQuery termBg entityBg params node0 doc = go node0
   where
     go :: QueryNode -> (Score, M.Map RecordedValueName Double)
+    go ConstNode {..}     = (realToFrac $ runParametricOrFail params value, mempty)
     go SumNode {..}       = first getSum $ foldMap (first Sum . go) children
     go ProductNode {..}   = first getProduct $ foldMap (first Product . go) children
     go ScaleNode {..}     = first (s *) $ go child
@@ -239,16 +241,16 @@ interpretQuery termBg entityBg params node0 doc = go node0
               QueryLikelihood smoothing ->
                   case field of
                     FieldText ->
-                        let queryTerms = M.fromListWith (+) $ zip terms (repeat 1)
+                        let queryTerms = M.fromListWith (+) $ toList terms
                             docTerms = M.toList $ fmap length docTermPositions
                             smooth = runParametricOrFail params smoothing $ termBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) docTerms
+                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
 
                     FieldFreebaseIds ->
-                        let queryTerms = M.fromListWith (+) $ zip terms (repeat 1)
+                        let queryTerms = M.fromListWith (+) $ toList terms
                             docTerms = M.toList $ fmap fromEnum entityFreqs
                             smooth = runParametricOrFail params smoothing $ entityBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) docTerms
+                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
             (info, docTermPositions, (_entityDocLen, entityFreqs)) = doc
         in (score, mempty)
 
