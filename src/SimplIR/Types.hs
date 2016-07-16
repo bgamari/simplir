@@ -18,6 +18,7 @@ module SimplIR.Types
       -- * Positions within documents
     , Span(..)
     , Position(..)
+    , Positioned(..)
       -- * Postings and related types
     , DocumentId(..)
     , Posting(..)
@@ -98,6 +99,20 @@ derivingUnbox "Position"
   [t| Position -> (Span, Int) |]
   [| \(Position a b) -> (a, b) |]
   [| \(a, b) -> Position a b |]
+
+-- | Some value with an associated 'Position'.
+data Positioned a = Positioned { unPositioned :: a
+                               , position :: !Position
+                               }
+                  deriving (Eq, Ord, Show, Generic)
+instance Binary a => Binary (Positioned a)
+instance NFData a => NFData (Positioned a) where
+    rnf (Positioned x _) = rnf x
+
+derivingUnbox "Positioned"
+  [t| forall a. VU.Unbox a => Positioned a -> (a, Position) |]
+  [| \(Positioned x pos) -> (x, pos) |]
+  [| \(x, pos) -> Positioned x pos |]
 
 -- | A posting is a document identifier paired with some content, representing
 -- one or more occurrences of a term in that document. You typically see 'Posting'
