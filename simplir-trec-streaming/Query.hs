@@ -112,7 +112,7 @@ instance FromJSON QueryNode where
 
           record :: Aeson.Parser (Maybe RecordedValueName)
           record = do
-              v <- o .: "record"
+              v <- o .:? "record" .!= Bool False
               case v of
                 Bool True   -> Just <$> o .: "name"
                 Bool False  -> return Nothing
