@@ -31,7 +31,7 @@ module SimplIR.Types
 
 import Data.String (IsString)
 import Data.Binary
-import Data.Monoid
+import Data.Semigroup
 import GHC.Generics
 import Control.DeepSeq
 import Data.Vector.Unboxed.Deriving
@@ -68,6 +68,8 @@ data Span = Span { begin, end :: !Int }
           deriving (Eq, Ord, Show, Generic)
 
 instance Binary Span
+instance Semigroup Span where
+    Span beginX endX <> Span beginY endY = Span (min beginX beginY) (max endX endY)
 instance Aeson.ToJSON Span where
     toJSON (Span{..}) = Aeson.object [ "begin" .= begin, "end" .= end ]
     toEncoding (Span{..}) = Aeson.pairs ("begin" .= begin <> "end" .= end)
