@@ -13,6 +13,7 @@ module Query
       Queries(..)
     , QueryId(..)
       -- * Misc
+    , TokenOrPhrase(..)
     , RecordedValueName(..)
     , QueryNodeName(..)
     , FieldName(..)
@@ -34,6 +35,7 @@ import qualified Data.Map as M
 import Data.Text (Text)
 
 import Numeric.Log
+import SimplIR.Types (TokenOrPhrase(..))
 import SimplIR.Term as Term
 import SimplIR.RetrievalModels.QueryLikelihood as QL
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
@@ -64,7 +66,7 @@ newtype QueryNodeName = QueryNodeName Text
 
 data FieldName a where
     FieldFreebaseIds :: FieldName Fac.EntityId
-    FieldText        :: FieldName Term
+    FieldText        :: FieldName (TokenOrPhrase Term)
 
 eqFieldName :: FieldName a -> FieldName b -> Maybe (a :~: b)
 eqFieldName FieldFreebaseIds FieldFreebaseIds = Just Refl
@@ -124,6 +126,7 @@ instance FromJSON QueryNode where
               case op :: String of
                 "product" -> ProductNode <$> nodeName <*> o .: "children" <*> record
                 "sum"     -> SumNode <$> nodeName <*> o .: "children" <*> record
+                _         -> fail "Unknown aggregator node type"
 
           scaleNode = ScaleNode
               <$> nodeName
@@ -158,6 +161,7 @@ instance FromJSON QueryNode where
               "constant" -> constNode
               "scale" -> scaleNode
               "scoring_model" -> retrievalNode
+              _ -> fail "Unknown node type"
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
 collectFieldTerms _ ConstNode {..}     = []

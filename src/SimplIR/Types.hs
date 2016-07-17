@@ -19,6 +19,8 @@ module SimplIR.Types
     , Span(..)
     , Position(..)
     , Positioned(..)
+      -- * Tokens and phrases
+    , TokenOrPhrase(..)
       -- * Postings and related types
     , DocumentId(..)
     , Posting(..)
@@ -29,15 +31,17 @@ module SimplIR.Types
     , applyDocIdDelta
     ) where
 
+import Data.Foldable (toList)
 import Data.String (IsString)
 import Data.Binary
 import Data.Semigroup
+import Data.Hashable (Hashable)
 import GHC.Generics
 import Control.DeepSeq
 import Data.Vector.Unboxed.Deriving
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Aeson as Aeson
-import Data.Aeson ((.=))
+import Data.Aeson (ToJSON(..), FromJSON(..), (.=))
 import Test.QuickCheck
 import qualified Data.SmallUtf8 as Utf8
 import Data.SmallNat
@@ -87,6 +91,8 @@ data Position = Position { charOffset :: !Span
                          }
               deriving (Eq, Ord, Show, Generic)
 
+instance Semigroup Position where
+    Position a b <> Position x y = Position (a <> x) (min b y)
 instance Binary Position
 instance NFData Position where
     rnf (Position {}) = ()
@@ -184,3 +190,16 @@ docIdDelta (DocId a) (DocId b)
 
 applyDocIdDelta :: DocumentId -> DocIdDelta -> DocumentId
 applyDocIdDelta (DocId n) (DocIdDelta d) = DocId (n + fromIntegral d)
+
+-- | A single token or sequence of tokens.
+data TokenOrPhrase a = Token a | Phrase [a]
+                     deriving (Show, Eq, Ord, Generic)
+
+instance Hashable a => Hashable (TokenOrPhrase a)
+instance Binary a => Binary (TokenOrPhrase a)
+instance FromJSON a => FromJSON (TokenOrPhrase a) where
+    parseJSON (Aeson.Array v) = Phrase . toList <$> mapM parseJSON v
+    parseJSON other     = Token <$> parseJSON other
+instance ToJSON a => ToJSON (TokenOrPhrase a) where
+    toJSON (Token x) = toJSON x
+    toJSON (Phrase x) = toJSON x

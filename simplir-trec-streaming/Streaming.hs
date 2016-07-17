@@ -16,8 +16,9 @@
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
 import Data.Foldable (toList)
+import Data.Either (partitionEithers)
 import Data.Maybe
-import Data.Monoid
+import Data.Semigroup hiding (option, (<>))
 import Data.Profunctor
 import Data.Char
 import Control.Exception (throw)
@@ -58,6 +59,7 @@ import ReadKba
 import qualified Fac.Types as Fac
 import Types
 import Query
+import qualified Data.Trie as Trie
 import Parametric
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
@@ -148,14 +150,22 @@ corpusStats queryFile output docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     createDirectoryIfMissing True (corpusStatsRoot output)
-    let allQueryTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
+    let (allQueryTerms, allPhrases) =
+            first S.fromList
+            $ partitionEithers $ map toEither
+            $ foldMap (collectFieldTerms FieldText) queries
+          where toEither (Token  x) = Left  x
+                toEither (Phrase x) = Right x
+
     runSafeT $ do
         (corpusStats, termStats) <-
                 foldProducer (Foldl.generalize foldCorpusStats)
              $  docSource docs >-> normalizationPipeline
             >-> cat'                                @(DocumentInfo, [(Term, Position)])
-            >-> P.P.map (second $ filter (`S.member` allQueryTerms) . map fst)
-            >-> cat'                                @(DocumentInfo, [Term])
+            >-> P.P.map (second $ \terms ->
+                            map (Phrase . fst) (findPhrases allPhrases terms)
+                        ++ (map Token . filter (`S.member` allQueryTerms) . map fst) terms)
+            >-> cat'                                @(DocumentInfo, [TokenOrPhrase Term])
 
         liftIO $ putStrLn $ "Indexed "++show (corpusCollectionLength corpusStats)
                           ++" tokens with "++show (corpusCollectionSize corpusStats)++" documents"
@@ -192,7 +202,7 @@ instance Monoid TermStats where
 
 data CorpusStatsPaths = CorpusStatsPaths { corpusStatsRoot :: FilePath
                                          , diskCorpusStats :: BinaryFile CorpusStats
-                                         , diskTermStats   :: BTree.BTreePath Term TermStats
+                                         , diskTermStats   :: BTree.BTreePath (TokenOrPhrase Term) TermStats
                                          }
 
 corpusStatsPaths :: FilePath -> CorpusStatsPaths
@@ -202,7 +212,7 @@ corpusStatsPaths root =
                      , diskTermStats = BTree.BTreePath $ root </> "term-freqs"
                      }
 
-foldCorpusStats :: Foldl.Fold (DocumentInfo, [Term]) (CorpusStats, M.Map Term TermStats)
+foldCorpusStats :: Foldl.Fold (DocumentInfo, [TokenOrPhrase Term]) (CorpusStats, M.Map (TokenOrPhrase Term) TermStats)
 foldCorpusStats =
     (,)
       <$> lmap fst foldCorpusStats'
@@ -214,25 +224,25 @@ foldCorpusStats' =
       <$> lmap (fromEnum . docLength) Foldl.sum
       <*> Foldl.length
 
-foldTermStats :: Foldl.Fold [Term] (M.Map Term TermStats)
+foldTermStats :: Foldl.Fold [TokenOrPhrase Term] (M.Map (TokenOrPhrase Term) TermStats)
 foldTermStats =
     M.mergeWithKey (\_ x y -> Just (TermStats x y)) (fmap (\x -> TermStats x mempty)) (fmap (\y -> TermStats mempty y))
       <$> termFreqs
       <*> docFreqs
   where
-    docFreqs :: Foldl.Fold [Term] (M.Map Term DocumentFrequency)
+    docFreqs :: Foldl.Fold [TokenOrPhrase Term] (M.Map (TokenOrPhrase Term) DocumentFrequency)
     docFreqs = lmap (\terms -> M.fromList $ zip terms (repeat $ DocumentFrequency 1)) mconcatMaps
-    termFreqs :: Foldl.Fold [Term] (M.Map Term TermFrequency)
+    termFreqs :: Foldl.Fold [TokenOrPhrase Term] (M.Map (TokenOrPhrase Term) TermFrequency)
     termFreqs =
           Foldl.handles traverse
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
-interpretQuery :: Distribution Term
+interpretQuery :: Distribution (TokenOrPhrase Term)
                -> Distribution Fac.EntityId
                -> Parameters Double
                -> QueryNode
-               -> (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+               -> (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> (Score, M.Map RecordedValueName Yaml.Value)
 interpretQuery termBg entityBg params node0 doc = go node0
   where
@@ -265,19 +275,19 @@ interpretQuery termBg entityBg params node0 doc = go node0
             recorded = mempty
         in (score, recorded)
 
-queryFold :: Distribution Term
+queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
           -> Parameters Double
           -> Int                        -- ^ how many results should we collect?
           -> QueryNode
-          -> Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+          -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
 queryFold termBg entityBg params resultCount query =
       --Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
     lmap scoreQuery
     $ topK resultCount
   where
-    scoreQuery :: (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
         ScoredDocument { scoredRankScore = score
@@ -289,11 +299,23 @@ queryFold termBg entityBg params resultCount query =
       where
         (score, recorded) = interpretQuery termBg entityBg params query doc
 
-scoreStreaming :: QueryFile -> ParamsFile -> Fac.DiskIndex -> Int -> CorpusStatsPaths -> FilePath -> DocumentSource -> IO [DataSource] -> IO ()
+scoreStreaming :: QueryFile          -- ^ queries
+               -> ParamsFile         -- ^ query parameter setting
+               -> Fac.DiskIndex      -- ^ FAC index
+               -> Int                -- ^ desired result count
+               -> CorpusStatsPaths   -- ^ corpus background statistics
+               -> FilePath           -- ^ output path
+               -> DocumentSource     -- ^ 
+               -> IO [DataSource]    -- ^ an action to read the list of documents to score
+               -> IO ()
 scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
     let allQueryTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
+        allQueryPhrases = [ phrase
+                          | query <- toList queries
+                          , Phrase phrase <- collectFieldTerms FieldText query
+                          ]
 
     -- load FAC annotations
     facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
@@ -303,7 +325,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
     -- load background statistics
     CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
     termFreqs <- BTree.open (diskTermStats background)
-    let termBg :: Distribution Term
+    let termBg :: Distribution (TokenOrPhrase Term)
         termBg term =
             case BTree.lookup termFreqs term of
               Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
@@ -319,23 +341,28 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
     Just paramSets <- fmap getParamSets . either throw id <$> Yaml.decodeFileEither paramsFile
                    :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
 
-    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map Term [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                                   (M.Map (QueryId, ParamSettingName) [ScoredDocument])
         queriesFold = sequenceA $ M.fromList
                       [ ((queryId, paramSetting), queryFold termBg entityBg params resultCount queryNode)
                       | (paramSetting, params) <- M.assocs paramSets
                       , (queryId, queryNode) <- M.assocs queries
                       ]
-
     runSafeT $ do
         results <-
                 foldProducer (Foldl.generalize queriesFold)
              $  docSource docs
             >-> normalizationPipeline
             >-> cat'                         @(DocumentInfo, [(Term, Position)])
-            >-> P.P.map (second $ filter ((`S.member` allQueryTerms) . fst))
+            >-> P.P.map (second $ \terms ->
+                            [ (Phrase phrase, pos) | (phrase, pos) <- findPhrases allQueryPhrases terms ]
+                            ++
+                            [ (Token term, pos)
+                            | (term, pos) <- terms
+                            , Token term `S.member` allQueryTerms
+                            ])
             >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
-            >-> cat'                         @(DocumentInfo, M.Map Term [Position])
+            >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) [Position])
             >-> P.P.map (\(docInfo, termPostings) ->
                             let (facDocLen, entityIdPostings) =
                                     maybe (DocLength 0, M.empty) (first Fac.docLength)
@@ -343,13 +370,23 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                             in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
             >-> cat'                         @( DocumentInfo
-                                              , M.Map Term [Position]
+                                              , M.Map (TokenOrPhrase Term) [Position]
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
         -- TODO
         --liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode results
         return ()
+
+-- | Find occurrences of a set of phrases in an ordered sequence of 'Term's.
+findPhrases :: [[Term]] -> [(Term, Position)] -> [([Term], Position)]
+findPhrases phrases terms =
+    map mergeMatches $ Trie.matches' fst terms trie
+  where
+    trie = Trie.fromList $ map (\x -> (x,x)) phrases
+    mergeMatches :: ([(Term, Position)], [Term]) -> ([Term], Position)
+    mergeMatches (matchedTerms, phrase) =
+        (phrase, fromMaybe (error "findPhrases: Empty phrase") $ getOption $ foldMap (Option . Just . snd) matchedTerms)
 
 newtype DocumentFrequency = DocumentFrequency Int
                           deriving (Show, Eq, Ord, Binary)

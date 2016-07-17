@@ -27,6 +27,7 @@ library
   exposed-modules:
       BTree.File
       Data.SmallUtf8
+      Data.Trie
       Control.Foldl.Map
       SimplIR.BinaryFile
       SimplIR.DiskIndex

@@ -39,7 +39,7 @@ instance FromJSON Ranking where
 
 data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
                                      , scoredDocumentInfo   :: !DocumentInfo
-                                     , scoredTermPositions  :: !(M.Map Term [Position])
+                                     , scoredTermPositions  :: !(M.Map (TokenOrPhrase Term) [Position])
                                      , scoredEntityFreqs    :: !(M.Map Fac.EntityId TermFrequency)
                                      , scoredRecordedValues :: !(M.Map RecordedValueName Aeson.Value)
                                      }
