@@ -34,11 +34,14 @@ import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as T.L
 import qualified Control.Foldl as Foldl
 
 import           Pipes
 import           Pipes.Safe
 import qualified Pipes.Prelude as P.P
+import qualified Pipes.Text as P.T
+import qualified Pipes.Text.Encoding as P.T.E
 
 import Options.Applicative
 
@@ -89,7 +92,7 @@ streamMode =
                  <> help "background corpus statistics index")
       <*> option str (metavar "PATH" <> long "output" <> short 'o'
                       <> help "output file name")
-      <*> pure kbaDocuments
+      <*> pure testDocuments -- kbaDocuments
       <*> inputFiles
 
 mergeCorpusStatsMode :: Parser (IO ())
@@ -106,7 +109,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option (corpusStatsPaths <$> str) (metavar "FILE" <> long "output" <> short 'o'
                                              <> help "output file path")
-      <*> pure kbaDocuments
+      <*> pure testDocuments -- kbaDocuments
       <*> inputFiles
 
 
@@ -393,6 +396,21 @@ newtype DocumentFrequency = DocumentFrequency Int
 instance Monoid DocumentFrequency where
     mempty = DocumentFrequency 0
     DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
+
+testDocuments :: [DataSource]
+              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+testDocuments dsrcs =
+    mapM_ (\src -> do
+                xs <- lift $ P.T.toLazyM $ void $ P.T.E.decodeUtf8 $ dataSource src
+                let archive = "hi"
+                    docs = map (\x -> let (name, content) = T.L.span (/= ':') x
+                                          docName = DocName $ Utf8.fromText $ T.L.toStrict name
+                                      in ((archive, docName), T.L.toStrict content)
+                               ) (T.L.lines xs)
+                mapM_ yield docs
+          ) dsrcs
+
+
 
 kbaDocuments :: [DataSource]
              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
