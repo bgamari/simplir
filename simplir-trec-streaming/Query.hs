@@ -56,7 +56,7 @@ instance FromJSON Queries where
     parseJSON = withArray "queries" $ fmap (Queries . fold) . traverse query
       where
         query = withObject "query" $ \o ->
-          M.singleton <$> o .: "name" <*> o .: "query"
+          M.singleton <$> o .: "name" <*> o .: "child"
 
 newtype RecordedValueName = RecordedValueName Text
                           deriving (Show, Eq, Ord, ToJSON, FromJSON)
@@ -182,8 +182,8 @@ parseModel o = do
           QueryLikelihood <$> case smoothingType :: String of
               "dirichlet" -> pure . Dirichlet <$> s .: "mu"
               "jm"        -> do
-                  fg <- o .: "alpha_foreground"
-                  bg <- o .: "alpha_background"
+                  fg <- s .: "alpha_foreground"
+                  bg <- s .: "alpha_background"
                   let alpha = fg / (fg + bg) + 1
                   pure . JelinekMercer <$> pure alpha
               _           -> fail $ "Unknown smoothing method "++smoothingType
