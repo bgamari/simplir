@@ -184,7 +184,7 @@ parseModel o = do
               "jm"        -> do
                   fg <- s .: "alpha_foreground"
                   bg <- s .: "alpha_background"
-                  let alpha = fg / (fg + bg) + 1
+                  let alpha = fg / (fg + bg)
                   pure . JelinekMercer <$> pure alpha
               _           -> fail $ "Unknown smoothing method "++smoothingType
       _  -> fail $ "Unknown retrieval model "++modelType
