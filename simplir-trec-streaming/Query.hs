@@ -182,10 +182,11 @@ parseModel o = do
           QueryLikelihood <$> case smoothingType :: String of
               "dirichlet" -> pure . Dirichlet <$> s .: "mu"
               "jm"        -> do
-                  fg <- s .: "alpha_foreground"
-                  bg <- s .: "alpha_background"
-                  let alpha = fg / (fg + bg)
-                  pure . JelinekMercer <$> pure alpha
+                  fgP <- s .: "alpha_foreground" :: Aeson.Parser (Parametric Double)
+                  bgP <- s .: "alpha_background" :: Aeson.Parser (Parametric Double)
+                  let alpha :: Parametric (Log Double)
+                      alpha = (\fg bg -> realToFrac $ fg / (fg + bg)) <$> fgP <*> bgP
+                  pure (JelinekMercer <$> alpha)
               _           -> fail $ "Unknown smoothing method "++smoothingType
       _  -> fail $ "Unknown retrieval model "++modelType
 
