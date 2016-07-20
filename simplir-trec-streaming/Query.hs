@@ -106,7 +106,8 @@ instance FromJSON QueryNode where
       let nodeName = fmap QueryNodeName <$> o .:? "name"
           weightedTerm val = weighted val <|> unweighted val
             where
-              unweighted val = (\x -> (x, 1)) <$> parseJSON val
+              unweighted val = ((\x -> (x, 1)) <$> parseJSON val)
+                            <|> Aeson.typeMismatch "term" val
               weighted = withObject "weighted term" $ \t ->
                 (,) <$> t .: "term" <*> t .: "weight"
 
