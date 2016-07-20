@@ -138,11 +138,19 @@ newtype WikiId = WikiId Utf8.SmallUtf8
 
 readQueries :: QueryFile -> IO (M.Map QueryId QueryNode)
 readQueries fname = do
-    queries' <- either throw id <$> Yaml.decodeFileEither fname
+    queries' <- either decodeError pure =<< Yaml.decodeFileEither fname
     let queries = getQueries queries'
     let allTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
     hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
     return queries
+  where
+    decodeError exc = fail $ "Failed to parse queries file "++fname++": "++show exc
+
+readParameters :: QueryFile -> IO (M.Map ParamSettingName (Parameters Double))
+readParameters fname = do
+    either paramDecodeError (pure . getParamSets) =<< Yaml.decodeFileEither fname
+  where
+    paramDecodeError exc = fail $ "Failed to read parameters file "
 
 main :: IO ()
 main = do
@@ -342,8 +350,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                   Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
                   Nothing                   -> 0.05 / realToFrac collLength
 
-    Just paramSets <- fmap getParamSets . either throw id <$> Yaml.decodeFileEither paramsFile
-                   :: IO (Maybe (M.Map ParamSettingName (Parameters Double)))
+    paramSets <- readParameters paramsFile
 
     let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                                   (M.Map (QueryId, ParamSettingName) [ScoredDocument])
