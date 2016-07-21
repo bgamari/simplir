@@ -90,7 +90,7 @@ streamMode =
                  <> help "background corpus statistics index")
       <*> option str (metavar "PATH" <> long "output" <> short 'o'
                       <> help "output file name")
-      <*> pure testDocuments -- kbaDocuments
+      <*> pure kbaDocuments  -- testDocuments
       <*> inputFiles
 
 mergeCorpusStatsMode :: Parser (IO ())
@@ -107,7 +107,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option (corpusStatsPaths <$> str) (metavar "FILE" <> long "output" <> short 'o'
                                              <> help "output file path")
-      <*> pure testDocuments -- kbaDocuments
+      <*> pure kbaDocuments  -- testDocuments 
       <*> inputFiles
 
 
