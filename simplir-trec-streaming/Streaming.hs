@@ -458,8 +458,7 @@ normalizationPipeline
             (DocumentInfo, [(Term, Position)]) m ()
 normalizationPipeline =
           cat'                                          @((ArchiveName, DocumentName), T.Text)
-      >-> P.P.map (fmap $ T.map killPunctuation)
-      >-> P.P.map (fmap tokeniseWithPositions)
+      >-> P.P.map (fmap kbaTokenise)
       >-> cat'                                          @((ArchiveName, DocumentName), [(T.Text, Position)])
       >-> P.P.map (\((archive, docName), terms) ->
                       let docLen = DocLength $ length $ filter (not . T.all (not . isAlphaNum) . fst) terms
@@ -473,8 +472,3 @@ normalizationPipeline =
       where
         filterTerms = filter ((>2) . T.length . fst)
         caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
-
-    killPunctuation c
-      | c `HS.member` chars = ' '
-      | otherwise           = c
-      where chars = HS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"

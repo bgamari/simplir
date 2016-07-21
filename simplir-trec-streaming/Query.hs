@@ -22,21 +22,27 @@ module Query
       -- * Query tree
     , QueryNode(..)
     , collectFieldTerms
+      -- * Misc
+    , kbaTokenise
     ) where
 
+import Data.Maybe (mapMaybe)
 import Control.Monad (guard)
 import Control.Applicative
 import Data.Foldable (fold, toList)
 import Data.Aeson
 import qualified Data.Vector as V
+import qualified Data.Text as T
+import qualified Data.HashSet as HS
+import qualified Data.Map as M
 import qualified Data.Aeson.Types as Aeson
 import Data.Type.Equality
-import qualified Data.Map as M
 import Data.Text (Text)
 
 import Numeric.Log
-import SimplIR.Types (TokenOrPhrase(..))
+import SimplIR.Types (TokenOrPhrase(..), Position)
 import SimplIR.Term as Term
+import SimplIR.Tokenise
 import SimplIR.RetrievalModels.QueryLikelihood as QL
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import Parametric
@@ -150,10 +156,17 @@ instance FromJSON QueryNode where
                                     <*> record
                   "text"        -> do
                       model <- parseModel modelObj
+                      -- TODO This seems a bit out of place
+                      let splitTerms :: (T.Text, Double) -> Maybe (TokenOrPhrase Term, Double)
+                          splitTerms (token, weight) =
+                              case map (Term.fromText . fst) $ toList $ kbaTokenise token of
+                                []    -> Nothing
+                                [tok] -> Just (Token tok, weight)
+                                toks  -> Just (Phrase toks, weight)
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldText
-                                    <*> terms
+                                    <*> fmap (V.fromList . mapMaybe splitTerms . toList) terms
                                     <*> record
                   _             -> fail $ "Unknown field name "++fieldName
       in do ty <- o .: "type"
@@ -226,3 +239,13 @@ str = id
 withName :: Maybe QueryNodeName -> [Aeson.Pair] -> [Aeson.Pair]
 withName (Just name) = (("name" .= name) :)
 withName _           = id
+
+-- TODO This doesn't really belong here
+kbaTokenise :: T.Text -> [(T.Text, Position)]
+kbaTokenise =
+    tokeniseWithPositions . T.map killPunctuation
+  where
+    killPunctuation c
+      | c `HS.member` chars = ' '
+      | otherwise           = c
+      where chars = HS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
