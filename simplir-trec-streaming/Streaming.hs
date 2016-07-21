@@ -21,7 +21,6 @@ import Data.Maybe
 import Data.Semigroup hiding (option, (<>))
 import Data.Profunctor
 import Data.Char
-import Control.Exception (throw)
 import GHC.Generics
 import System.IO
 import System.FilePath
@@ -32,7 +31,6 @@ import qualified Data.Yaml as Yaml
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
-import qualified Data.HashSet as HS
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
@@ -51,7 +49,6 @@ import SimplIR.Utils
 import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term
-import SimplIR.Tokenise
 import SimplIR.DataSource as DataSource
 import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
