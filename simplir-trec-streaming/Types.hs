@@ -80,8 +80,8 @@ instance ToJSON ScoredDocument where
         <> "postings"     .= [ object ["term" .= term, "positions" .= positions]
                              | (term, positions) <- M.toAscList scoredTermPositions
                              ]
-        <> "entities"     .= foldMap (\(ent,freq) -> Fac.getEntityId ent .= freq)
-                                            (M.toAscList scoredEntityFreqs)
+        <> "entities"  `pair` pairs (foldMap (\(ent,freq) -> Fac.getEntityId ent .= freq)
+                                             (M.toAscList scoredEntityFreqs))
         <> "recorded_values" .= object
            [ valueName .= value
            | (RecordedValueName valueName, value) <- M.assocs scoredRecordedValues
