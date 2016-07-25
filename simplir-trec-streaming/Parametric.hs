@@ -100,6 +100,11 @@ instance FromJSON (Parametric Double) where
 
 instance ToJSON (Parametric Double) where
     toJSON (Pure x) = toJSON x
-    toJSON (Ap _ _) = "Uh oh, a function"
+    toJSON (Ap _ _) = toJSON ("Uh oh, a function" :: T.Text)
     toJSON (Parameter (ParamName p)) = toJSON $ "{{"++T.unpack p++"}}"
+
+    toEncoding (Pure x) = toEncoding x
+    toEncoding (Ap _ _) = toEncoding ("Uh oh, a function" :: T.Text)
+    toEncoding (Parameter (ParamName p)) = toEncoding $ "{{"++T.unpack p++"}}"
+    {-# INLINE toEncoding #-}
 
