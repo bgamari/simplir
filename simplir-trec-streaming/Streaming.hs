@@ -29,7 +29,9 @@ import System.Directory (createDirectoryIfMissing)
 import Data.Binary
 import qualified Data.Yaml as Yaml
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS.L
+import qualified Data.ByteString.Builder as BS.B
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -385,7 +387,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                                               )
 
         liftIO $ BS.L.writeFile (outputRoot<.>"json.gz") $ GZip.compress
-               $ Aeson.encode $ encodeResults results
+               $ BS.B.toLazyByteString $ Aeson.fromEncoding $ encodeResults results
         return ()
 
 
@@ -399,16 +401,16 @@ findPhrases phrases terms =
     mergeMatches (matchedTerms, phrase) =
         (phrase, fromMaybe (error "findPhrases: Empty phrase") $ getOption $ foldMap (Option . Just . snd) matchedTerms)
 
-encodeResults :: M.Map (QueryId, ParamSettingName) [ScoredDocument] -> Aeson.Value
+encodeResults :: M.Map (QueryId, ParamSettingName) [ScoredDocument] -> Aeson.Encoding
 encodeResults results =
-    Aeson.object
-    [ qid Aeson..= Aeson.object
-      [ pset Aeson..= docs
-      | (ParamSettingName pset, docs) <- M.toList psets
-      ]
-    | (QueryId qid, psets) <- M.toList results'
-    ]
+    Aeson.pairs $ foldMap queryPairs $ M.toList results'
   where
+    queryPairs (QueryId qid, psets) =
+        qid `Aeson.pair` Aeson.pairs (foldMap paramPairs $ M.toList psets)
+
+    paramPairs :: (ParamSettingName, [ScoredDocument]) -> Aeson.Series
+    paramPairs (ParamSettingName pset, docs) = pset Aeson..= docs
+
     results' = M.unionsWith M.union
         [ M.singleton qid (M.singleton pset docs)
         | ((qid, pset), docs) <- M.toList results
