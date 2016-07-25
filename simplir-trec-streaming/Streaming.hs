@@ -34,6 +34,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
+import qualified Codec.Compression.GZip as GZip
 import qualified Control.Foldl as Foldl
 
 import           Pipes
@@ -107,7 +108,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option (corpusStatsPaths <$> str) (metavar "FILE" <> long "output" <> short 'o'
                                              <> help "output file path")
-      <*> pure kbaDocuments  -- testDocuments 
+      <*> pure kbaDocuments  -- testDocuments
       <*> inputFiles
 
 
@@ -382,7 +383,8 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
-        liftIO $ BS.L.writeFile (outputRoot<.>"json") $ Aeson.encode $ encodeResults results
+        liftIO $ BS.L.writeFile (outputRoot<.>"json.gz") $ GZip.compress
+               $ Aeson.encode $ encodeResults results
         return ()
 
 

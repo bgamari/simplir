@@ -113,6 +113,7 @@ executable kba-streaming
       yaml,
       warc,
       b-tree,
+      zlib,
       laura,
       simplir-trec-streaming,
       simplir-trec
