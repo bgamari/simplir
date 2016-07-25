@@ -26,7 +26,7 @@ data Accum a = Accum { insertions :: !Int
                      }
 
 topK :: Ord a => Int -> Fold.Fold a [a]
-topK = topK' 10000
+topK k = topK' (k `div` 20) k
 {-# INLINE topK #-}
 
 topK' :: Ord a => Int -> Int -> Fold.Fold a [a]
