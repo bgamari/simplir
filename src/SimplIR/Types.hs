@@ -77,6 +77,7 @@ instance Semigroup Span where
 instance Aeson.ToJSON Span where
     toJSON (Span{..}) = Aeson.object [ "begin" .= begin, "end" .= end ]
     toEncoding (Span{..}) = Aeson.pairs ("begin" .= begin <> "end" .= end)
+    {-# INLINE toEncoding #-}
 instance Aeson.FromJSON Span where
     parseJSON = Aeson.withObject "span" $ \o -> Span <$> o Aeson..: "begin" <*> o Aeson..: "end"
 
@@ -99,6 +100,7 @@ instance NFData Position where
 instance Aeson.ToJSON Position where
     toJSON (Position{..}) = Aeson.object [ "token_pos" .= tokenN, "char_pos" .= charOffset ]
     toEncoding (Position{..}) = Aeson.pairs ("token_pos" .= tokenN <> "char_pos" .= charOffset)
+    {-# INLINE toEncoding #-}
 instance Aeson.FromJSON Position where
     parseJSON = Aeson.withObject "position" $ \o ->
         Position <$> o Aeson..: "char_pos" <*> o Aeson..: "token_pos"
@@ -205,3 +207,4 @@ instance ToJSON a => ToJSON (TokenOrPhrase a) where
     toJSON (Phrase x) = toJSON x
     toEncoding (Token x)  = toEncoding x
     toEncoding (Phrase x) = toEncoding x
+    {-# INLINE toEncoding #-}

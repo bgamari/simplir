@@ -3,12 +3,14 @@
 module Data.SmallUtf8 where
 
 import Data.String
+import Data.Monoid
 import Control.DeepSeq
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.Hashable
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Builder as BS.B
@@ -45,7 +47,9 @@ instance Binary SmallUtf8 where
 
 instance Aeson.ToJSON SmallUtf8 where
     toJSON = Aeson.String . toText
-    toEncoding = Aeson.toEncoding . toText
+    toEncoding (SmallUtf8 x) = Aeson.unsafeToEncoding $
+        BS.B.char7 '"' <> BS.B.shortByteString x <> BS.B.char7 '"'
+    {-# INLINE toEncoding #-}
 
 instance Aeson.FromJSON SmallUtf8 where
     parseJSON (Aeson.String t) = pure $ fromText t
