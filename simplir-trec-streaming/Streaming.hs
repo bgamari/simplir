@@ -30,6 +30,7 @@ import Data.Binary
 import qualified Data.Yaml as Yaml
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as BS.L
+import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Text as T
@@ -302,7 +303,7 @@ queryFold termBg entityBg params resultCount query =
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
         ScoredDocument { scoredRankScore = score
                        , scoredDocumentInfo = info
-                       , scoredTermPositions = docTermPositions
+                       , scoredTermPositions = fmap VU.fromList docTermPositions
                        , scoredEntityFreqs = entityFreqs
                        , scoredRecordedValues = recorded
                        }

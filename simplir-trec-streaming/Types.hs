@@ -10,7 +10,8 @@ import Data.Bifunctor
 import Data.Function (on)
 import Data.Foldable (toList)
 import Data.Binary
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
+import qualified Data.Vector.Unboxed as VU
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import GHC.Generics
@@ -39,7 +40,7 @@ instance FromJSON Ranking where
 
 data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
                                      , scoredDocumentInfo   :: !DocumentInfo
-                                     , scoredTermPositions  :: !(M.Map (TokenOrPhrase Term) [Position])
+                                     , scoredTermPositions  :: !(M.Map (TokenOrPhrase Term) (VU.Vector Position))
                                      , scoredEntityFreqs    :: !(M.Map Fac.EntityId TermFrequency)
                                      , scoredRecordedValues :: !(M.Map RecordedValueName Aeson.Value)
                                      }
