@@ -19,3 +19,15 @@
 [submodule "vendor/pipes-interleave"]
 	path = vendor/pipes-interleave
 	url = git://github.com/bgamari/pipes-interleave
+[submodule "vendor/aeson"]
+	path = vendor/aeson
+	url = git://github.com/bos/aeson
+[submodule "vendor/aws"]
+	path = vendor/aws
+	url = git://github.com/bgamari/aws
+[submodule "binary"]
+	path = binary
+	url = git://github.com/kolmodin/binary
+[submodule "vendor/binary"]
+	path = vendor/binary
+	url = git://github.com/kolmodin/binary

@@ -5,11 +5,13 @@
 module Types where
 
 import Data.Aeson
+import Data.Aeson.Encoding.Internal (pair)
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor
 import Data.Function (on)
 import Data.Foldable (toList)
 import Data.Binary
+import Data.Monoid
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.HashMap.Strict as HM
@@ -33,6 +35,9 @@ instance ToJSON Ranking where
         [ "query_id" .= rankingQueryId
         , "results"  .= rankingResults
         ]
+    toEncoding Ranking{..} = pairs
+         $ "query_id" .= rankingQueryId
+        <> "results"  .= rankingResults
 
 instance FromJSON Ranking where
     parseJSON = withObject "ranking" $ \o ->
@@ -67,6 +72,20 @@ instance ToJSON ScoredDocument where
           | (RecordedValueName valueName, value) <- M.assocs scoredRecordedValues
           ]
         ]
+    toEncoding ScoredDocument{scoredDocumentInfo=DocInfo{..}, ..} = pairs
+         $ "doc_name"     .= docName
+        <> "length"       .= docLength
+        <> "archive"      .= docArchive
+        <> "score"        .= ln scoredRankScore
+        <> "postings"     .= [ object ["term" .= term, "positions" .= positions]
+                             | (term, positions) <- M.toAscList scoredTermPositions
+                             ]
+        <> "entities"     .= foldMap (\(ent,freq) -> Fac.getEntityId ent .= freq)
+                                            (M.toAscList scoredEntityFreqs)
+        <> "recorded_values" .= object
+           [ valueName .= value
+           | (RecordedValueName valueName, value) <- M.assocs scoredRecordedValues
+           ]
 
 instance FromJSON ScoredDocument where
     parseJSON = withObject "ScoredDocument" $ \o -> do
