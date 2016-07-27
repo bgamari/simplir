@@ -34,6 +34,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.ByteString.Builder as BS.B
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
@@ -341,6 +342,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                           | query <- toList queries
                           , Phrase phrase <- collectFieldTerms FieldText query
                           ]
+        allQueryEntities = foldMap (S.fromList . collectFieldTerms FieldFreebaseIds) queries
 
     -- load FAC annotations
     facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
@@ -350,18 +352,24 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
     -- load background statistics
     CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
     termFreqs <- BTree.open (diskTermStats background)
-    let termBg :: Distribution (TokenOrPhrase Term)
-        termBg term =
-            case BTree.lookup termFreqs term of
-              Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-              Nothing               -> 0.5 / realToFrac collLength
+    let termBgMap = HM.fromList $ map (\t -> (t, lookupTerm t)) $ S.toList allQueryTerms
+          where
+            lookupTerm :: Distribution (TokenOrPhrase Term)
+            lookupTerm term = {-# SCC termBg #-}
+                case BTree.lookup termFreqs term of
+                  Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                  Nothing               -> 0.5 / realToFrac collLength
+        termBg = (termBgMap HM.!)
 
-        entityBg :: Distribution Fac.EntityId
-        entityBg entity =
-            let collLength = Fac.corpusCollectionLength facCorpusStats
-            in case BTree.lookup facEntityIdStats entity of
-                  Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-                  Nothing                   -> 0.05 / realToFrac collLength
+        entityBgMap = HM.fromList $ map (\e -> (e, lookupEntity e)) $ S.toList allQueryEntities
+          where
+            lookupEntity :: Distribution Fac.EntityId
+            lookupEntity entity = {-# SCC entityBg #-}
+                let collLength = Fac.corpusCollectionLength facCorpusStats
+                in case BTree.lookup facEntityIdStats entity of
+                      Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                      Nothing                   -> 0.05 / realToFrac collLength
+        entityBg = (entityBgMap HM.!)
 
     paramSets <- readParameters paramsFile
 
