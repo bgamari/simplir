@@ -251,42 +251,51 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
+-- | A document to be scored
+type DocForScoring = (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
+
 interpretQuery :: Distribution (TokenOrPhrase Term)
                -> Distribution Fac.EntityId
                -> Parameters Double
                -> QueryNode
-               -> (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
+               -> DocForScoring
                -> (Score, M.Map RecordedValueName Yaml.Value)
-interpretQuery termBg entityBg params node0 doc = go node0
+interpretQuery termBg entityBg params node0 = go node0
   where
     recording :: Maybe RecordedValueName -> (Score, M.Map RecordedValueName Yaml.Value)
               -> (Score, M.Map RecordedValueName Yaml.Value)
     recording mbName (score, r) = (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r)
 
-    go :: QueryNode -> (Score, M.Map RecordedValueName Yaml.Value)
-    go ConstNode {..}     = (realToFrac $ runParametricOrFail params value, mempty)
-    go SumNode {..}       = recording recordOutput (first getSum $ foldMap (first Sum . go) children)
-    go ProductNode {..}   = recording recordOutput (first getProduct $ foldMap (first Product . go) children)
-    go ScaleNode {..}     = recording recordOutput (first (s *) $ go child)
+    go :: QueryNode -> DocForScoring
+       -> (Score, M.Map RecordedValueName Yaml.Value)
+    go ConstNode {..}     = \_ -> (realToFrac $ runParametricOrFail params value, mempty)
+    go SumNode {..}       = \doc -> recording recordOutput (first getSum $ foldMap (first Sum . flip go doc) children)
+    go ProductNode {..}   = \doc -> recording recordOutput (first getProduct $ foldMap (first Product . flip go doc) children)
+    go ScaleNode {..}     = \doc -> recording recordOutput (first (s *) $ go child doc)
       where s = realToFrac $ runParametricOrFail params scalar
     go RetrievalNode {..} =
-        let score = case retrievalModel of
-              QueryLikelihood smoothing ->
-                  case field of
-                    FieldText ->
-                        let queryTerms = M.fromListWith (+) $ toList terms
+        case retrievalModel of
+          QueryLikelihood smoothing ->
+              case field of
+                FieldText ->
+                    let queryTerms = M.fromListWith (+) $ toList terms
+                        smooth = runParametricOrFail params smoothing $ termBg
+                    in \doc ->
+                        let (info, docTermPositions, _) = doc
                             docTerms = M.toList $ fmap VU.length docTermPositions
-                            smooth = runParametricOrFail params smoothing $ termBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+                            score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+                            recorded = mempty -- TODO
+                        in (score, recorded)
 
-                    FieldFreebaseIds ->
-                        let queryTerms = M.fromListWith (+) $ toList terms
+                FieldFreebaseIds ->
+                    let queryTerms = M.fromListWith (+) $ toList terms
+                        smooth = runParametricOrFail params smoothing $ entityBg
+                    in \doc ->
+                        let (info, _, (_entityDocLen, entityFreqs)) = doc
                             docTerms = M.toList $ fmap fromEnum entityFreqs
-                            smooth = runParametricOrFail params smoothing $ entityBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
-            (info, docTermPositions, (_entityDocLen, entityFreqs)) = doc
-            recorded = mempty
-        in (score, recorded)
+                            score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+                            recorded = mempty -- TODO
+                        in (score, recorded)
 
 queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
