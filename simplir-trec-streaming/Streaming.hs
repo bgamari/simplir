@@ -255,7 +255,7 @@ interpretQuery :: Distribution (TokenOrPhrase Term)
                -> Distribution Fac.EntityId
                -> Parameters Double
                -> QueryNode
-               -> (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+               -> (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> (Score, M.Map RecordedValueName Yaml.Value)
 interpretQuery termBg entityBg params node0 doc = go node0
   where
@@ -275,7 +275,7 @@ interpretQuery termBg entityBg params node0 doc = go node0
                   case field of
                     FieldText ->
                         let queryTerms = M.fromListWith (+) $ toList terms
-                            docTerms = M.toList $ fmap length docTermPositions
+                            docTerms = M.toList $ fmap VU.length docTermPositions
                             smooth = runParametricOrFail params smoothing $ termBg
                         in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
 
@@ -293,7 +293,7 @@ queryFold :: Distribution (TokenOrPhrase Term)
           -> Parameters Double
           -> Int                        -- ^ how many results should we collect?
           -> QueryNode
-          -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+          -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
 queryFold termBg entityBg params resultCount query =
     Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
@@ -302,12 +302,12 @@ queryFold termBg entityBg params resultCount query =
   where
     queryTerms = S.fromList $ collectFieldTerms FieldText query
 
-    scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
         ScoredDocument { scoredRankScore = score
                        , scoredDocumentInfo = info
-                       , scoredTermPositions = fmap VU.fromList docTermPositions
+                       , scoredTermPositions = docTermPositions
                        , scoredEntityFreqs = entityFreqs
                        , scoredRecordedValues = recorded
                        }
@@ -355,7 +355,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
 
     paramSets <- readParameters paramsFile
 
-    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                                   (M.Map (QueryId, ParamSettingName) [ScoredDocument])
         queriesFold = sequenceA $ M.fromList
                       [ ((queryId, paramSetting), queryFold termBg entityBg params resultCount queryNode)
@@ -375,8 +375,10 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                             | (term, pos) <- terms
                             , Token term `S.member` allQueryTerms
                             ])
-            >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
-            >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) [Position])
+            >-> P.P.map (second $ fmap VU.fromList
+                                . M.fromListWith (++)
+                                . map (second (:[])))
+            >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position))
             >-> P.P.map (\(docInfo, termPostings) ->
                             let (facDocLen, entityIdPostings) =
                                     maybe (DocLength 0, M.empty) (first Fac.docLength)
@@ -384,7 +386,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                             in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
             >-> cat'                         @( DocumentInfo
-                                              , M.Map (TokenOrPhrase Term) [Position]
+                                              , M.Map (TokenOrPhrase Term) (VU.Vector Position)
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
