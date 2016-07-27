@@ -386,8 +386,10 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
+        liftIO $ putStrLn "Writing scored results to "++outputRoot++"..."
         liftIO $ BS.L.writeFile (outputRoot<.>"json.gz") $ GZip.compress
                $ BS.B.toLazyByteString $ Aeson.fromEncoding $ encodeResults results
+        liftIO $ putStrLn "done"
         return ()
 
 
