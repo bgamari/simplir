@@ -268,7 +268,8 @@ interpretQuery termBg entityBg params node0 = go node0
 
     go :: QueryNode -> DocForScoring
        -> (Score, M.Map RecordedValueName Yaml.Value)
-    go ConstNode {..}     = \_ -> (realToFrac $ runParametricOrFail params value, mempty)
+    go ConstNode {..}     = let c = realToFrac $ runParametricOrFail params value
+                            in \_ -> (c, mempty)
     go SumNode {..}       = \doc -> recording recordOutput (first getSum $ foldMap (first Sum . flip go doc) children)
     go ProductNode {..}   = \doc -> recording recordOutput (first getProduct $ foldMap (first Product . flip go doc) children)
     go ScaleNode {..}     = \doc -> recording recordOutput (first (s *) $ go child doc)
