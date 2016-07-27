@@ -296,10 +296,12 @@ queryFold :: Distribution (TokenOrPhrase Term)
           -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
 queryFold termBg entityBg params resultCount query =
-      --Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
-    lmap scoreQuery
+    Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
+    $ lmap scoreQuery
     $ topK resultCount
   where
+    queryTerms = S.fromList $ collectFieldTerms FieldText query
+
     scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
