@@ -14,10 +14,14 @@ import Types
 
 main :: IO ()
 main = do
-    let args = some $ argument str (help "ranking file")
-    fnames <- execParser $ info (helper <*> args) mempty
+    let args =
+            (,)
+              <$> option auto (help "how many results?" <> short 'N' <> long "count")
+              <*> some (argument str (help "ranking file"))
 
-    r <- foldProducer (Foldl.generalize $ multiFold $ topK 100)
+    (k, fnames) <- execParser $ info (helper <*> args) mempty
+
+    r <- foldProducer (Foldl.generalize $ multiFold $ topK k)
         $  each fnames
        >-> P.P.mapM readRanking
        >-> P.P.concat
