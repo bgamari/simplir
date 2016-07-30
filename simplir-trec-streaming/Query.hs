@@ -142,20 +142,19 @@ instance FromJSON QueryNode where
               <*> record
 
           retrievalNode = do
-              modelObj <- o .: "retrieval_model"
               fieldName <- o .: "field"
               let terms :: FromJSON term => Aeson.Parser (V.Vector (term, Double))
                   terms = mapM weightedTerm =<< o .: "terms"
               case fieldName :: String of
                   "freebase_id" -> do
-                      model <- parseModel modelObj
+                      model <- o .: "retrieval_model"
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldFreebaseIds
                                     <*> terms
                                     <*> record
                   "text"        -> do
-                      model <- parseModel modelObj
+                      model <- o .: "retrieval_model"
                       -- TODO This seems a bit out of place
                       let splitTerms :: (T.Text, Double) -> Maybe (TokenOrPhrase Term, Double)
                           splitTerms (token, weight) =
@@ -186,23 +185,23 @@ collectFieldTerms f RetrievalNode {..}
   | Just Refl <- field `eqFieldName` f = map fst $ toList terms
   | otherwise                          = []
 
-parseModel :: Object -> Aeson.Parser (RetrievalModel term)
-parseModel o = do
-    modelType <- o .: "type"
-    case modelType of
-      "ql" -> do
-          s <- o .: "smoothing"
-          smoothingType <-  s .: "type"
-          QueryLikelihood <$> case smoothingType :: String of
-              "dirichlet" -> pure . Dirichlet <$> s .: "mu"
-              "jm"        -> do
-                  fgP <- s .: "alpha_foreground" :: Aeson.Parser (Parametric Double)
-                  bgP <- s .: "alpha_background" :: Aeson.Parser (Parametric Double)
-                  let alpha :: Parametric (Log Double)
-                      alpha = (\fg bg -> realToFrac $ fg / (fg + bg)) <$> fgP <*> bgP
-                  pure (JelinekMercer <$> alpha)
-              _           -> fail $ "Unknown smoothing method "++smoothingType
-      _  -> fail $ "Unknown retrieval model "++modelType
+instance FromJSON (RetrievalModel term) where
+    parseJSON = withObject "retrieval model" $ \o -> do
+        modelType <- o .: "type"
+        case modelType of
+          "ql" -> do
+              s <- o .: "smoothing"
+              smoothingType <-  s .: "type"
+              QueryLikelihood <$> case smoothingType :: String of
+                  "dirichlet" -> pure . Dirichlet <$> s .: "mu"
+                  "jm"        -> do
+                      fgP <- s .: "alpha_foreground" :: Aeson.Parser (Parametric Double)
+                      bgP <- s .: "alpha_background" :: Aeson.Parser (Parametric Double)
+                      let alpha :: Parametric (Log Double)
+                          alpha = (\fg bg -> realToFrac $ fg / (fg + bg)) <$> fgP <*> bgP
+                      pure (JelinekMercer <$> alpha)
+                  _           -> fail $ "Unknown smoothing method "++smoothingType
+          _  -> fail $ "Unknown retrieval model "++modelType
 
 
 instance ToJSON QueryNode where

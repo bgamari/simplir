@@ -34,6 +34,7 @@ import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.ByteString.Builder as BS.B
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T.L
@@ -251,61 +252,73 @@ foldTermStats =
         $ lmap (\term -> M.singleton term (TermFreq 1))
         $ mconcatMaps
 
+-- | A document to be scored
+type DocForScoring = (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
+
 interpretQuery :: Distribution (TokenOrPhrase Term)
                -> Distribution Fac.EntityId
                -> Parameters Double
                -> QueryNode
-               -> (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+               -> DocForScoring
                -> (Score, M.Map RecordedValueName Yaml.Value)
-interpretQuery termBg entityBg params node0 doc = go node0
+interpretQuery termBg entityBg params node0 = go node0
   where
     recording :: Maybe RecordedValueName -> (Score, M.Map RecordedValueName Yaml.Value)
               -> (Score, M.Map RecordedValueName Yaml.Value)
     recording mbName (score, r) = (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r)
 
-    go :: QueryNode -> (Score, M.Map RecordedValueName Yaml.Value)
-    go ConstNode {..}     = (realToFrac $ runParametricOrFail params value, mempty)
-    go SumNode {..}       = recording recordOutput (first getSum $ foldMap (first Sum . go) children)
-    go ProductNode {..}   = recording recordOutput (first getProduct $ foldMap (first Product . go) children)
-    go ScaleNode {..}     = recording recordOutput (first (s *) $ go child)
+    go :: QueryNode -> DocForScoring
+       -> (Score, M.Map RecordedValueName Yaml.Value)
+    go ConstNode {..}     = let c = realToFrac $ runParametricOrFail params value
+                            in \_ -> (c, mempty)
+    go SumNode {..}       = \doc -> recording recordOutput (first getSum $ foldMap (first Sum . flip go doc) children)
+    go ProductNode {..}   = \doc -> recording recordOutput (first getProduct $ foldMap (first Product . flip go doc) children)
+    go ScaleNode {..}     = \doc -> recording recordOutput (first (s *) $ go child doc)
       where s = realToFrac $ runParametricOrFail params scalar
     go RetrievalNode {..} =
-        let score = case retrievalModel of
-              QueryLikelihood smoothing ->
-                  case field of
-                    FieldText ->
-                        let queryTerms = M.fromListWith (+) $ toList terms
-                            docTerms = M.toList $ fmap length docTermPositions
-                            smooth = runParametricOrFail params smoothing $ termBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+        case retrievalModel of
+          QueryLikelihood smoothing ->
+              case field of
+                FieldText ->
+                    let queryTerms = M.fromListWith (+) $ toList terms
+                        smooth = runParametricOrFail params smoothing $ termBg
+                    in \doc ->
+                        let (info, docTermPositions, _) = doc
+                            docTerms = M.toList $ fmap VU.length docTermPositions
+                            score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+                            recorded = mempty -- TODO
+                        in (score, recorded)
 
-                    FieldFreebaseIds ->
-                        let queryTerms = M.fromListWith (+) $ toList terms
+                FieldFreebaseIds ->
+                    let queryTerms = M.fromListWith (+) $ toList terms
+                        smooth = runParametricOrFail params smoothing $ entityBg
+                    in \doc ->
+                        let (info, _, (_entityDocLen, entityFreqs)) = doc
                             docTerms = M.toList $ fmap fromEnum entityFreqs
-                            smooth = runParametricOrFail params smoothing $ entityBg
-                        in QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
-            (info, docTermPositions, (_entityDocLen, entityFreqs)) = doc
-            recorded = mempty
-        in (score, recorded)
+                            score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
+                            recorded = mempty -- TODO
+                        in (score, recorded)
 
 queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
           -> Parameters Double
           -> Int                        -- ^ how many results should we collect?
           -> QueryNode
-          -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+          -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
 queryFold termBg entityBg params resultCount query =
-      --Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ M.keysSet queryTerms' `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
-    lmap scoreQuery
+    Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
+    $ lmap scoreQuery
     $ topK resultCount
   where
-    scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    queryTerms = S.fromList $ collectFieldTerms FieldText query
+
+    scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
         ScoredDocument { scoredRankScore = score
                        , scoredDocumentInfo = info
-                       , scoredTermPositions = fmap VU.fromList docTermPositions
+                       , scoredTermPositions = docTermPositions
                        , scoredEntityFreqs = entityFreqs
                        , scoredRecordedValues = recorded
                        }
@@ -329,6 +342,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                           | query <- toList queries
                           , Phrase phrase <- collectFieldTerms FieldText query
                           ]
+        allQueryEntities = foldMap (S.fromList . collectFieldTerms FieldFreebaseIds) queries
 
     -- load FAC annotations
     facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
@@ -338,22 +352,28 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
     -- load background statistics
     CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
     termFreqs <- BTree.open (diskTermStats background)
-    let termBg :: Distribution (TokenOrPhrase Term)
-        termBg term =
-            case BTree.lookup termFreqs term of
-              Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-              Nothing               -> 0.5 / realToFrac collLength
+    let termBgMap = HM.fromList $ map (\t -> (t, lookupTerm t)) $ S.toList allQueryTerms
+          where
+            lookupTerm :: Distribution (TokenOrPhrase Term)
+            lookupTerm term = {-# SCC termBg #-}
+                case BTree.lookup termFreqs term of
+                  Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                  Nothing               -> 0.5 / realToFrac collLength
+        termBg = (termBgMap HM.!)
 
-        entityBg :: Distribution Fac.EntityId
-        entityBg entity =
-            let collLength = Fac.corpusCollectionLength facCorpusStats
-            in case BTree.lookup facEntityIdStats entity of
-                  Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-                  Nothing                   -> 0.05 / realToFrac collLength
+        entityBgMap = HM.fromList $ map (\e -> (e, lookupEntity e)) $ S.toList allQueryEntities
+          where
+            lookupEntity :: Distribution Fac.EntityId
+            lookupEntity entity = {-# SCC entityBg #-}
+                let collLength = Fac.corpusCollectionLength facCorpusStats
+                in case BTree.lookup facEntityIdStats entity of
+                      Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                      Nothing                   -> 0.05 / realToFrac collLength
+        entityBg = (entityBgMap HM.!)
 
     paramSets <- readParameters paramsFile
 
-    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) [Position], (DocumentLength, M.Map Fac.EntityId TermFrequency))
+    let queriesFold :: Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                                   (M.Map (QueryId, ParamSettingName) [ScoredDocument])
         queriesFold = sequenceA $ M.fromList
                       [ ((queryId, paramSetting), queryFold termBg entityBg params resultCount queryNode)
@@ -373,8 +393,10 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                             | (term, pos) <- terms
                             , Token term `S.member` allQueryTerms
                             ])
-            >-> P.P.map (second $ M.fromListWith (++) . map (second (:[])))
-            >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) [Position])
+            >-> P.P.map (second $ fmap VU.fromList
+                                . M.fromListWith (++)
+                                . map (second (:[])))
+            >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position))
             >-> P.P.map (\(docInfo, termPostings) ->
                             let (facDocLen, entityIdPostings) =
                                     maybe (DocLength 0, M.empty) (first Fac.docLength)
@@ -382,12 +404,14 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                             in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
             >-> cat'                         @( DocumentInfo
-                                              , M.Map (TokenOrPhrase Term) [Position]
+                                              , M.Map (TokenOrPhrase Term) (VU.Vector Position)
                                               , (DocumentLength, M.Map Fac.EntityId TermFrequency)
                                               )
 
+        liftIO $ putStrLn $ "Writing scored results to "++outputRoot++"..."
         liftIO $ BS.L.writeFile (outputRoot<.>"json.gz") $ GZip.compress
                $ BS.B.toLazyByteString $ Aeson.fromEncoding $ encodeResults results
+        liftIO $ putStrLn "done"
         return ()
 
 
