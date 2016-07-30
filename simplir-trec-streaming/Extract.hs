@@ -28,8 +28,11 @@ import ReadKba
 
 main :: IO ()
 main = do
-    let args = some $ argument str (help "ranking file")
-    fnames <- execParser $ info (helper <*> args) mempty
+    let args =
+            (,)
+              <$> option auto (help "how many results?" <> short 'N' <> long "count")
+              <*> some (argument str (help "ranking file"))
+    (k, fnames) <- execParser $ info (helper <*> args) mempty
 
     let getDocs :: ScoredDocument -> M.Map DataSource (S.Set DocumentName)
         getDocs (ScoredDocument{scoredDocumentInfo=DocInfo{..}})
@@ -40,7 +43,7 @@ main = do
     neededDocs <- foldProducer (Foldl.generalize mconcatMaps)
        $  each fnames
       >-> P.P.mapM readRanking
-      >-> P.P.mapFoldable (map $ map getDocs . take 100 . rankingResults)
+      >-> P.P.mapFoldable (map $ map getDocs . take k . rankingResults)
       >-> P.P.concat
 
     let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
