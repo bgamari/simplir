@@ -2,6 +2,7 @@ import qualified Data.Map as M
 import Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BS
 import Options.Applicative
+import Codec.Compression.GZip
 import Pipes
 import qualified Pipes.Prelude as P.P
 import qualified Control.Foldl as Foldl
@@ -25,4 +26,4 @@ main = do
     BS.writeFile "merged.json" $ encode $ map (uncurry Ranking) (M.assocs r)
 
 readRanking :: FilePath -> IO [Ranking]
-readRanking fname = either fail id . Aeson.eitherDecode <$> BS.readFile fname
+readRanking fname = either fail id . Aeson.eitherDecode . decompress <$> BS.readFile fname
