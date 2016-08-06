@@ -26,7 +26,7 @@ data Accum a = Accum { insertions :: !Int
                      }
 
 topK :: Ord a => Int -> Fold.Fold a [a]
-topK k = topK' (k `div` 20) k
+topK k = topK' (1 + k `div` 20) k
 {-# INLINE topK #-}
 
 topK' :: Ord a => Int -> Int -> Fold.Fold a [a]
@@ -35,6 +35,8 @@ topK' updatePeriod k = dimap Down (map unDown) (minK updatePeriod k)
 {-# INLINE topK' #-}
 
 minK :: Ord a => Int -> Int -> Fold.Fold a [a]
+minK updatePeriod _
+  | updatePeriod < 1 = error "SimplIR.TopK.minK: invalid update period"
 minK updatePeriod k =
     Fold.Fold step accum0 (take k . toList . heap)
   where
