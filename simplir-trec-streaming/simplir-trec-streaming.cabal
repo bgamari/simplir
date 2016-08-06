@@ -134,6 +134,7 @@ executable merge-kba-rankings
       monad-control,
       mtl,
       binary,
+      heaps,
       foldl,
       vector,
       vector-algorithms,

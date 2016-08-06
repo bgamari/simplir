@@ -5,10 +5,11 @@
 module Types where
 
 import Data.Aeson
-import Data.Aeson.Encoding.Internal (pair)
+import qualified Data.Aeson.Encoding.Internal as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Bifunctor
 import Data.Function (on)
+import Data.Traversable
 import Data.Foldable (toList)
 import Data.Binary
 import Data.Monoid
@@ -24,6 +25,49 @@ import           SimplIR.Types
 import           SimplIR.RetrievalModels.QueryLikelihood (Score)
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import Query
+import Parametric
+
+newtype Results = Results (M.Map (QueryId, ParamSettingName) [ScoredDocument])
+                deriving (Show)
+
+instance ToJSON Results where
+    toEncoding (Results results) =
+        Aeson.pairs $ foldMap queryPairs $ M.toList results'
+      where
+        queryPairs (QueryId qid, psets) =
+            qid `Aeson.pair` Aeson.pairs (foldMap paramPairs $ M.toList psets)
+
+        paramPairs :: (ParamSettingName, [ScoredDocument]) -> Aeson.Series
+        paramPairs (ParamSettingName pset, docs) = pset Aeson..= docs
+
+        results' = M.unionsWith M.union
+            [ M.singleton qid (M.singleton pset docs)
+            | ((qid, pset), docs) <- M.toList results
+            ]
+
+
+    toJSON (Results results) =
+        Aeson.object $ map queryPairs $ M.toList results'
+      where
+        queryPairs (QueryId qid, psets) =
+            qid Aeson..= Aeson.object (map paramPairs $ M.toList psets)
+
+        paramPairs :: (ParamSettingName, [ScoredDocument]) -> Aeson.Pair
+        paramPairs (ParamSettingName pset, docs) = pset Aeson..= docs
+
+        results' = M.unionsWith M.union
+            [ M.singleton qid (M.singleton pset docs)
+            | ((qid, pset), docs) <- M.toList results
+            ]
+
+instance FromJSON Results where
+    parseJSON = withObject "queries" $ \queries ->
+      fmap (Results . M.unions) $ forM (HM.toList queries) $ \(qid, params) -> do
+        case params of
+            Object obj ->
+                fmap M.unions $ forM (HM.toList obj) $ \(pset, sdoc) -> do
+                    M.singleton (QueryId qid, ParamSettingName pset) <$> parseJSON sdoc
+            _ -> fail "Results: Expected parameter sets"
 
 data Ranking = Ranking { rankingQueryId :: QueryId
                        , rankingResults :: [ScoredDocument]
@@ -80,7 +124,7 @@ instance ToJSON ScoredDocument where
         <> "postings"     .= [ object ["term" .= term, "positions" .= positions]
                              | (term, positions) <- M.toAscList scoredTermPositions
                              ]
-        <> "entities"  `pair` pairs (foldMap (\(ent,freq) -> Fac.getEntityId ent .= freq)
+        <> "entities"  `Aeson.pair` pairs (foldMap (\(ent,freq) -> Fac.getEntityId ent .= freq)
                                              (M.toAscList scoredEntityFreqs))
         <> "recorded_values" .= object
            [ valueName .= value
