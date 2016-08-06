@@ -38,7 +38,7 @@ main = do
         sortAndCut =
             case n of
               Just n' -> topK n'
-              Nothing -> dimap (H.singleton . Down) (map coerce . toList) Foldl.mconcat -- just sort
+              Nothing -> dimap (H.singleton . Down) (coerce . toList) Foldl.mconcat -- just sort
 
     let folder = Foldl.generalize $ multiFold sortAndCut
 
@@ -61,7 +61,6 @@ main = do
           >-> P.P.mapFoldable (\(x,ys) -> [ (x,y) | y <- ys ])
 
     r <- foldProducer folder producer  --- producer >> folder >> output
-
     BS.writeFile outputFile $ encode $ Results r
 
 readRanking :: FilePath -> IO Results
