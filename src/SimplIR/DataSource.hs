@@ -5,6 +5,7 @@ module SimplIR.DataSource
      -- * Data sources
      DataSource(..)
    , parseDataSource
+   , dataSourceReadM
    , dataSource
 
      -- * Data locations
@@ -28,6 +29,7 @@ import           System.IO
 import           Data.ByteString (ByteString)
 import qualified Data.Text as T
 import           System.FilePath
+import           Options.Applicative
 
 import           Pipes
 import           Pipes.Safe
@@ -137,3 +139,8 @@ guessCompression name
   | ".xz" `T.isSuffixOf` name  = Just Lzma
   | ".bz2" `T.isSuffixOf` name = error "parseDataSource: bzip2 not implemented"
   | otherwise                  = Nothing
+
+dataSourceReadM :: ReadM DataSource
+dataSourceReadM = do
+    x <- str
+    maybe (fail $ "Failed to parse data source: "++x) return $ parseDataSource $ T.pack x

@@ -89,6 +89,7 @@ library
       vector >= 0.11,
       vector-th-unbox >= 0.2,
       primitive,
+      optparse-applicative >= 0.12,
 
       monad-control,
       process,
