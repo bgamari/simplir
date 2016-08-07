@@ -7,16 +7,21 @@ import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BS.L
 import Data.Aeson as Aeson
+import Control.Exception (bracket)
 import Options.Applicative
-import Control.Concurrent.Async
 import Pipes
-import Pipes.Safe
+import Pipes.Safe hiding (bracket)
 import qualified Pinch
 import qualified Pinch.Protocol as Pinch
 import qualified Pinch.Internal.Builder as Pinch
 import qualified Pipes.Prelude as P.P
 import qualified Control.Foldl as Foldl
 import System.FilePath
+
+import Control.Concurrent (getNumCapabilities)
+import Control.Concurrent.Async
+import Control.Concurrent.STM
+import Control.Concurrent.STM.TSem
 
 import Control.Foldl.Map
 import qualified Data.SmallUtf8 as Utf8
@@ -48,13 +53,14 @@ main = do
 
     let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
     putStrLn $ "Extracting "++show nDocs++" documents in "++show (M.size neededDocs)++" archives"
-    void $ mapConcurrently (uncurry dumpDocuments) $ M.assocs neededDocs
+    ncaps <- getNumCapabilities
+    void $ mapConcurrentlyL ncaps (uncurry dumpDocuments) $ M.assocs neededDocs
 
 dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
 dumpDocuments dsrc docs = do
     putStrLn $ "Dumping "++show dsrc
     takenDocs <- takeDocuments docs . BS.L.toStrict <$> runSafeT (readKbaFile dsrc)
-    let outPath = T.unpack (getFileName $ dsrcLocation dsrc) <.> "extracted"
+    let outPath = dropExtensions (T.unpack $ getFileName $ dsrcLocation dsrc) <.> "sc.extracted"
     BS.writeFile outPath
         $ Pinch.runBuilder
         $ foldMap (Pinch.serializeValue Pinch.binaryProtocol) takenDocs
@@ -74,3 +80,14 @@ takeDocuments docs = go
 readRanking :: FilePath -> IO Results
 readRanking fname =
     BS.L.readFile fname >>= either fail return . Aeson.eitherDecode
+
+-- | Map concurrently with a limit to the number of concurrent workers.
+mapConcurrentlyL :: Traversable f => Int -> (a -> IO b) -> f a -> IO (f b)
+mapConcurrentlyL n f xs = do
+    sem <- atomically $ newTSem n
+    let withSem :: IO a -> IO a
+        withSem g =
+            bracket (atomically $ waitTSem sem)
+                    (\_ -> atomically $ signalTSem sem)
+                    (\_ -> g)
+    mapConcurrently (withSem . f) xs
