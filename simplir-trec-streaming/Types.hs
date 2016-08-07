@@ -119,18 +119,20 @@ instance FromJSON ScoredDocument where
         docLength <- o .: "length"
         docArchive <- o .: "archive"
         postings <- o .: "postings"
+        entities <- o .: "entities"
         recordedValues <- o .: "recorded_values" >>= parseMap (pure . RecordedValueName) parseJSON
         ScoredDocument
             <$> fmap Exp (o .: "score")
             <*> pure (DocInfo {..})
             <*> withArray "postings" parsePostings postings
-            <*> pure mempty -- fmap parseEntity (o .: "entities") -- TODO
+            <*> parseEntities entities
             <*> pure recordedValues
       where
         parsePostings = fmap M.unions . traverse parsePosting . toList
         parsePosting = withObject "posting" $ \o ->
             M.singleton <$> o .: "term" <*> o .: "positions"
-        -- parseEntity = withObject "posting" $ \o -> HM.toList
+        parseEntities = withObject "posting" $ \o ->
+            M.fromList <$> traverse (traverse parseJSON . first Fac.EntityId) (HM.toList o)
 
 type ArchiveName = T.Text
 
