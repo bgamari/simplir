@@ -31,7 +31,7 @@ main = do
     let args =
             (,)
               <$> option auto (help "how many results?" <> short 'N' <> long "count")
-              <*> some (argument str (help "ranking file"))
+              <*> some (argument str (metavar "RANKING" <> help "ranking file"))
     (k, fnames) <- execParser $ info (helper <*> args) mempty
 
     let getDocs :: ScoredDocument -> M.Map DataSource (S.Set DocumentName)
@@ -43,8 +43,7 @@ main = do
     neededDocs <- foldProducer (Foldl.generalize mconcatMaps)
        $  each fnames
       >-> P.P.mapM readRanking
-      >-> P.P.mapFoldable (map $ map getDocs . take k . rankingResults)
-      >-> P.P.concat
+      >-> P.P.mapFoldable (\(Results ranking) -> map getDocs $ foldMap (take k) $ M.elems ranking)
 
     let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
     putStrLn $ "Extracting "++show nDocs++" documents in "++show (M.size neededDocs)++" archives"
@@ -71,5 +70,6 @@ takeDocuments docs = go
         item = either error id $ Pinch.runParser (parseStreamItem val)
         docName = DocName (Utf8.fromText $ Kba.getDocumentId $ Kba.documentId item)
 
-readRanking :: FilePath -> IO [Ranking]
-readRanking fname = either fail id . Aeson.eitherDecode <$> BS.L.readFile fname
+readRanking :: FilePath -> IO Results
+readRanking fname =
+    BS.L.readFile fname >>= either fail return . Aeson.eitherDecode
