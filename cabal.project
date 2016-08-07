@@ -1,4 +1,7 @@
-allow-newer: base, transformers, ghc-boot, template-haskell, time, pipes
+allow-newer:
+            base, transformers, ghc-boot, template-haskell, time,
+            pipes,
+            aeson
 packages:
     ./*.cabal
     simplir-*/*.cabal
