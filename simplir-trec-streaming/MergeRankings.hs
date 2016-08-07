@@ -58,7 +58,11 @@ main = do
           >-> P.P.map (M.toList . fmap cutInputRankings)
           >-> P.P.concat
           >-> cat'                        @((QueryId, ParamSettingName), [ScoredDocument])
-          >-> P.P.mapFoldable (\(x,ys) -> [ (x,y) | y <- ys ])
+          >-> P.P.mapFoldable (\(x,ys) -> [ (x,y)
+                                          | y <- ys
+                                          , let s = realToFrac $ scoredRankScore y :: Double
+                                          , not $ isNaN s || isInfinite s
+                                          ])
 
     r <- foldProducer folder producer  --- producer >> folder >> output
     BS.writeFile outputFile $ encode $ Results r
