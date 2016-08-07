@@ -5,7 +5,6 @@ module SimplIR.Utils where
 
 import qualified Control.Foldl as Foldl
 import Pipes
-import qualified Data.Map as M
 import qualified Pipes.Prelude as P.P
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
