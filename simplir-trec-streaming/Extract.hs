@@ -18,7 +18,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Control.Foldl as Foldl
 import System.FilePath
 
-import Control.Concurrent (getNumCapabilities)
+import Control.Concurrent (setNumCapabilities)
 import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TSem
@@ -35,10 +35,11 @@ import ReadKba
 main :: IO ()
 main = do
     let args =
-            (,)
+            (,,)
               <$> option auto (help "how many results?" <> short 'N' <> long "count")
+              <*> option auto (help "how many threads?" <> short 'j' <> long "jobs" <> value 1)
               <*> some (argument str (metavar "RANKING" <> help "ranking file"))
-    (k, fnames) <- execParser $ info (helper <*> args) mempty
+    (k, threads, fnames) <- execParser $ info (helper <*> args) mempty
 
     let getDocs :: ScoredDocument -> M.Map DataSource (S.Set DocumentName)
         getDocs (ScoredDocument{scoredDocumentInfo=DocInfo{..}})
@@ -53,8 +54,8 @@ main = do
 
     let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
     putStrLn $ "Extracting "++show nDocs++" documents in "++show (M.size neededDocs)++" archives"
-    ncaps <- getNumCapabilities
-    void $ mapConcurrentlyL ncaps (uncurry dumpDocuments) $ M.assocs neededDocs
+    setNumCapabilities threads
+    void $ mapConcurrentlyL threads (uncurry dumpDocuments) $ M.assocs neededDocs
 
 dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
 dumpDocuments dsrc docs = do
