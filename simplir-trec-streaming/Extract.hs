@@ -8,6 +8,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BS.L
 import Data.Aeson as Aeson
 import Options.Applicative
+import Control.Concurrent.Async
 import Pipes
 import Pipes.Safe
 import qualified Pinch
@@ -47,7 +48,7 @@ main = do
 
     let nDocs = getSum $ foldMap (Sum . S.size) neededDocs
     putStrLn $ "Extracting "++show nDocs++" documents in "++show (M.size neededDocs)++" archives"
-    mapM_ (uncurry dumpDocuments) $ M.assocs neededDocs
+    void $ mapConcurrently (uncurry dumpDocuments) $ M.assocs neededDocs
 
 dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
 dumpDocuments dsrc docs = do
