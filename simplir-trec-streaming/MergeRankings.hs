@@ -29,7 +29,7 @@ main = do
               <$> option str (help "output filename" <> short 'o' <> long "output")
               <*> optional (option auto (help "how many results?" <> short 'N' <> long "length"))
               <*> optional (option auto (help "top results per input ranking" <> short 'K' <> long "topk"))
-              <*> some (argument str (help "ranking file"))
+              <*> some (argument str (metavar "RANKING" <> help "ranking file"))
 
     (outputFile, n, k, fnames) <- execParser $ info (helper <*> args) mempty
 
