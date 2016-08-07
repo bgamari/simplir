@@ -69,24 +69,6 @@ instance FromJSON Results where
                     M.singleton (QueryId qid, ParamSettingName pset) <$> parseJSON sdoc
             _ -> fail "Results: Expected parameter sets"
 
-data Ranking = Ranking { rankingQueryId :: QueryId
-                       , rankingResults :: [ScoredDocument]
-                       }
-             deriving (Show)
-
-instance ToJSON Ranking where
-    toJSON Ranking{..} = object
-        [ "query_id" .= rankingQueryId
-        , "results"  .= rankingResults
-        ]
-    toEncoding Ranking{..} = pairs
-         $ "query_id" .= rankingQueryId
-        <> "results"  .= rankingResults
-
-instance FromJSON Ranking where
-    parseJSON = withObject "ranking" $ \o ->
-        Ranking <$> o .: "query_id" <*> o .: "results"
-
 data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
                                      , scoredDocumentInfo   :: !DocumentInfo
                                      , scoredTermPositions  :: !(M.Map (TokenOrPhrase Term) (VU.Vector Position))
