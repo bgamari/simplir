@@ -310,14 +310,15 @@ queryFold termBg entityBg params resultCount query =
     $ topK resultCount
   where
     queryTerms = S.fromList $ collectFieldTerms FieldText query
+    queryEntities = S.fromList $ collectFieldTerms FieldFreebaseIds query
 
     scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
         ScoredDocument { scoredRankScore = score
                        , scoredDocumentInfo = info
-                       , scoredTermPositions = docTermPositions
-                       , scoredEntityFreqs = entityFreqs
+                       , scoredTermPositions = docTermPositions `M.intersection` M.fromSet (const ()) queryTerms
+                       , scoredEntityFreqs = entityFreqs `M.intersection` M.fromSet (const ()) queryEntities
                        , scoredRecordedValues = recorded
                        }
       where

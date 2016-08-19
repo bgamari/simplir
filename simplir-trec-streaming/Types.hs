@@ -71,8 +71,10 @@ instance FromJSON Results where
 
 data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
                                      , scoredDocumentInfo   :: !DocumentInfo
-                                     , scoredTermPositions  :: !(M.Map (TokenOrPhrase Term) (VU.Vector Position))
-                                     , scoredEntityFreqs    :: !(M.Map Fac.EntityId TermFrequency)
+                                       -- these are left lazy to reduce intermediate allocations of these maps since
+                                       -- they are filtered from the document postings
+                                     , scoredTermPositions  :: M.Map (TokenOrPhrase Term) (VU.Vector Position)
+                                     , scoredEntityFreqs    :: M.Map Fac.EntityId TermFrequency
                                      , scoredRecordedValues :: !(M.Map RecordedValueName Aeson.Value)
                                      }
                     deriving (Show)
