@@ -18,7 +18,7 @@ import Data.Bifunctor
 import Data.Foldable (toList)
 import Data.Either (partitionEithers)
 import Data.Maybe
-import Data.Semigroup hiding (option, (<>))
+import Data.Semigroup hiding (option)
 import Data.Profunctor
 import Data.Char
 import GHC.Generics
@@ -45,7 +45,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Pipes.Text as P.T
 import qualified Pipes.Text.Encoding as P.T.E
 
-import Options.Applicative
+import Options.Applicative hiding ((<>))
 
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
