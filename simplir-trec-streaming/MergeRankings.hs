@@ -9,6 +9,7 @@ import Data.Foldable
 import qualified Data.Map as M
 import Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BS
+import Data.Monoid
 import Options.Applicative
 import Codec.Compression.GZip
 import Pipes
