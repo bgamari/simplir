@@ -6,6 +6,7 @@
 import Data.Maybe
 import Data.Binary
 import Data.Bifunctor
+import Data.Monoid
 import qualified Data.Set as S
 import qualified Control.Foldl as Fold
 import qualified Data.Text as T

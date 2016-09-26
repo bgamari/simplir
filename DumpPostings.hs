@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Monad
+import Data.Monoid
 import qualified SimplIR.DiskIndex as DiskIndex
 import qualified SimplIR.DiskIndex.Posting as PostingIdx
 import qualified SimplIR.Term as Term

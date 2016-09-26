@@ -6,6 +6,7 @@ import Data.Ord (Down(..))
 import Data.Coerce
 import Data.Profunctor
 import Data.Foldable
+import Data.Monoid
 import qualified Data.Map as M
 import Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as BS
