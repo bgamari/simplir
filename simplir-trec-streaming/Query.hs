@@ -183,7 +183,7 @@ instance FromJSON QueryNode where
                                     <*> pure terms'
                                     <*> record
                   _             -> fail $ "Unknown field name "++fieldName
-          filterNode = do
+          ifNode =
               CondNode <$> o .: "terms"
                        <*> o .: "negated"
                        <*> o .: "true_child"
@@ -195,7 +195,7 @@ instance FromJSON QueryNode where
               "constant"      -> constNode
               "scale"         -> scaleNode
               "scoring_model" -> retrievalNode
-              "filter"        -> filterNode
+              "if"            -> ifNode
               _               -> fail "Unknown node type"
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
