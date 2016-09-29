@@ -26,10 +26,9 @@ module Query
     , kbaTokenise
     ) where
 
-import Data.Maybe (mapMaybe)
-import Control.Monad (guard)
 import Control.Applicative
 import Data.Foldable (fold, toList)
+import Data.Monoid
 import Data.Aeson
 import qualified Data.Vector as V
 import qualified Data.Text as T
@@ -107,15 +106,31 @@ data QueryNode = ConstNode { value :: Parametric Double }
                                , recordOutput   :: Maybe RecordedValueName
                                }
 
+               | CondNode { predicateTerms :: V.Vector (TokenOrPhrase Term)
+                          , negatedFilter  :: Bool
+                          , trueChild      :: QueryNode
+                          , falseChild     :: QueryNode
+                          }
+
 instance FromJSON QueryNode where
     parseJSON = withObject "query node" $ \o ->
       let nodeName = fmap QueryNodeName <$> o .:? "name"
+
+          weightedTerm :: FromJSON term => Aeson.Value -> Aeson.Parser (term, Double)
           weightedTerm val = weighted val <|> unweighted val
             where
               unweighted val = ((\x -> (x, 1)) <$> parseJSON val)
                             <|> Aeson.typeMismatch "term" val
               weighted = withObject "weighted term" $ \t ->
                 (,) <$> t .: "term" <*> t .: "weight"
+
+          -- TODO This seems a bit out of place
+          splitTerms :: T.Text -> Maybe (TokenOrPhrase Term)
+          splitTerms token =
+              case map (Term.fromText . fst) $ toList $ kbaTokenise token of
+                []    -> Nothing
+                [tok] -> Just (Token tok)
+                toks  -> Just (Phrase toks)
 
           record :: Aeson.Parser (Maybe RecordedValueName)
           record = do
@@ -143,47 +158,56 @@ instance FromJSON QueryNode where
 
           retrievalNode = do
               fieldName <- o .: "field"
-              let terms :: FromJSON term => Aeson.Parser (V.Vector (term, Double))
-                  terms = mapM weightedTerm =<< o .: "terms"
+              let parseTerms :: FromJSON term => Aeson.Parser (V.Vector (term, Double))
+                  parseTerms = mapM weightedTerm =<< o .: "terms"
               case fieldName :: String of
                   "freebase_id" -> do
                       model <- o .: "retrieval_model"
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldFreebaseIds
-                                    <*> terms
+                                    <*> parseTerms
                                     <*> record
                   "text"        -> do
                       model <- o .: "retrieval_model"
-                      -- TODO This seems a bit out of place
-                      let splitTerms :: (T.Text, Double) -> Maybe (TokenOrPhrase Term, Double)
-                          splitTerms (token, weight) =
-                              case map (Term.fromText . fst) $ toList $ kbaTokenise token of
-                                []    -> Nothing
-                                [tok] -> Just (Token tok, weight)
-                                toks  -> Just (Phrase toks, weight)
+                      terms <- parseTerms
+                      let terms' =
+                              V.fromList
+                              [ (termPhrase, weight)
+                              | (term, weight) <- V.toList terms
+                              , Just termPhrase <- pure $ splitTerms term
+                              ]
                       RetrievalNode <$> nodeName
                                     <*> pure model
                                     <*> pure FieldText
-                                    <*> fmap (V.fromList . mapMaybe splitTerms . toList) terms
+                                    <*> pure terms'
                                     <*> record
                   _             -> fail $ "Unknown field name "++fieldName
+          filterNode = do
+              CondNode <$> o .: "terms"
+                       <*> o .: "negated"
+                       <*> o .: "true_child"
+                       <*> o .: "false_child"
+
       in do ty <- o .: "type"
             case ty :: String of
-              "aggregator" -> aggregatorNode
-              "constant" -> constNode
-              "scale" -> scaleNode
+              "aggregator"    -> aggregatorNode
+              "constant"      -> constNode
+              "scale"         -> scaleNode
               "scoring_model" -> retrievalNode
-              _ -> fail "Unknown node type"
+              "filter"        -> filterNode
+              _               -> fail "Unknown node type"
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
-collectFieldTerms _ ConstNode {..}     = []
+collectFieldTerms _ ConstNode {}       = []
 collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
 collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
 collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
 collectFieldTerms f RetrievalNode {..}
   | Just Refl <- field `eqFieldName` f = map fst $ toList terms
   | otherwise                          = []
+collectFieldTerms f CondNode {..}      = collectFieldTerms f trueChild
+                                      <> collectFieldTerms f falseChild
 
 instance FromJSON (RetrievalModel term) where
     parseJSON = withObject "retrieval model" $ \o -> do
@@ -231,6 +255,14 @@ instance ToJSON QueryNode where
     toJSON (RetrievalNode {..}) = object
         $ withName name
         []
+
+    toJSON (CondNode {..}) = object
+        [ "type"        .= str "filter"
+        , "terms"       .= predicateTerms
+        , "negated"     .= negatedFilter
+        , "false_child" .= falseChild
+        , "true_child"  .= trueChild
+        ]
 
 str :: String -> String
 str = id

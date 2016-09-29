@@ -269,9 +269,18 @@ interpretQuery termBg entityBg params node0 = go node0
        -> (Score, M.Map RecordedValueName Yaml.Value)
     go ConstNode {..}     = let c = realToFrac $ runParametricOrFail params value
                             in \_ -> (c, mempty)
-    go SumNode {..}       = \doc -> recording recordOutput (first getSum $ foldMap (first Sum . flip go doc) children)
-    go ProductNode {..}   = \doc -> recording recordOutput (first getProduct $ foldMap (first Product . flip go doc) children)
-    go ScaleNode {..}     = \doc -> recording recordOutput (first (s *) $ go child doc)
+    go SumNode {..}       = \doc ->
+        recording recordOutput
+        $ first getSum
+        $ foldMap (first Sum . flip go doc) children
+    go ProductNode {..}   = \doc ->
+        recording recordOutput
+        $ first getProduct
+        $ foldMap (first Product . flip go doc) children
+    go ScaleNode {..}     = \doc ->
+        recording recordOutput
+        $ first (s *)
+        $ go child doc
       where s = realToFrac $ runParametricOrFail params scalar
     go RetrievalNode {..} =
         case retrievalModel of
@@ -296,6 +305,11 @@ interpretQuery termBg entityBg params node0 = go node0
                             score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
                             recorded = mempty -- TODO
                         in (score, recorded)
+    go CondNode {..} = \doc@(docinfo, text, entities) ->
+        let found = all (`M.member` text) predicateTerms
+        in if found
+             then go trueChild doc
+             else go falseChild doc
 
 queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
