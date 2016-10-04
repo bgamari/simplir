@@ -85,6 +85,7 @@ data RetrievalModel term
     = QueryLikelihood (Parametric (QL.Distribution term -> QL.Smoothing term))
 
 data QueryNode = ConstNode { value :: Parametric Double }
+               | DropNode
                | SumNode { name         :: Maybe QueryNodeName
                          , children     :: [QueryNode]
                          , recordOutput :: Maybe RecordedValueName
@@ -106,10 +107,10 @@ data QueryNode = ConstNode { value :: Parametric Double }
                                , recordOutput   :: Maybe RecordedValueName
                                }
 
-               | CondNode { predicateTerms :: V.Vector (TokenOrPhrase Term)
-                          , negatedFilter  :: Bool
-                          , trueChild      :: QueryNode
-                          , falseChild     :: QueryNode
+               | CondNode { predicateTerms   :: V.Vector (TokenOrPhrase Term)
+                          , predicateNegated :: Bool
+                          , trueChild        :: QueryNode
+                          , falseChild       :: QueryNode
                           }
 
 instance FromJSON QueryNode where
@@ -193,6 +194,7 @@ instance FromJSON QueryNode where
             case ty :: String of
               "aggregator"    -> aggregatorNode
               "constant"      -> constNode
+              "drop"          -> pure DropNode
               "scale"         -> scaleNode
               "scoring_model" -> retrievalNode
               "if"            -> ifNode
@@ -233,6 +235,8 @@ instance ToJSON QueryNode where
         [ "type"     .= str "constant"
         , "value"    .= value
         ]
+    toJSON (DropNode {}) = object
+        [ "type"     .= str "drop" ]
     toJSON (SumNode {..}) = object
         $ withName name
         [ "type"     .= str "aggregator"
@@ -257,9 +261,9 @@ instance ToJSON QueryNode where
         []
 
     toJSON (CondNode {..}) = object
-        [ "type"        .= str "filter"
+        [ "type"        .= str "if"
         , "terms"       .= predicateTerms
-        , "negated"     .= negatedFilter
+        , "negated"     .= predicateNegated
         , "false_child" .= falseChild
         , "true_child"  .= trueChild
         ]

@@ -258,28 +258,39 @@ interpretQuery :: Distribution (TokenOrPhrase Term)
                -> Parameters Double
                -> QueryNode
                -> DocForScoring
-               -> (Score, M.Map RecordedValueName Yaml.Value)
+               -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
 interpretQuery termBg entityBg params node0 = go node0
   where
-    recording :: Maybe RecordedValueName -> (Score, M.Map RecordedValueName Yaml.Value)
-              -> (Score, M.Map RecordedValueName Yaml.Value)
-    recording mbName (score, r) = (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r)
+    recording :: Maybe RecordedValueName -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
+              -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
+    recording mbName =
+        fmap (\(score, r) -> (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r))
+
+    foldAllMaybes :: Monoid a => (QueryNode -> Maybe a) -> [QueryNode] -> Maybe a
+    foldAllMaybes f = go' mempty
+      where
+        go' acc  (x : xs) =
+            case f x of
+              Just y  -> go' (y `mappend` acc) xs
+              Nothing -> Nothing
+        go' acc  []       = Just acc
 
     go :: QueryNode -> DocForScoring
-       -> (Score, M.Map RecordedValueName Yaml.Value)
+       -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
     go ConstNode {..}     = let c = realToFrac $ runParametricOrFail params value
-                            in \_ -> (c, mempty)
+                            in \_ -> Just (c, mempty)
+    go DropNode {}        = const Nothing
     go SumNode {..}       = \doc ->
         recording recordOutput
-        $ first getSum
-        $ foldMap (first Sum . flip go doc) children
+        $ fmap (first getSum)
+        $ foldAllMaybes (fmap (first Sum) . flip go doc) children
     go ProductNode {..}   = \doc ->
         recording recordOutput
-        $ first getProduct
-        $ foldMap (first Product . flip go doc) children
+        $ fmap (first getProduct)
+        $ foldAllMaybes (fmap (first Product) . flip go doc) children
     go ScaleNode {..}     = \doc ->
         recording recordOutput
-        $ first (s *)
+        $ fmap (first (s *))
         $ go child doc
       where s = realToFrac $ runParametricOrFail params scalar
     go RetrievalNode {..} =
@@ -294,7 +305,7 @@ interpretQuery termBg entityBg params node0 = go node0
                             docTerms = M.toList $ fmap VU.length docTermPositions
                             score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
                             recorded = mempty -- TODO
-                        in (score, recorded)
+                        in Just (score, recorded)
 
                 FieldFreebaseIds ->
                     let queryTerms = M.fromListWith (+) $ toList terms
@@ -304,12 +315,16 @@ interpretQuery termBg entityBg params node0 = go node0
                             docTerms = M.toList $ fmap fromEnum entityFreqs
                             score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
                             recorded = mempty -- TODO
-                        in (score, recorded)
+                        in Just (score, recorded)
     go CondNode {..} = \doc@(docinfo, text, entities) ->
         let found = all (`M.member` text) predicateTerms
-        in if found
+        in if found `xor` predicateNegated
              then go trueChild doc
              else go falseChild doc
+
+xor :: Bool -> Bool -> Bool
+xor True  = not
+xor False = id
 
 queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
@@ -321,22 +336,25 @@ queryFold :: Distribution (TokenOrPhrase Term)
 queryFold termBg entityBg params resultCount query =
     Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
     $ lmap scoreQuery
+    $ Foldl.handles Foldl.folded
     $ topK resultCount
   where
     queryTerms = S.fromList $ collectFieldTerms FieldText query
     queryEntities = S.fromList $ collectFieldTerms FieldFreebaseIds query
 
     scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
-               -> ScoredDocument
+               -> Maybe ScoredDocument
     scoreQuery doc@(info, docTermPositions, (entityDocLen, entityFreqs)) =
-        ScoredDocument { scoredRankScore = score
-                       , scoredDocumentInfo = info
-                       , scoredTermPositions = docTermPositions `M.intersection` M.fromSet (const ()) queryTerms
-                       , scoredEntityFreqs = entityFreqs `M.intersection` M.fromSet (const ()) queryEntities
-                       , scoredRecordedValues = recorded
-                       }
+        fmap toScoredDocument
+        $ interpretQuery termBg entityBg params query doc
       where
-        (score, recorded) = interpretQuery termBg entityBg params query doc
+        toScoredDocument (score, recorded) =
+            ScoredDocument { scoredRankScore = score
+                          , scoredDocumentInfo = info
+                          , scoredTermPositions = docTermPositions `M.intersection` M.fromSet (const ()) queryTerms
+                          , scoredEntityFreqs = entityFreqs `M.intersection` M.fromSet (const ()) queryEntities
+                          , scoredRecordedValues = recorded
+                          }
 
 scoreStreaming :: QueryFile          -- ^ queries
                -> ParamsFile         -- ^ query parameter setting
