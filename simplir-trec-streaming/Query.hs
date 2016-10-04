@@ -107,10 +107,10 @@ data QueryNode = ConstNode { value :: Parametric Double }
                                , recordOutput   :: Maybe RecordedValueName
                                }
 
-               | CondNode { predicateTerms :: V.Vector (TokenOrPhrase Term)
-                          , negatedFilter  :: Bool
-                          , trueChild      :: QueryNode
-                          , falseChild     :: QueryNode
+               | CondNode { predicateTerms   :: V.Vector (TokenOrPhrase Term)
+                          , predicateNegated :: Bool
+                          , trueChild        :: QueryNode
+                          , falseChild       :: QueryNode
                           }
 
 instance FromJSON QueryNode where
@@ -263,7 +263,7 @@ instance ToJSON QueryNode where
     toJSON (CondNode {..}) = object
         [ "type"        .= str "if"
         , "terms"       .= predicateTerms
-        , "negated"     .= negatedFilter
+        , "negated"     .= predicateNegated
         , "false_child" .= falseChild
         , "true_child"  .= trueChild
         ]
