@@ -261,22 +261,31 @@ interpretQuery :: Distribution (TokenOrPhrase Term)
                -> (Score, M.Map RecordedValueName Yaml.Value)
 interpretQuery termBg entityBg params node0 = go node0
   where
-    recording :: Maybe RecordedValueName -> (Score, M.Map RecordedValueName Yaml.Value)
-              -> (Score, M.Map RecordedValueName Yaml.Value)
-    recording mbName (score, r) = (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r)
+    recording :: Maybe RecordedValueName -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
+              -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
+    recording mbName =
+        fmap (\(score, r) -> (score, maybe id (\name -> M.insert name (Yaml.toJSON score)) mbName $ r))
+
+    foldAllMaybes :: Monoid a => (QueryNode -> Maybe a) -> [QueryNode] -> Maybe a
+    foldAllMaybes f = go' mempty
+      where
+        go' acc  (Just x : xs) = go (x `mappend` acc) xs
+        go' _acc (Nothing : _) = Nothing
+        go' acc  []            = Just acc
 
     go :: QueryNode -> DocForScoring
-       -> (Score, M.Map RecordedValueName Yaml.Value)
+       -> Maybe (Score, M.Map RecordedValueName Yaml.Value)
     go ConstNode {..}     = let c = realToFrac $ runParametricOrFail params value
-                            in \_ -> (c, mempty)
+                            in \_ -> Just (c, mempty)
+    go DropNode {}        = Nothing
     go SumNode {..}       = \doc ->
         recording recordOutput
-        $ first getSum
-        $ foldMap (first Sum . flip go doc) children
+        $ fmap (first getSum)
+        $ foldAllMaybes (first Sum . flip go doc) children
     go ProductNode {..}   = \doc ->
         recording recordOutput
-        $ first getProduct
-        $ foldMap (first Product . flip go doc) children
+        $ fmap (first getProduct)
+        $ foldAllMaybes (first Product . flip go doc) children
     go ScaleNode {..}     = \doc ->
         recording recordOutput
         $ first (s *)
@@ -294,7 +303,7 @@ interpretQuery termBg entityBg params node0 = go node0
                             docTerms = M.toList $ fmap VU.length docTermPositions
                             score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
                             recorded = mempty -- TODO
-                        in (score, recorded)
+                        in Just (score, recorded)
 
                 FieldFreebaseIds ->
                     let queryTerms = M.fromListWith (+) $ toList terms
@@ -304,7 +313,7 @@ interpretQuery termBg entityBg params node0 = go node0
                             docTerms = M.toList $ fmap fromEnum entityFreqs
                             score = QL.queryLikelihood smooth (M.assocs queryTerms) (docLength info) (map (second realToFrac) docTerms)
                             recorded = mempty -- TODO
-                        in (score, recorded)
+                        in Just (score, recorded)
     go CondNode {..} = \doc@(docinfo, text, entities) ->
         let found = all (`M.member` text) predicateTerms
         in if found

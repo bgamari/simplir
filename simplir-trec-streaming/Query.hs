@@ -85,6 +85,7 @@ data RetrievalModel term
     = QueryLikelihood (Parametric (QL.Distribution term -> QL.Smoothing term))
 
 data QueryNode = ConstNode { value :: Parametric Double }
+               | DropNode
                | SumNode { name         :: Maybe QueryNodeName
                          , children     :: [QueryNode]
                          , recordOutput :: Maybe RecordedValueName
@@ -193,6 +194,7 @@ instance FromJSON QueryNode where
             case ty :: String of
               "aggregator"    -> aggregatorNode
               "constant"      -> constNode
+              "drop"          -> pure DropNode
               "scale"         -> scaleNode
               "scoring_model" -> retrievalNode
               "if"            -> ifNode
@@ -233,6 +235,8 @@ instance ToJSON QueryNode where
         [ "type"     .= str "constant"
         , "value"    .= value
         ]
+    toJSON (DropNode {}) = object
+        [ "type"     .= str "drop" ]
     toJSON (SumNode {..}) = object
         $ withName name
         [ "type"     .= str "aggregator"
