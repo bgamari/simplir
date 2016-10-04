@@ -202,6 +202,7 @@ instance FromJSON QueryNode where
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
 collectFieldTerms _ ConstNode {}       = []
+collectFieldTerms f DropNode {}        = []
 collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
 collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
 collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
