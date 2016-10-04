@@ -257,7 +257,7 @@ instance ToJSON QueryNode where
         []
 
     toJSON (CondNode {..}) = object
-        [ "type"        .= str "filter"
+        [ "type"        .= str "if"
         , "terms"       .= predicateTerms
         , "negated"     .= negatedFilter
         , "false_child" .= falseChild
