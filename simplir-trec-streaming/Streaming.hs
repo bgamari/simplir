@@ -316,9 +316,13 @@ interpretQuery termBg entityBg params node0 = go node0
                         in Just (score, recorded)
     go CondNode {..} = \doc@(docinfo, text, entities) ->
         let found = all (`M.member` text) predicateTerms
-        in if found
+        in if found `xor` negated
              then go trueChild doc
              else go falseChild doc
+
+xor :: Bool -> Bool -> Bool
+xor True  = not
+xor False = id
 
 queryFold :: Distribution (TokenOrPhrase Term)
           -> Distribution Fac.EntityId
