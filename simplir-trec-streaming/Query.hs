@@ -186,7 +186,7 @@ instance FromJSON QueryNode where
                   _             -> fail $ "Unknown field name "++fieldName
           ifNode =
               CondNode <$> o .: "terms"
-                       <*> o .: "negated"
+                       <*> o .:? "negated" .!= False
                        <*> o .: "true_child"
                        <*> o .: "false_child"
 
@@ -202,7 +202,7 @@ instance FromJSON QueryNode where
 
 collectFieldTerms :: FieldName term -> QueryNode -> [term]
 collectFieldTerms _ ConstNode {}       = []
-collectFieldTerms f DropNode {}        = []
+collectFieldTerms _ DropNode {}        = []
 collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
 collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
 collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
