@@ -13,9 +13,12 @@ import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
 import Data.Profunctor
+import Data.Foldable
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 import System.IO.Temp
 
+import qualified Data.Aeson as Json
+import qualified Data.ByteString.Lazy.Char8 as BSL
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Control.Foldl as Foldl
@@ -85,7 +88,13 @@ queryMode =
     query :: DiskIndex -> DocumentName -> IO ()
     query index docName = do
         docs <- BTree.open (diskDocuments index)
-        print $ BTree.lookup docs docName
+        traverse_ (BSL.putStrLn . Json.encode . encodeDoc) $ BTree.lookup docs docName
+    encodeDoc (DocInfo {..}, entities) = Json.object
+        [ "archive"  Json..= docArchive
+        , "id"       Json..= docName
+        , "length"   Json..= docLength
+        , "entities" Json..= entities
+        ]
 
 inputFiles :: Parser (IO [DataSource])
 inputFiles =
