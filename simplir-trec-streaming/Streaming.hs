@@ -334,13 +334,19 @@ queryFold :: Distribution (TokenOrPhrase Term)
           -> Foldl.Fold (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                         [ScoredDocument]
 queryFold termBg entityBg params resultCount query =
-    Foldl.handles (Foldl.filtered (\(_, docTerms, _) -> not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms)) -- TODO: Should we do this?
+    Foldl.handles (Foldl.filtered docFilter)
     $ lmap scoreQuery
     $ Foldl.handles Foldl.folded
     $ topK resultCount
   where
     queryTerms = S.fromList $ collectFieldTerms FieldText query
     queryEntities = S.fromList $ collectFieldTerms FieldFreebaseIds query
+
+    -- TODO: Should we do this?
+    docFilter (_, docTerms, (_, docEntities)) = not textMatches && not entitiesMatches
+      where
+        textMatches = not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms
+        entitiesMatches = not $ S.null $ queryEntities `S.intersection` M.keysSet docEntities
 
     scoreQuery :: (DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position), (DocumentLength, M.Map Fac.EntityId TermFrequency))
                -> Maybe ScoredDocument
