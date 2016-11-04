@@ -51,11 +51,11 @@ executable trec-streaming-ls-documents
 executable index-fac
   main-is:             IndexFac.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       filepath,
       directory,
       temporary,
@@ -84,11 +84,11 @@ executable index-fac
 executable kba-streaming
   main-is:             Streaming.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       trifecta,
       filepath,
       monad-control,
@@ -123,11 +123,11 @@ executable kba-streaming
 executable merge-kba-rankings
   main-is:             MergeRankings.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       filepath,
       directory,
       temporary,
@@ -160,11 +160,11 @@ executable merge-kba-rankings
 executable extract-kba-documents
   main-is:             Extract.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       monoidal-containers,
       monad-control,
       filepath,
