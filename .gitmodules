@@ -16,9 +16,6 @@
 [submodule "vendor/warc"]
 	path = vendor/warc
 	url = git://github.com/bgamari/warc
-[submodule "vendor/pipes-interleave"]
-	path = vendor/pipes-interleave
-	url = git://github.com/bgamari/pipes-interleave
 [submodule "vendor/aeson"]
 	path = vendor/aeson
 	url = git://github.com/bos/aeson
