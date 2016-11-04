@@ -52,11 +52,11 @@ library
       SimplIR.WarcDocSource
 
   build-depends:
-      base >=4.8 && <4.9,
+      base >=4.8 && <4.10,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers >=0.4 && <0.6,
       contravariant >= 1.3 && <1.5,
       mtl,
       binary >= 0.7 && < 0.9,
@@ -102,7 +102,7 @@ library
       simplir-html-clean,
       binary-serialise-cbor,
 
-      QuickCheck >=2.8 && <2.9,
+      QuickCheck >=2.8 && <2.10,
       tasty,
       tasty-quickcheck,
       temporary
@@ -113,13 +113,13 @@ library
 executable laura
   main-is:             Main.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       unordered-containers >= 0.2,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       pipes-safe,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       mtl,
       binary,
       foldl,
@@ -137,11 +137,11 @@ executable laura
 executable dump-postings
   main-is:             DumpPostings.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       mtl,
       binary,
       errors,
@@ -161,11 +161,11 @@ executable dump-postings
 executable score-query
   main-is:             ScoreTest.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base >=4.8 && <4.10,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       filepath,
       mtl,
       binary,

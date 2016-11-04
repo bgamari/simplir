@@ -15,11 +15,11 @@ cabal-version:       >=1.10
 executable simplir
   main-is:             Search.hs
   build-depends:
-      base >=4.8 && <4.9,
+      base >=4.8 && <4.10,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       filepath,
       directory,
       mtl,
