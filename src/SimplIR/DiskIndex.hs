@@ -12,6 +12,9 @@ module SimplIR.DiskIndex
     , lookupPostings
     , termPostings
     , documents
+      -- * Typed wrapper
+    , OnDiskIndex(..)
+    , openOnDiskIndex
     ) where
 
 import System.FilePath
@@ -39,7 +42,7 @@ data DiskIndex docmeta p
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: (Binary docmeta, Binary p) => FilePath -> IO (DiskIndex docmeta p)
+open :: (Binary docmeta) => FilePath -> IO (DiskIndex docmeta p)
 open path = do
     doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
     Right tf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
@@ -80,7 +83,7 @@ termPostings idx =
 
 -- | How many postings per chunk?
 postingChunkSize :: Int
-postingChunkSize = 2^14
+postingChunkSize = 2^(14 :: Int)
 
 merge :: forall docmeta p. (Binary p, Binary docmeta)
       => FilePath              -- ^ destination path
@@ -103,3 +106,11 @@ merge dest idxs = do
     PostingIdx.Merge.merge postingChunkSize
                            (PostingIdx.PostingIndexPath $ dest </> "postings") mergedSize
                            (zip docIds0 allPostings)
+
+-- | A typed newtype wrapper
+newtype OnDiskIndex docmeta p = OnDiskIndex { onDiskIndexPath :: FilePath }
+
+openOnDiskIndex :: (Binary docmeta, Binary p)
+                => OnDiskIndex docmeta p
+                -> IO (DiskIndex docmeta p)
+openOnDiskIndex = open . onDiskIndexPath
