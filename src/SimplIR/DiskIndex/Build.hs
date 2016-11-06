@@ -9,7 +9,7 @@ module SimplIR.DiskIndex.Build
 import Control.Monad ((>=>))
 import Control.Monad.IO.Class
 import Data.Profunctor
-import System.Directory (removeDirectory)
+import System.Directory (removeDirectoryRecursive)
 
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
@@ -31,7 +31,7 @@ buildIndex chunkSize outputPath =
     mergeChunks chunks = liftIO $ do
         idxs <- mapM DiskIdx.openOnDiskIndex chunks
         DiskIdx.merge outputPath idxs
-        mapM_ (removeDirectory . DiskIdx.onDiskIndexPath) chunks
+        mapM_ (removeDirectoryRecursive . DiskIdx.onDiskIndexPath) chunks
         return (DiskIdx.OnDiskIndex outputPath)
 
 -- | Write and ultimately merge a set of index chunks.
@@ -88,14 +88,14 @@ zipFold :: forall i a b.
            i -> (i -> i)
         -> Foldl.Fold (i, a) b
         -> Foldl.Fold a b
-zipFold idx0 succ (Foldl.Fold step0 initial0 extract0) =
+zipFold idx0 succ' (Foldl.Fold step0 initial0 extract0) =
     Foldl.Fold step initial extract
   where
     initial = (idx0, initial0)
     extract = extract0 . snd
     step (!idx, s) x =
         let s' = step0 s (idx, x)
-        in (succ idx, s')
+        in (succ' idx, s')
 
 premapM' :: Monad m
          => (a -> m b)
