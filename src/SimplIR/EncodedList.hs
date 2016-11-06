@@ -34,6 +34,7 @@ uncons (EncodedList bs) =
         case tag of
             0 -> return Nothing
             1 -> Just <$> get
+            _ -> fail "EncodedList: unknown tag"
 
 toList :: Binary a => EncodedList a -> [a]
 toList = unfoldr uncons
