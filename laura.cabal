@@ -31,6 +31,7 @@ library
       Control.Foldl.Map
       SimplIR.BinaryFile
       SimplIR.DiskIndex
+      SimplIR.DiskIndex.Build
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
       SimplIR.DiskIndex.Posting.Collect
