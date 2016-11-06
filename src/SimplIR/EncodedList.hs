@@ -11,9 +11,7 @@ import Data.Binary.Get (runGetOrFail)
 import Data.Binary.Put (runPut)
 
 import qualified Data.ByteString.Lazy as BS.L
-import qualified Data.ByteString as BS
 
-import Pipes
 import Data.List (unfoldr)
 
 newtype EncodedList a = EncodedList BS.L.ByteString
