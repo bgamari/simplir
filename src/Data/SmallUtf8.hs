@@ -37,12 +37,25 @@ fromAscii = SmallUtf8 . BS.S.toShort
 
 instance Binary SmallUtf8 where
     get = do
-        len <- fromIntegral <$> getWord8
-        SmallUtf8 . BS.S.toShort <$> getByteString len
+        len <- getWord8
+        len' <- case len of
+          255 -> fromIntegral <$> getWord32le
+          _   -> pure $ fromIntegral len
+        SmallUtf8 . BS.S.toShort <$> getByteString len'
     {-# INLINE get #-}
-    put (SmallUtf8 t) = do
-        putWord8 $ fromIntegral $ BS.S.length t
-        putBuilder $ BS.B.shortByteString t
+
+    put (SmallUtf8 t)
+      | BS.S.length t >= 0xffffffff
+      = fail "Crazy long SmallUtf8"
+
+      | BS.S.length t < 255
+      = do putWord8 $ fromIntegral $ BS.S.length t
+           putBuilder $ BS.B.shortByteString t
+
+      | otherwise
+      = do putWord8 255
+           putWord32le $ fromIntegral $ BS.S.length t
+           putBuilder $ BS.B.shortByteString t
     {-# INLINE put #-}
 
 instance Aeson.ToJSON SmallUtf8 where
