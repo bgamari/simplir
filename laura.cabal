@@ -71,7 +71,7 @@ library
       pipes-lzma,
       pipes-safe,
       pipes-s3,
-      lens >=4.14 && <4.15,
+      lens >=4.14 && <4.16,
       http-types >=0.9 && <0.10,
       http-media >=0.6 && <0.7,
       http-parsers >= 0.1 && <0.2,
