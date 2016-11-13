@@ -10,6 +10,7 @@ import Control.Monad ((>=>))
 import Control.Monad.IO.Class
 import Data.Profunctor
 import System.Directory (removeDirectoryRecursive)
+import System.IO.Temp
 
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
@@ -39,17 +40,15 @@ mergeIndexes :: forall docmeta p m. (MonadIO m, Binary docmeta, Binary p)
              => Foldl.FoldM m ([(DocumentId, docmeta)], M.Map Term [Posting p])
                               [DiskIdx.OnDiskIndex docmeta p]
 mergeIndexes =
-    zipFoldM 0 succ
-    $ premapM' chunkToIndex
+    premapM' chunkToIndex
     $ Foldl.generalize Foldl.list
   where
-    chunkToIndex :: (Int, ([(DocumentId, docmeta)], M.Map Term [Posting p]))
+    chunkToIndex :: ([(DocumentId, docmeta)], M.Map Term [Posting p])
                  -> m (DiskIdx.OnDiskIndex docmeta p)
-    chunkToIndex (partN, (docIdx, postingIdx)) = liftIO $ do
+    chunkToIndex (docIdx, postingIdx) = liftIO $ do
+        path <- createTempDirectory "." "part.index"
         DiskIdx.fromDocuments path docIdx postingIdx
         return (DiskIdx.OnDiskIndex path)
-      where
-        path = "part-"++show partN++".index"
 
 -- | Build an index chunk in memory.
 collectIndex :: forall p docmeta.
