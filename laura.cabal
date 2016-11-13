@@ -99,7 +99,7 @@ library
       b-tree,
       heaps,
       vector-binary-instances >= 0.2,
-      warc >=0.2 && <0.3,
+      warc >=0.3 && <0.4,
       simplir-html-clean,
       binary-serialise-cbor,
 
