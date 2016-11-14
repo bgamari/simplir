@@ -15,13 +15,14 @@ import System.IO.Temp
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
 import Data.Binary
+import Pipes.Safe
 
 import qualified SimplIR.DiskIndex as DiskIdx
 import SimplIR.Term as Term
 import SimplIR.Types
 import SimplIR.Utils
 
-buildIndex :: (MonadIO m, Binary docmeta, Binary p)
+buildIndex :: forall m docmeta p. (MonadSafe m, Binary docmeta, Binary p)
            => Int     -- ^ How many documents to include in an index chunk?
            -> FilePath  -- ^ Final index path
            -> Foldl.FoldM m (docmeta, M.Map Term p) (DiskIdx.OnDiskIndex docmeta p)
@@ -29,26 +30,31 @@ buildIndex chunkSize outputPath =
     postmapM' mergeChunks
     $ foldChunksOf chunkSize (Foldl.generalize collectIndex) mergeIndexes
   where
-    mergeChunks chunks = liftIO $ do
-        idxs <- mapM DiskIdx.openOnDiskIndex chunks
-        DiskIdx.merge outputPath idxs
-        mapM_ (removeDirectoryRecursive . DiskIdx.onDiskIndexPath) chunks
+    mergeChunks :: [(DiskIdx.OnDiskIndex docmeta p, ReleaseKey)]
+                -> m (DiskIdx.OnDiskIndex docmeta p)
+    mergeChunks chunks = do
+        let (chunkFiles, chunkKeys) = unzip chunks
+        idxs <- liftIO $ mapM DiskIdx.openOnDiskIndex chunkFiles
+        liftIO $ DiskIdx.merge outputPath idxs
+        mapM_ release chunkKeys
         return (DiskIdx.OnDiskIndex outputPath)
+{-# INLINEABLE buildIndex #-}
 
 -- | Write and ultimately merge a set of index chunks.
-mergeIndexes :: forall docmeta p m. (MonadIO m, Binary docmeta, Binary p)
+mergeIndexes :: forall docmeta p m. (MonadSafe m, Binary docmeta, Binary p)
              => Foldl.FoldM m ([(DocumentId, docmeta)], M.Map Term [Posting p])
-                              [DiskIdx.OnDiskIndex docmeta p]
+                              [(DiskIdx.OnDiskIndex docmeta p, ReleaseKey)]
 mergeIndexes =
     premapM' chunkToIndex
     $ Foldl.generalize Foldl.list
   where
     chunkToIndex :: ([(DocumentId, docmeta)], M.Map Term [Posting p])
-                 -> m (DiskIdx.OnDiskIndex docmeta p)
-    chunkToIndex (docIdx, postingIdx) = liftIO $ do
-        path <- createTempDirectory "." "part.index"
-        DiskIdx.fromDocuments path docIdx postingIdx
-        return (DiskIdx.OnDiskIndex path)
+                 -> m (DiskIdx.OnDiskIndex docmeta p, ReleaseKey)
+    chunkToIndex (docIdx, postingIdx) = do
+        path <- liftIO $ createTempDirectory "." "part.index"
+        key <- register $ liftIO $ removeDirectoryRecursive path
+        liftIO $ DiskIdx.fromDocuments path docIdx postingIdx
+        return (DiskIdx.OnDiskIndex path, key)
 
 -- | Build an index chunk in memory.
 collectIndex :: forall p docmeta.
