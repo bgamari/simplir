@@ -279,9 +279,4 @@ withName _           = id
 -- TODO This doesn't really belong here
 kbaTokenise :: T.Text -> [(T.Text, Position)]
 kbaTokenise =
-    tokeniseWithPositions . T.map killPunctuation
-  where
-    killPunctuation c
-      | c `HS.member` chars = ' '
-      | otherwise           = c
-      where chars = HS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
+    tokeniseWithPositions . killPunctuation
