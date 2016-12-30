@@ -1,3 +1,5 @@
+import Data.Monoid
+
 import SimplIR.TrecStreaming
 import SimplIR.DataSource
 import Control.Monad (forM_)
@@ -9,15 +11,20 @@ import Options.Applicative
 import Codec.Compression.Lzma
 import ReadKba
 
-args :: Parser [FilePath]
-args = some $ argument str (help "Thrift-encoded corpus fragment")
+args :: Parser (Bool, [FilePath])
+args =
+    (,)
+      <$> switch (short 'a' <> long "all" <> help "Dump document contents")
+      <*> some (argument str (help "Thrift-encoded corpus fragment"))
 
 main :: IO ()
 main = do
-    fnames <- execParser $ info (helper <*> args) mempty
+    (dumpContents, fnames) <- execParser $ info (helper <*> args) mempty
     forM_ fnames $ \fname -> do
         putStrLn fname
         Just dsrc <- return $ parseDataSource $ T.pack fname
         items <- readItems . BSL.toStrict <$> runSafeT (readKbaFile dsrc)
-        putStrLn $ unlines $ map (T.unpack . getDocumentId . documentId) items
-
+        let dump
+              | dumpContents = show
+              | otherwise    = T.unpack . getDocumentId . documentId
+        putStrLn $ unlines $ map dump items
