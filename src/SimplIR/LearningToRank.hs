@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
+
 module LearningToRank where
 
 import Data.Ord
@@ -56,31 +58,41 @@ newtype Features = Features (V.Vector Double)
 featureDim :: Features -> Int
 featureDim (Features v) = V.length v
 
-step :: Int -> Double -> Features -> Features
-step dim delta (Features v) = Features $ V.update v (V.fromList [(dim, v V.! dim + delta)])
+stepFeature :: Step -> Features -> Features
+stepFeature (Step dim delta) (Features v) =
+    Features $ V.update v (V.fromList [(dim, v V.! dim + delta)])
 
 -- | A ranking of documents along with relevant annotations
 type FRanking relevance a = [(a, Features, relevance)]
 
-supervisedRanking :: Features -> FRanking relevance a -> Ranking relevance a
-supervisedRanking weights fRanking =
-    sortBy (comparing (\(_,score,_) -> score))
-    $ map (\(doc, feat, rel) -> (doc, feat `dot` weights, rel)) fRanking
-
 dot :: Features -> Features -> Double
 dot (Features v) (Features u) = V.sum $ V.zipWith (*) v u
 
-coordAscent :: Ord relevance
+data Step = Step Int Double
+
+zeroStep :: Step
+zeroStep = Step 0 0
+
+isZeroStep :: Step -> Bool
+isZeroStep (Step _ d) = d == 0
+
+-- | @dotStepOracle w f delta == (w + delta) `dot` f@.
+dotStepOracle :: Features -> Features -> Step -> Double
+dotStepOracle w@(Features w') f@(Features f') = get
+  where
+    get s | isZeroStep s = dot0
+    get (Step dim step)  = dot0 - term dim 0 + term dim step
+
+    term dim off = (off + w' V.! dim) * (f' V.! dim)
+    !dot0 = w `dot` f
+
+coordAscent :: forall a qid relevance. (Ord relevance)
             => relevance
             -> Features -- ^ initial weights
             -> M.Map qid (FRanking relevance a, TotalRel)
             -> [(Score, Features)]
-coordAscent relThresh w0 fRankings = iterate go (scoreWeights w0, w0)
+coordAscent relThresh w0 fRankings = iterate go (0, w0)
   where
-    scoreWeights :: Features -> Double
-    scoreWeights w =
-      meanAvgPrec relThresh $ fmap (first $ supervisedRanking w) fRankings
-
     dim = featureDim w0
     steps = [ f x
             | x <- [10, 1, 0.1, 0.01, 0.001]
@@ -92,11 +104,26 @@ coordAscent relThresh w0 fRankings = iterate go (scoreWeights w0, w0)
 
     updateDim :: (Score, Features) -> Int -> (Score, Features)
     updateDim (_, w) dim =
-      maximumBy (comparing fst)
-      [ (scoreWeights w', w')
-      | delta <- steps
-      , let w' = step dim delta w
-      ]
+        maximumBy (comparing fst)
+        [ (scoreStep step, stepFeature step w)
+        | delta <- steps
+        , let step = Step dim delta
+        ]
+      where
+        scoreStep :: Step -> Score
+        scoreStep step =
+            meanAvgPrec relThresh
+            $ fmap (first $ sortDocs . map (\(doc,f,rel) -> (doc, f step, rel)))
+            $ cachedFeatures
+          where
+            sortDocs = sortBy (comparing $ \(_,loss,_) -> loss)
+
+        cachedFeatures :: M.Map qid ([(a, Step -> Score, relevance)], TotalRel)
+        cachedFeatures =
+            (fmap . first) (sortDocs . map (\(doc,f,rel) -> (doc, dotStepOracle w f, rel))) $ fRankings
+          where
+            sortDocs = sortBy (comparing $ \(_,f,_) -> f zeroStep)
+
 
 -----------------------
 -- Testing
