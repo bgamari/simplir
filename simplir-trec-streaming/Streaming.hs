@@ -293,6 +293,11 @@ interpretQuery termBg entityBg params node0 = go node0
         $ fmap (first (s *))
         $ go child doc
       where s = realToFrac $ runParametricOrFail params scalar
+    go FeatureNode {..}   = \doc ->
+        fmap (first (w *))
+        $ recording (Just $ recordedFeatureName featureName)
+        $ go child doc
+      where w = realToFrac $ runParametricOrFail params (Parameter $ featureParameterName featureName)
     go RetrievalNode {..} =
         case retrievalModel of
           QueryLikelihood smoothing ->

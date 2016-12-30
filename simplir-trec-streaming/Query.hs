@@ -19,6 +19,10 @@ module Query
     , FieldName(..)
     , RetrievalModel(..)
     , WikiId(..)
+      -- * Features
+    , FeatureName(..)
+    , recordedFeatureName
+    , featureParameterName
       -- * Query tree
     , QueryNode(..)
     , collectFieldTerms
@@ -32,7 +36,6 @@ import Data.Monoid
 import Data.Aeson
 import qualified Data.Vector as V
 import qualified Data.Text as T
-import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Aeson.Types as Aeson
 import Data.Type.Equality
@@ -69,6 +72,15 @@ newtype RecordedValueName = RecordedValueName Text
 newtype QueryNodeName = QueryNodeName Text
                       deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
+newtype FeatureName = FeatureName Text
+                    deriving (Show, Eq, Ord, ToJSON, FromJSON)
+
+recordedFeatureName :: FeatureName -> RecordedValueName
+recordedFeatureName (FeatureName fname) = RecordedValueName fname
+
+featureParameterName :: FeatureName -> ParamName
+featureParameterName (FeatureName fname) = ParamName fname
+
 data FieldName a where
     FieldFreebaseIds :: FieldName Fac.EntityId
     FieldText        :: FieldName (TokenOrPhrase Term)
@@ -99,6 +111,11 @@ data QueryNode = ConstNode { value :: Parametric Double }
                            , child        :: QueryNode
                            , recordOutput :: Maybe RecordedValueName
                            }
+                 -- | A feature for learning-to-rank. The value of the child node is recorded as a feature and the
+                 -- weight is loaded from the parameter set. Both are identified by 'featureName'.
+               | FeatureNode { featureName  :: FeatureName
+                             , child        :: QueryNode
+                             }
                | forall term.
                  RetrievalNode { name           :: Maybe QueryNodeName
                                , retrievalModel :: RetrievalModel term
@@ -118,10 +135,10 @@ instance FromJSON QueryNode where
       let nodeName = fmap QueryNodeName <$> o .:? "name"
 
           weightedTerm :: FromJSON term => Aeson.Value -> Aeson.Parser (term, Double)
-          weightedTerm val = weighted val <|> unweighted val
+          weightedTerm val = weighted val <|> unweighted
             where
-              unweighted val = ((\x -> (x, 1)) <$> parseJSON val)
-                            <|> Aeson.typeMismatch "term" val
+              unweighted = ((\x -> (x, 1)) <$> parseJSON val)
+                        <|> Aeson.typeMismatch "term" val
               weighted = withObject "weighted term" $ \t ->
                 (,) <$> t .: "term" <*> t .: "weight"
 
@@ -156,6 +173,10 @@ instance FromJSON QueryNode where
               <*> o .: "scalar"
               <*> o .: "child"
               <*> record
+
+          featureNode = FeatureNode
+              <$> o .: "name"
+              <*> o .: "child"
 
           retrievalNode = do
               fieldName <- o .: "field"
@@ -196,6 +217,7 @@ instance FromJSON QueryNode where
               "constant"      -> constNode
               "drop"          -> pure DropNode
               "scale"         -> scaleNode
+              "feature"       -> featureNode
               "scoring_model" -> retrievalNode
               "if"            -> ifNode
               _               -> fail "Unknown node type"
@@ -206,6 +228,7 @@ collectFieldTerms _ DropNode {}        = []
 collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
 collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
 collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
+collectFieldTerms f FeatureNode {..}   = collectFieldTerms f child
 collectFieldTerms f RetrievalNode {..}
   | Just Refl <- field `eqFieldName` f = map fst $ toList terms
   | otherwise                          = []
@@ -256,6 +279,10 @@ instance ToJSON QueryNode where
         [ "type"     .= str "weight"
         , "name"     .= name
         , "child"    .= child
+        ]
+    toJSON (FeatureNode {..}) = object
+        [ "name"   .= featureName
+        , "child"  .= child
         ]
     toJSON (RetrievalNode {..}) = object
         $ withName name
