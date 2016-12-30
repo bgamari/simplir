@@ -86,7 +86,8 @@ streamMode =
     scoreStreaming
       <$> optQueryFile
       <*> optParamsFile
-      <*> option (Fac.diskIndexPaths <$> str) (metavar "DIR" <> long "fac-index" <> short 'f')
+      <*> optional (option (Fac.diskIndexPaths <$> str)
+                           (metavar "DIR" <> long "fac-index" <> short 'f'))
       <*> option auto (metavar "N" <> long "count" <> short 'n')
       <*> option (corpusStatsPaths <$> str)
                  (metavar "PATH" <> long "stats" <> short 's'
@@ -367,14 +368,14 @@ queryFold termBg entityBg params resultCount query =
                           , scoredRecordedValues = recorded
                           }
 
-scoreStreaming :: QueryFile          -- ^ queries
-               -> ParamsFile         -- ^ query parameter setting
-               -> Fac.DiskIndex      -- ^ FAC index
-               -> Int                -- ^ desired result count
-               -> CorpusStatsPaths   -- ^ corpus background statistics
-               -> FilePath           -- ^ output path
-               -> DocumentSource     -- ^ 
-               -> IO [DataSource]    -- ^ an action to read the list of documents to score
+scoreStreaming :: QueryFile             -- ^ queries
+               -> ParamsFile            -- ^ query parameter setting
+               -> Maybe Fac.DiskIndex   -- ^ FAC index
+               -> Int                   -- ^ desired result count
+               -> CorpusStatsPaths      -- ^ corpus background statistics
+               -> FilePath              -- ^ output path
+               -> DocumentSource        -- ^
+               -> IO [DataSource]       -- ^ an action to read the list of documents to score
                -> IO ()
 scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
@@ -387,11 +388,31 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
         allQueryEntities = foldMap (S.fromList . collectFieldTerms FieldFreebaseIds) queries
 
     -- load FAC annotations
-    facIndex <- BTree.open $ Fac.diskDocuments facIndexPath
-    facEntityIdStats <- BTree.open $ Fac.diskTermStats facIndexPath
-    facCorpusStats <- BinaryFile.read $ Fac.diskCorpusStats facIndexPath
+    (entityBg, lookupFac) <-
+        case facIndexPath of
+          Nothing -> return (const 0, const (toEnum 0, mempty))
+          Just path -> do
+            facIndex <- BTree.open $ Fac.diskDocuments path
+            facEntityIdStats <- BTree.open $ Fac.diskTermStats path
+            facCorpusStats <- BinaryFile.read $ Fac.diskCorpusStats path
+            let lookupFac :: DocumentName
+                          -> (DocumentLength, M.Map Fac.EntityId TermFrequency)
+                lookupFac docName =
+                    maybe (DocLength 0, M.empty) (first Fac.docLength)
+                    $ BTree.lookup facIndex docName
 
-    -- load background statistics
+            let entityBgMap = HM.fromList $ map (\e -> (e, lookupEntity e)) $ S.toList allQueryEntities
+                    where
+                      lookupEntity :: Distribution Fac.EntityId
+                      lookupEntity entity = {-# SCC entityBg #-}
+                          let collLength = Fac.corpusCollectionLength facCorpusStats
+                          in case BTree.lookup facEntityIdStats entity of
+                                Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
+                                Nothing                   -> 0.05 / realToFrac collLength
+                entityBg = (entityBgMap HM.!)
+            return (entityBg, lookupFac)
+
+    -- load text background statistics
     CorpusStats collLength _collSize <- BinaryFile.read (diskCorpusStats background)
     termFreqs <- BTree.open (diskTermStats background)
     let termBgMap = HM.fromList $ map (\t -> (t, lookupTerm t)) $ S.toList allQueryTerms
@@ -402,16 +423,6 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                   Just (TermStats tf _) -> getTermFrequency tf / realToFrac collLength
                   Nothing               -> 0.5 / realToFrac collLength
         termBg = (termBgMap HM.!)
-
-        entityBgMap = HM.fromList $ map (\e -> (e, lookupEntity e)) $ S.toList allQueryEntities
-          where
-            lookupEntity :: Distribution Fac.EntityId
-            lookupEntity entity = {-# SCC entityBg #-}
-                let collLength = Fac.corpusCollectionLength facCorpusStats
-                in case BTree.lookup facEntityIdStats entity of
-                      Just (Fac.TermStats tf _) -> getTermFrequency tf / realToFrac collLength
-                      Nothing                   -> 0.05 / realToFrac collLength
-        entityBg = (entityBgMap HM.!)
 
     paramSets <- readParameters paramsFile
 
@@ -440,9 +451,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
                                 . map (second (:[])))
             >-> cat'                         @(DocumentInfo, M.Map (TokenOrPhrase Term) (VU.Vector Position))
             >-> P.P.map (\(docInfo, termPostings) ->
-                            let (facDocLen, entityIdPostings) =
-                                    maybe (DocLength 0, M.empty) (first Fac.docLength)
-                                    $ BTree.lookup facIndex (docName docInfo)
+                            let (facDocLen, entityIdPostings) = lookupFac (docName docInfo)
                             in (docInfo, termPostings, (facDocLen, entityIdPostings))
                         )
             >-> cat'                         @( DocumentInfo
