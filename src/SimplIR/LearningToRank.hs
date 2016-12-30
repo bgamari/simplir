@@ -21,9 +21,11 @@ type TotalRel = Int
 
 -- | A collection of rankings for a set of queries.
 type Rankings rel qid a = M.Map qid (Ranking rel a, TotalRel)
+type ScoringMetric rel qid a = Rankings rel qid a -> Double
+
 
 meanAvgPrec :: (Ord rel)
-            => rel -> Rankings rel qid a -> Double
+            => rel -> ScoringMetric rel qid a
 meanAvgPrec relThresh rankings =
     mean (fmap (avgPrec relThresh) (M.elems rankings))
 
@@ -89,12 +91,12 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
     scoreTerm dim off = (off + w' V.! dim) * (f' V.! dim)
     !score0 = w `dot` f
 
-coordAscent :: forall a qid relevance. (Ord relevance)
-            => relevance
+coordAscent :: forall a qid relevance. ()
+            => ScoringMetric relevance qid a
             -> Features -- ^ initial weights
             -> M.Map qid (FRanking relevance a, TotalRel)
             -> [(Score, Features)]
-coordAscent relThresh w0 fRankings = iterate go (0, w0)
+coordAscent scoreRanking w0 fRankings = iterate go (0, w0)
   where
     dim = featureDim w0
     deltas = [ f x
@@ -115,8 +117,7 @@ coordAscent relThresh w0 fRankings = iterate go (0, w0)
       where
         scoreStep :: Step -> Score
         scoreStep step =
-            meanAvgPrec relThresh
-            $ fmap (first (docSorted . map newScorer')) cachedScoredRankings
+            scoreRanking $ fmap (first (docSorted . map newScorer')) cachedScoredRankings
           where
             newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
             newScorer' = middle $ \scorer -> scorer step
