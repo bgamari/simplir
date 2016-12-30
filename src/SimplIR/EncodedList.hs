@@ -11,9 +11,7 @@ import Data.Binary.Get (runGetOrFail)
 import Data.Binary.Put (runPut)
 
 import qualified Data.ByteString.Lazy as BS.L
-import qualified Data.ByteString as BS
 
-import Pipes
 import Data.List (unfoldr)
 
 newtype EncodedList a = EncodedList BS.L.ByteString
@@ -36,6 +34,7 @@ uncons (EncodedList bs) =
         case tag of
             0 -> return Nothing
             1 -> Just <$> get
+            _ -> fail "EncodedList: unknown tag"
 
 toList :: Binary a => EncodedList a -> [a]
 toList = unfoldr uncons

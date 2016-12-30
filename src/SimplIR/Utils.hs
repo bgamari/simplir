@@ -1,5 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 
 module SimplIR.Utils where
 
@@ -70,3 +71,31 @@ toJsonArray prod0 = yield "[" >> go0 prod0
 -- | Print all items that come down a 'Pipe'.
 traceP :: (MonadIO m, Show a) => Pipe a a m r
 traceP = P.P.mapM (\x -> liftIO (print x) >> return x)
+
+-- | Fold over inputs in fixed-size chunks, folding over those results.
+foldChunksOf :: Monad m
+             => Int                 -- ^ Chunk size
+             -> Foldl.FoldM m a b   -- ^ "inner" fold, reducing "points"
+             -> Foldl.FoldM m b c   -- ^ "outer" fold, reducing chunks
+             -> Foldl.FoldM m a c
+foldChunksOf n
+           (Foldl.FoldM stepIn initialIn finalizeIn)
+           (Foldl.FoldM stepOut initialOut finalizeOut) =
+    Foldl.FoldM step initial finalize
+  where
+    initial = do
+        sIn <- initialIn
+        sOut <- initialOut
+        return (0, sIn, sOut)
+    finalize (_, sIn, sOut) = do
+        sIn' <- finalizeIn sIn
+        stepOut sOut sIn' >>= finalizeOut
+    step (!m, !sIn, !sOut) x
+      | n == m = do
+        sIn' <- finalizeIn sIn
+        sOut' <- stepOut sOut sIn'
+        sIn'' <- initialIn >>= flip stepIn x
+        return (1, sIn'', sOut')
+      | otherwise = do
+        sIn' <- stepIn sIn x
+        return (m+1, sIn', sOut)

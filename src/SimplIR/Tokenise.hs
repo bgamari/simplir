@@ -9,6 +9,7 @@ import Data.Monoid
 import Data.Profunctor
 import Data.Foldable (foldl')
 import Data.Char (isSpace)
+import qualified Data.CharSet as CS
 import qualified Control.Foldl as Foldl
 import Control.Foldl (Fold(..))
 
@@ -18,6 +19,14 @@ import qualified Data.Text.Unsafe as T.Unsafe
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import SimplIR.Types
+
+killPunctuation :: T.Text -> T.Text
+killPunctuation = T.map kill
+  where
+    kill c
+      | c `CS.member` chars = ' '
+      | otherwise           = c
+      where chars = CS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
 
 tokenise :: T.Text -> [T.Text]
 tokenise = T.words . T.toCaseFold

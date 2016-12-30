@@ -31,6 +31,7 @@ library
       Control.Foldl.Map
       SimplIR.BinaryFile
       SimplIR.DiskIndex
+      SimplIR.DiskIndex.Build
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
       SimplIR.DiskIndex.Posting.Collect
@@ -56,8 +57,9 @@ library
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers >=0.4 && <0.6,
       contravariant >= 1.3 && <1.5,
+      charset >= 0.3,
       mtl,
       binary >= 0.7 && < 0.9,
       errors >=2.0 && <2.2,
@@ -70,7 +72,7 @@ library
       pipes-lzma,
       pipes-safe,
       pipes-s3,
-      lens >=4.14 && <4.15,
+      lens >=4.14 && <4.16,
       http-types >=0.9 && <0.10,
       http-media >=0.6 && <0.7,
       http-parsers >= 0.1 && <0.2,
@@ -98,7 +100,7 @@ library
       b-tree,
       heaps,
       vector-binary-instances >= 0.2,
-      warc >=0.2 && <0.3,
+      warc >=0.3 && <0.4,
       simplir-html-clean,
       binary-serialise-cbor,
 
@@ -119,7 +121,7 @@ executable laura
       pipes,
       pipes-safe,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       mtl,
       binary,
       foldl,
@@ -141,7 +143,7 @@ executable dump-postings
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       mtl,
       binary,
       errors,
@@ -161,11 +163,11 @@ executable dump-postings
 executable score-query
   main-is:             ScoreTest.hs
   build-depends:
-      base,
+      base >=4.8 && <4.10,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
-      transformers >=0.4 && <0.5,
+      transformers,
       filepath,
       mtl,
       binary,

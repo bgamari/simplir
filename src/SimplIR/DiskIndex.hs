@@ -12,15 +12,17 @@ module SimplIR.DiskIndex
     , lookupPostings
     , termPostings
     , documents
+      -- * Typed wrapper
+    , OnDiskIndex(..)
+    , openOnDiskIndex
     ) where
 
 import System.FilePath
 import System.Directory
-import Data.Bifunctor
 import Data.Binary
 import Data.Monoid
-import Data.List (mapAccumL)
 import qualified Data.Map as M
+import Pipes (Producer)
 
 import           SimplIR.Term
 import           SimplIR.Types
@@ -39,7 +41,7 @@ data DiskIndex docmeta p
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: (Binary docmeta, Binary p) => FilePath -> IO (DiskIndex docmeta p)
+open :: FilePath -> IO (DiskIndex docmeta p)
 open path = do
     doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
     Right tf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
@@ -56,11 +58,13 @@ fromDocuments dest docs postings = do
     PostingIdx.fromTermPostings postingChunkSize (PostingIdx.PostingIndexPath $ dest </> "postings") postings
     Doc.write (Doc.DocIndexPath $ dest </> "documents") (M.fromList docs)
 
-documents :: DiskIndex docmeta p -> [(DocumentId, docmeta)]
+documents :: (Monad m, Binary docmeta)
+          => DiskIndex docmeta p -> Producer (DocumentId, docmeta) m ()
 documents = Doc.documents . docIdx
 
 -- | Lookup the metadata of a document.
-lookupDoc :: DocumentId -> DiskIndex docmeta p -> Maybe docmeta
+lookupDoc :: (Binary docmeta)
+          => DocumentId -> DiskIndex docmeta p -> Maybe docmeta
 lookupDoc docId = Doc.lookupDoc docId . docIdx
 
 -- | Lookup the 'Posting's of a 'Term' in the index.
@@ -80,7 +84,7 @@ termPostings idx =
 
 -- | How many postings per chunk?
 postingChunkSize :: Int
-postingChunkSize = 2^14
+postingChunkSize = 2^(14 :: Int)
 
 merge :: forall docmeta p. (Binary p, Binary docmeta)
       => FilePath              -- ^ destination path
@@ -89,12 +93,9 @@ merge :: forall docmeta p. (Binary p, Binary docmeta)
 merge dest idxs = do
     createDirectoryIfMissing True dest
     -- First merge the document ids
-    let docIds0 :: [DocIdDelta]
-        (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> toDocIdDelta (Doc.size $ docIdx idx), docId0))
-                            (DocIdDelta 0) idxs
-    -- then write the document index TODO
-    Doc.write (Doc.DocIndexPath $ dest </> "documents") $ M.fromList $ concat
-        $ zipWith (\delta -> map (first (`applyDocIdDelta` delta))) docIds0 (map documents idxs)
+    let docDest = Doc.DocIndexPath $ dest </> "documents"
+    docIds0 <- Doc.merge docDest (map docIdx idxs)
+
     -- then merge the postings themselves
     let allPostings :: [[(Term, [PostingIdx.PostingsChunk p])]]
         allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
@@ -103,3 +104,11 @@ merge dest idxs = do
     PostingIdx.Merge.merge postingChunkSize
                            (PostingIdx.PostingIndexPath $ dest </> "postings") mergedSize
                            (zip docIds0 allPostings)
+
+-- | A typed newtype wrapper
+newtype OnDiskIndex docmeta p = OnDiskIndex { onDiskIndexPath :: FilePath }
+
+openOnDiskIndex :: (Binary docmeta)
+                => OnDiskIndex docmeta p
+                -> IO (DiskIndex docmeta p)
+openOnDiskIndex = open . onDiskIndexPath
