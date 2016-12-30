@@ -76,15 +76,18 @@ zeroStep = Step 0 0
 isZeroStep :: Step -> Bool
 isZeroStep (Step _ d) = d == 0
 
--- | @dotStepOracle w f delta == (w + delta) `dot` f@.
-dotStepOracle :: Features -> Features -> Step -> Double
-dotStepOracle w@(Features w') f@(Features f') = get
+-- | @dotStepOracle w f step == (w + step) `dot` f@.
+-- produces scorers that make use of the original dot product - only applying local modifications induced by the step
+scoreStepOracle :: Features -> Features -> (Step -> Score)
+scoreStepOracle w@(Features w') f@(Features f') = scoreFun
   where
-    get s | isZeroStep s = dot0
-    get (Step dim step)  = dot0 - term dim 0 + term dim step
+    scoreFun :: Step -> Score
+    scoreFun s | isZeroStep s = score0
+    scoreFun (Step dim delta) = score0 - scoreTerm dim 0 + scoreTerm dim delta
 
-    term dim off = (off + w' V.! dim) * (f' V.! dim)
-    !dot0 = w `dot` f
+    -- scoreDeltaTerm: computes term contribution to dot product of w' + step
+    scoreTerm dim off = (off + w' V.! dim) * (f' V.! dim)
+    !score0 = w `dot` f
 
 coordAscent :: forall a qid relevance. (Ord relevance)
             => relevance
@@ -94,36 +97,43 @@ coordAscent :: forall a qid relevance. (Ord relevance)
 coordAscent relThresh w0 fRankings = iterate go (0, w0)
   where
     dim = featureDim w0
-    steps = [ f x
-            | x <- [10, 1, 0.1, 0.01, 0.001]
-            , f <- [id, negate]
-            ]
+    deltas = [ f x
+             | x <- [10, 1, 0.1, 0.01, 0.001]
+             , f <- [id, negate]
+             ]
+
     go :: (Score, Features) -> (Score, Features)
-    go w =
-      foldl' updateDim w [0..dim-1]
+    go w = foldl' updateDim w [0..dim-1]
 
     updateDim :: (Score, Features) -> Int -> (Score, Features)
     updateDim (_, w) dim =
         maximumBy (comparing fst)
         [ (scoreStep step, stepFeature step w)
-        | delta <- steps
+        | delta <- deltas
         , let step = Step dim delta
         ]
       where
         scoreStep :: Step -> Score
         scoreStep step =
             meanAvgPrec relThresh
-            $ fmap (first $ sortDocs . map (\(doc,f,rel) -> (doc, f step, rel)))
-            $ cachedFeatures
+            $ fmap (first (docSorted . map newScorer')) cachedScoredRankings
           where
-            sortDocs = sortBy (comparing $ \(_,loss,_) -> loss)
+            newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
+            newScorer' = middle $ \scorer -> scorer step
 
-        cachedFeatures :: M.Map qid ([(a, Step -> Score, relevance)], TotalRel)
-        cachedFeatures =
-            (fmap . first) (sortDocs . map (\(doc,f,rel) -> (doc, dotStepOracle w f, rel))) $ fRankings
+            docSorted = sortBy (comparing $ \(_,score,_) -> score)
+
+        cachedScoredRankings :: M.Map qid ([(a, Step -> Score, relevance)], TotalRel)
+        cachedScoredRankings =
+            fmap (first newScorer) fRankings
           where
-            sortDocs = sortBy (comparing $ \(_,f,_) -> f zeroStep)
+            newScorer :: FRanking relevance a -> [(a, Step -> Score, relevance)]
+            newScorer = docSorted . map (middle (\f -> scoreStepOracle w f))
 
+            docSorted = sortBy (comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)
+
+middle :: (b->b') -> (a, b, c) -> (a,b',c)
+middle fun (a, b, c) = (a, fun b, c)
 
 -----------------------
 -- Testing
