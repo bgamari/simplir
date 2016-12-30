@@ -11,6 +11,7 @@ module Parametric
     , Parametric(..)
     , runParametric
     , runParametricOrFail
+    , collectParameters
     ) where
 
 import Control.Monad (void)
@@ -59,6 +60,11 @@ data Parametric a where
     Parameter :: ParamName -> Parametric Double
     Pure      :: a  -> Parametric a
     Ap        :: Parametric (a -> b) -> Parametric a -> Parametric b
+
+collectParameters :: Parametric a -> [ParamName]
+collectParameters (Parameter p) = [p]
+collectParameters (Pure _) = []
+collectParameters (Ap f x) = collectParameters f ++ collectParameters x
 
 runParametric :: Parameters Double -> Parametric a -> Either ParamName a
 runParametric (Parameters params) = go
