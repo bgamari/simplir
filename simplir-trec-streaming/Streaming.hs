@@ -349,7 +349,8 @@ queryFold termBg entityBg params resultCount query =
     queryEntities = S.fromList $ collectFieldTerms FieldFreebaseIds query
 
     -- TODO: Should we do this?
-    docFilter (_, docTerms, (_, docEntities)) = not textMatches && not entitiesMatches
+    -- Take only documents that match in at least one field.
+    docFilter (_, docTerms, (_, docEntities)) = textMatches || entitiesMatches
       where
         textMatches = not $ S.null $ queryTerms `S.intersection` M.keysSet docTerms
         entitiesMatches = not $ S.null $ queryEntities `S.intersection` M.keysSet docEntities
