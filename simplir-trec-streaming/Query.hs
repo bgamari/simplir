@@ -96,6 +96,9 @@ deriving instance Eq (FieldName a)
 data RetrievalModel term
     = QueryLikelihood (Parametric (QL.Distribution term -> QL.Smoothing term))
 
+instance Show (RetrievalModel term) where
+    show QueryLikelihood{} = "QueryLikelihood{..}"
+
 data QueryNode = ConstNode { value :: Parametric Double }
                | DropNode
                | SumNode { name         :: Maybe QueryNodeName
@@ -116,7 +119,7 @@ data QueryNode = ConstNode { value :: Parametric Double }
                | FeatureNode { featureName  :: FeatureName
                              , child        :: QueryNode
                              }
-               | forall term.
+               | forall term. (Show term) =>
                  RetrievalNode { name           :: Maybe QueryNodeName
                                , retrievalModel :: RetrievalModel term
                                , field          :: FieldName term
@@ -129,6 +132,8 @@ data QueryNode = ConstNode { value :: Parametric Double }
                           , trueChild        :: QueryNode
                           , falseChild       :: QueryNode
                           }
+
+deriving instance Show QueryNode
 
 instance FromJSON QueryNode where
     parseJSON = withObject "query node" $ \o ->

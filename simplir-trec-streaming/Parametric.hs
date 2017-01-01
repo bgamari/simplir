@@ -61,6 +61,11 @@ data Parametric a where
     Pure      :: a  -> Parametric a
     Ap        :: Parametric (a -> b) -> Parametric a -> Parametric b
 
+instance Show a => Show (Parametric a) where
+    show (Parameter name) = show name
+    show (Pure x) = show x
+    show (Ap _ _) = "\\x -> ..."
+
 collectParameters :: Parametric a -> [ParamName]
 collectParameters (Parameter p) = [p]
 collectParameters (Pure _) = []
