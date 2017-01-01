@@ -1,7 +1,22 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 
-module LearningToRank where
+module SimplIR.LearningToRank
+    ( -- * Basic types
+      Score
+    , Ranking
+    , TotalRel
+    , Rankings
+    , Features(..)
+      -- * Scoring metrics
+    , ScoringMetric
+    , meanAvgPrec
+      -- * Learning
+    , FRanking
+    , coordAscent
+      -- * Helpers
+    , IsRelevant(..)
+    ) where
 
 import Data.Ord
 import Data.List
@@ -10,7 +25,9 @@ import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as V
 
 type Score = Double
-data IsRelevant = NotRel | Relevant
+
+-- | Binary relevance judgement
+data IsRelevant = NotRelevant | Relevant
                 deriving (Ord, Eq, Show)
 
 -- | A ranking of documents along with relevant annotations
@@ -64,7 +81,7 @@ stepFeature :: Step -> Features -> Features
 stepFeature (Step dim delta) (Features v) =
     Features $ V.update v (V.fromList [(dim, v V.! dim + delta)])
 
--- | A ranking of documents along with relevant annotations
+-- | A ranking of documents along with relevance annotations
 type FRanking relevance a = [(a, Features, relevance)]
 
 dot :: Features -> Features -> Double
@@ -147,13 +164,13 @@ rankingA =
     [ ("ben", 10, Relevant)
     , ("laura", 9, Relevant)
     , ("T!", 3, Relevant)
-    , ("snowman", 4, NotRel)
-    , ("cat", 5, NotRel)
+    , ("snowman", 4, NotRelevant)
+    , ("cat", 5, NotRelevant)
     ]
 
 rankingB :: TestRanking
 rankingB =
-    [ ("ben", 3, NotRel)
+    [ ("ben", 3, NotRelevant)
     , ("laura", 9, Relevant)
     , ("snowman", 4, Relevant)
     ]

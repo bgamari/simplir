@@ -62,10 +62,10 @@ instance ToJSON Results where
 
 instance FromJSON Results where
     parseJSON = withObject "queries" $ \queries ->
-      fmap (Results . M.unions) $ forM (HM.toList queries) $ \(qid, params) -> do
+      fmap (Results . M.unions) $ forM (HM.toList queries) $ \(qid, params) ->
         case params of
             Object obj ->
-                fmap M.unions $ forM (HM.toList obj) $ \(pset, sdoc) -> do
+                fmap M.unions $ forM (HM.toList obj) $ \(pset, sdoc) ->
                     M.singleton (QueryId qid, ParamSettingName pset) <$> parseJSON sdoc
             _ -> fail "Results: Expected parameter sets"
 

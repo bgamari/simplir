@@ -27,8 +27,8 @@ import System.FilePath
 import System.Directory (createDirectoryIfMissing)
 
 import Data.Binary
-import qualified Data.Yaml as Yaml
 import qualified Data.Aeson as Aeson
+import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
@@ -63,6 +63,7 @@ import ReadKba
 import qualified Fac.Types as Fac
 import Types
 import Query
+import Utils
 import qualified Data.Trie as Trie
 import Parametric
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
@@ -114,20 +115,15 @@ corpusStatsMode =
       <*> pure kbaDocuments  -- testDocuments
       <*> inputFiles
 
-
 modes :: Parser (IO ())
 modes = subparser
     $  command "score" (info streamMode fullDesc)
     <> command "corpus-stats" (info corpusStatsMode fullDesc)
     <> command "merge-corpus-stats" (info mergeCorpusStatsMode fullDesc)
 
-type QueryFile = FilePath
-
 optQueryFile :: Parser QueryFile
 optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
-
-type ParamsFile = FilePath
 
 optParamsFile :: Parser ParamsFile
 optParamsFile =
@@ -135,23 +131,6 @@ optParamsFile =
 
 newtype WikiId = WikiId Utf8.SmallUtf8
                deriving (Show, Eq, Ord)
-
-
-readQueries :: QueryFile -> IO (M.Map QueryId QueryNode)
-readQueries fname = do
-    queries' <- either decodeError pure =<< Yaml.decodeFileEither fname
-    let queries = getQueries queries'
-    let allTerms = foldMap (S.fromList . collectFieldTerms FieldText) queries
-    hPutStrLn stderr $ show (M.size queries)++" queries with "++show (S.size allTerms)++" unique terms"
-    return queries
-  where
-    decodeError exc = fail $ "Failed to parse queries file "++fname++": "++show exc
-
-readParameters :: QueryFile -> IO (M.Map ParamSettingName (Parameters Double))
-readParameters fname = do
-    either paramDecodeError (pure . getParamSets) =<< Yaml.decodeFileEither fname
-  where
-    paramDecodeError exc = fail $ "Failed to read parameters file "
 
 main :: IO ()
 main = do

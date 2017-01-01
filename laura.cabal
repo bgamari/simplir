@@ -44,6 +44,7 @@ library
       SimplIR.DataSource.Gpg
       SimplIR.Encoded
       SimplIR.EncodedList
+      SimplIR.LearningToRank
       Progress
       SimplIR.Tokenise
       SimplIR.TopK
