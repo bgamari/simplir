@@ -20,6 +20,7 @@ module SimplIR.LearningToRank
 
 import Data.Ord
 import Data.List
+import Data.Maybe
 import Data.Bifunctor
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as V
@@ -44,14 +45,16 @@ type ScoringMetric rel qid a = Rankings rel qid a -> Double
 meanAvgPrec :: (Ord rel)
             => rel -> ScoringMetric rel qid a
 meanAvgPrec relThresh rankings =
-    mean (fmap (avgPrec relThresh) (M.elems rankings))
+    mean (mapMaybe (avgPrec relThresh) (M.elems rankings))
 
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
 avgPrec :: forall rel a. (Ord rel)
-        => rel -> (Ranking rel a, TotalRel) -> Double
-avgPrec relThresh (ranking, totalRel) =
+        => rel -> (Ranking rel a, TotalRel) -> Maybe Double
+avgPrec relThresh (ranking, totalRel)
+  | totalRel == 0 = Nothing
+  | otherwise =
     let (_, relAtR) = mapAccumL numRelevantAt 0 rels
         rels = map (\(_, _, rel) -> rel) ranking
 
@@ -67,12 +70,11 @@ avgPrec relThresh (ranking, totalRel) =
                               | (prec, rel) <- precAtR
                               , rel >= relThresh
                               ]
-    in
-        sum precAtRelevantRanks / realToFrac totalRel
+    in Just $ sum precAtRelevantRanks / realToFrac totalRel
 
 
 newtype Features = Features (V.Vector Double)
-                 deriving (Show)
+                 deriving (Show, Eq)
 
 featureDim :: Features -> Int
 featureDim (Features v) = V.length v
