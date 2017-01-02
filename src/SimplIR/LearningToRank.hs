@@ -7,7 +7,10 @@ module SimplIR.LearningToRank
     , Ranking
     , TotalRel
     , Rankings
+      -- * Features
     , Features(..)
+    , NormFeatures
+    , zNormalizer
       -- * Computing rankings
     , weightRanking
       -- * Scoring metrics
@@ -26,7 +29,9 @@ import Data.Maybe
 import qualified System.Random as Random
 import System.Random.Shuffle
 import qualified Data.Map as M
-import qualified Data.Vector.Unboxed as V
+import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector as V
+
 
 type Score = Double
 
@@ -77,21 +82,21 @@ avgPrec relThresh totalRel ranking
     in Just $ sum precAtRelevantRanks / realToFrac totalRel
 
 
-newtype Features = Features (V.Vector Double)
+newtype Features = Features (VU.Vector Double)
                  deriving (Show, Eq)
 
 featureDim :: Features -> Int
-featureDim (Features v) = V.length v
+featureDim (Features v) = VU.length v
 
 stepFeature :: Step -> Features -> Features
 stepFeature (Step dim delta) (Features v) =
-    Features $ V.update v (V.fromList [(dim, v V.! dim + delta)])
+    Features $ VU.update v (VU.fromList [(dim, v VU.! dim + delta)])
 
 -- | A ranking of documents along with relevance annotations
 type FRanking relevance a = [(a, Features, relevance)]
 
 dot :: Features -> Features -> Double
-dot (Features v) (Features u) = V.sum $ V.zipWith (*) v u
+dot (Features v) (Features u) = VU.sum $ VU.zipWith (*) v u
 
 -- | Re-rank a set of documents given a weight vector.
 weightRanking :: Features -> FRanking rel a -> Ranking rel a
@@ -109,6 +114,37 @@ zeroStep = Step 0 0
 isZeroStep :: Step -> Bool
 isZeroStep (Step _ d) = d == 0
 
+l2Normalize :: Features -> Features
+l2Normalize (Features xs) = Features $ VU.map (/ norm) xs
+  where norm = sqrt $ VU.sum $ VU.map squared xs
+        squared x = x*x
+
+type NormFeatures = Features
+
+zNormalizer :: [Features] -> (Features -> NormFeatures, NormFeatures -> Features)
+zNormalizer []    = error "zNormalizer: no features"
+zNormalizer feats =
+    (normalize, denormalize)
+  where
+    normalize   (Features xs) = Features $ (xs ^-^ mean) ^/^ std
+    denormalize (Features xs) = Features $ (xs ^*^ std)  ^+^ mean
+
+    feats' = V.fromList $ map (\(Features xs) -> xs) feats
+    mean = meanV feats'
+    std  = VU.map sqrt $ meanV $ fmap (\xs -> VU.map squared $ xs ^-^ mean) feats'
+
+    meanV :: V.Vector (VU.Vector Double) -> VU.Vector Double
+    meanV xss = recip n *^ V.foldl1' (^+^) xss
+      where n = realToFrac $ V.length xss
+
+    squared x = x*x
+    s   *^ xs = VU.map (*s) xs
+    xs ^/^ ys = VU.zipWith (/) xs ys
+    xs ^*^ ys = VU.zipWith (*) xs ys
+    xs ^+^ ys = VU.zipWith (+) xs ys
+    xs ^-^ ys = VU.zipWith (-) xs ys
+
+
 -- | @dotStepOracle w f step == (w + step) `dot` f@.
 -- produces scorers that make use of the original dot product - only applying local modifications induced by the step
 scoreStepOracle :: Features -> Features -> (Step -> Score)
@@ -119,7 +155,7 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
     scoreFun (Step dim delta) = score0 - scoreTerm dim 0 + scoreTerm dim delta
 
     -- scoreDeltaTerm: computes term contribution to dot product of w' + step
-    scoreTerm dim off = (off + w' V.! dim) * (f' V.! dim)
+    scoreTerm dim off = (off + w' VU.! dim) * (f' VU.! dim)
     !score0 = w `dot` f
 
 coordAscent :: forall a qid relevance gen. (Random.RandomGen gen)
@@ -133,7 +169,7 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
     score0 = scoreRanking $ fmap (weightRanking w0) fRankings
     dim = featureDim w0
     deltas = [ f x
-             | x <- [0.001, 0.01, 0.1, 1, 10, 100, 1000]
+             | x <- [0.001 * 2^n | n <- [1..25::Int]]
              , f <- [id, negate]
              ] ++ [0]
 
@@ -205,7 +241,7 @@ testFeatures :: M.Map Char (FRanking IsRelevant DocId)
 testFeatures =
     fmap (map toFeatures) testRankings
   where
-    toFeatures (a,b,c) = (a, Features $ V.fromList [1,b], c)
+    toFeatures (a,b,c) = (a, Features $ VU.fromList [1,b], c)
 
 testRankings :: M.Map Char TestRanking
 testRankings =
