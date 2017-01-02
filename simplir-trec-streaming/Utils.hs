@@ -3,7 +3,7 @@ module Utils where
 import System.IO
 
 import qualified Data.Set as S
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Yaml as Yaml
 
 import Query
@@ -24,7 +24,7 @@ readQueries fname = do
 type ParamsFile = FilePath
 
 readParameters :: ParamsFile -> IO (M.Map ParamSettingName (Parameters Double))
-readParameters fname = do
+readParameters fname =
     either paramDecodeError (pure . getParamSets) =<< Yaml.decodeFileEither fname
   where
     paramDecodeError exc = fail $ "Failed to read parameters file: "++show exc
