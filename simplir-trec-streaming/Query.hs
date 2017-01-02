@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -18,6 +19,7 @@ module Query
     , QueryNodeName(..)
     , FieldName(..)
     , RetrievalModel(..)
+    , QLSmoothingMethod(..), toSmoothing
     , WikiId(..)
       -- * Features
     , FeatureName(..)
@@ -93,11 +95,60 @@ eqFieldName _ _ = Nothing
 deriving instance Show a => Show (FieldName a)
 deriving instance Eq (FieldName a)
 
-data RetrievalModel term
-    = QueryLikelihood (Parametric (QL.Distribution term -> QL.Smoothing term))
+data QLSmoothingMethod
+    = SmoothNone
+    | SmoothDirichlet { dirichletMu :: Parametric Double }
+    | SmoothJelinekMercer { jmAlphaFore, jmAlphaBack :: Parametric Double }
+    deriving (Show)
 
-instance Show (RetrievalModel term) where
-    show QueryLikelihood{} = "QueryLikelihood{..}"
+instance FromJSON QLSmoothingMethod where
+    parseJSON = withObject "smoothing" $ \s -> do
+        smoothingType <-  s .: "type"
+        case smoothingType :: String of
+            "none"      -> pure SmoothNone
+            "dirichlet" -> SmoothDirichlet <$> s .: "mu"
+            "jm"        -> SmoothJelinekMercer <$> s .: "alpha_foreground"
+                                               <*> s .: "alpha_background"
+            _           -> fail $ "Unknown smoothing method "++smoothingType
+
+instance ToJSON QLSmoothingMethod where
+    toJSON SmoothNone = object [ "type" .= str "none" ]
+    toJSON SmoothDirichlet{..} = object [ "type" .= str "dirichlet"
+                                        , "mu"   .= dirichletMu
+                                        ]
+    toJSON SmoothJelinekMercer{..} = object [ "type" .= str "jm"
+                                            , "alpha_foreground" .= jmAlphaFore
+                                            , "alpha_background" .= jmAlphaBack
+                                            ]
+
+toSmoothing :: (forall a. Parametric a -> a)
+            -> Distribution term -> QLSmoothingMethod -> Smoothing term
+toSmoothing _    _       SmoothNone =
+   NoSmoothing
+toSmoothing runP bgDist (SmoothDirichlet mu) =
+   Dirichlet (realToFrac $ runP mu) bgDist
+toSmoothing runP bgDist (SmoothJelinekMercer fg bg) =
+   JelinekMercer alpha bgDist
+  where fg' = runP fg
+        bg' = runP bg
+        alpha = realToFrac $ fg' / (fg' + bg')
+
+data RetrievalModel
+    = QueryLikelihood QLSmoothingMethod
+    deriving (Show)
+
+instance FromJSON RetrievalModel where
+    parseJSON = withObject "retrieval model" $ \o -> do
+        modelType <- o .: "type"
+        case modelType of
+          "ql" -> QueryLikelihood <$> o .: "smoothing"
+          _    -> fail $ "Unknown retrieval model "++modelType
+
+instance ToJSON RetrievalModel where
+    toJSON (QueryLikelihood smoothing) = object
+        [ "type"      .= str "ql"
+        , "smoothing" .= smoothing
+        ]
 
 data QueryNode = ConstNode { value :: Parametric Double }
                | DropNode
@@ -121,7 +172,7 @@ data QueryNode = ConstNode { value :: Parametric Double }
                              }
                | forall term. (Show term) =>
                  RetrievalNode { name           :: Maybe QueryNodeName
-                               , retrievalModel :: RetrievalModel term
+                               , retrievalModel :: RetrievalModel
                                , field          :: FieldName term
                                , terms          :: V.Vector (term, Double)
                                , recordOutput   :: Maybe RecordedValueName
@@ -240,65 +291,53 @@ collectFieldTerms f RetrievalNode {..}
 collectFieldTerms f CondNode {..}      = collectFieldTerms f trueChild
                                       <> collectFieldTerms f falseChild
 
-instance FromJSON (RetrievalModel term) where
-    parseJSON = withObject "retrieval model" $ \o -> do
-        modelType <- o .: "type"
-        case modelType of
-          "ql" -> do
-              s <- o .: "smoothing"
-              smoothingType <-  s .: "type"
-              QueryLikelihood <$> case smoothingType :: String of
-                  "dirichlet" -> pure . Dirichlet <$> s .: "mu"
-                  "jm"        -> do
-                      fgP <- s .: "alpha_foreground" :: Aeson.Parser (Parametric Double)
-                      bgP <- s .: "alpha_background" :: Aeson.Parser (Parametric Double)
-                      let alpha :: Parametric (Log Double)
-                          alpha = (\fg bg -> realToFrac $ fg / (fg + bg)) <$> fgP <*> bgP
-                      pure (JelinekMercer <$> alpha)
-                  _           -> fail $ "Unknown smoothing method "++smoothingType
-          _  -> fail $ "Unknown retrieval model "++modelType
-
-
 instance ToJSON QueryNode where
     toJSON (ConstNode {..}) = object
         [ "type"     .= str "constant"
         , "value"    .= value
         ]
     toJSON (DropNode {}) = object
-        [ "type"     .= str "drop" ]
+        [ "type"          .= str "drop" ]
     toJSON (SumNode {..}) = object
         $ withName name
-        [ "type"     .= str "aggregator"
-        , "op"       .= str "sum"
-        , "children" .= children
+        [ "type"          .= str "aggregator"
+        , "op"            .= str "sum"
+        , "children"      .= children
+        , "record_output" .= recordOutput
         ]
     toJSON (ProductNode {..}) = object
         $ withName name
-        [ "type"     .= str "aggregator"
-        , "op"       .= str "product"
-        , "name"     .= name
-        , "children" .= children
+        [ "type"          .= str "aggregator"
+        , "op"            .= str "product"
+        , "children"      .= children
+        , "record_output" .= recordOutput
         ]
     toJSON (ScaleNode {..}) = object
         $ withName name
-        [ "type"     .= str "weight"
-        , "name"     .= name
-        , "child"    .= child
+        [ "type"          .= str "weight"
+        , "child"         .= child
+        , "record_output" .= recordOutput
         ]
     toJSON (FeatureNode {..}) = object
-        [ "name"   .= featureName
-        , "child"  .= child
+        [ "type"          .= str "feature"
+        , "name"          .= featureName
+        , "child"         .= child
         ]
     toJSON (RetrievalNode {..}) = object
         $ withName name
-        []
+        [ "type"          .= str "retrieval_model"
+        , "model"         .= retrievalModel
+        --, "field"         .= field
+        --, "terms"         .= [] -- TODO
+        , "record_output" .= recordOutput
+        ]
 
     toJSON (CondNode {..}) = object
-        [ "type"        .= str "if"
-        , "terms"       .= predicateTerms
-        , "negated"     .= predicateNegated
-        , "false_child" .= falseChild
-        , "true_child"  .= trueChild
+        [ "type"          .= str "if"
+        , "terms"         .= predicateTerms
+        , "negated"       .= predicateNegated
+        , "false_child"   .= falseChild
+        , "true_child"    .= trueChild
         ]
 
 str :: String -> String

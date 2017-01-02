@@ -284,7 +284,7 @@ interpretQuery termBg entityBg params node0 = go node0
               case field of
                 FieldText ->
                     let queryTerms = M.fromListWith (+) $ toList terms
-                        smooth = runParametricOrFail params smoothing $ termBg
+                        smooth = toSmoothing (runParametricOrFail params) termBg smoothing
                     in \doc ->
                         let (info, docTermPositions, _) = doc
                             docTerms = M.toList $ fmap VU.length docTermPositions
@@ -294,7 +294,7 @@ interpretQuery termBg entityBg params node0 = go node0
 
                 FieldFreebaseIds ->
                     let queryTerms = M.fromListWith (+) $ toList terms
-                        smooth = runParametricOrFail params smoothing $ entityBg
+                        smooth = toSmoothing (runParametricOrFail params) entityBg smoothing
                     in \doc ->
                         let (info, _, (_entityDocLen, entityFreqs)) = doc
                             docTerms = M.toList $ fmap fromEnum entityFreqs
