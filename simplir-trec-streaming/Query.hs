@@ -335,8 +335,8 @@ instance ToJSON QueryNode where
         ]
     toJSON (RetrievalNode {..}) = object
         $ withName name
-        [ "type"          .= str "retrieval_model"
-        , "model"         .= retrievalModel
+        [ "type"          .= str "scoring_model"
+        , "retrieval_model" .= retrievalModel
         , "field"         .= field
         , "terms"         .= [ object [ "term" .= t, "weight" .= w ]
                              | (t,w) <- toList terms ]
