@@ -68,6 +68,12 @@ instance FromJSON Queries where
         query = withObject "query" $ \o ->
           M.singleton <$> o .: "name" <*> o .: "child"
 
+instance ToJSON Queries where
+    toJSON (Queries qs) = toJSON
+      [ object [ "name" .= k, "child" .= v ]
+      | (k,v) <- M.toList qs
+      ]
+
 newtype RecordedValueName = RecordedValueName Text
                           deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
@@ -332,7 +338,8 @@ instance ToJSON QueryNode where
         [ "type"          .= str "retrieval_model"
         , "model"         .= retrievalModel
         , "field"         .= field
-        , "terms"         .= terms
+        , "terms"         .= [ object [ "term" .= t, "weight" .= w ]
+                             | (t,w) <- toList terms ]
         , "record_output" .= recordOutput
         ]
 
