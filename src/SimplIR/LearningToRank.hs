@@ -11,6 +11,7 @@ module SimplIR.LearningToRank
     , Features(..)
     , NormFeatures
     , zNormalizer
+    , Normalization(..)
       -- * Computing rankings
     , weightRanking
       -- * Scoring metrics
@@ -84,6 +85,7 @@ avgPrec relThresh totalRel ranking
 
 newtype Features = Features (VU.Vector Double)
                  deriving (Show, Eq)
+type Weight = Features
 
 featureDim :: Features -> Int
 featureDim (Features v) = VU.length v
@@ -98,10 +100,13 @@ type FRanking relevance a = [(a, Features, relevance)]
 dot :: Features -> Features -> Double
 dot (Features v) (Features u) = VU.sum $ VU.zipWith (*) v u
 
+sortRanking :: Ranking rel a -> Ranking rel a
+sortRanking = sortBy (flip $ comparing $ \(_,s,_) -> s)
+
 -- | Re-rank a set of documents given a weight vector.
 weightRanking :: Features -> FRanking rel a -> Ranking rel a
 weightRanking weight fRanking =
-    sortBy (flip $ comparing $ \(_,s,_) -> s)
+    sortRanking
     [ (doc, weight `dot` feats, rel)
     | (doc, feats, rel) <- fRanking
     ]
@@ -117,18 +122,29 @@ isZeroStep (Step _ d) = d == 0
 l2Normalize :: Features -> Features
 l2Normalize (Features xs) = Features $ VU.map (/ norm) xs
   where norm = sqrt $ VU.sum $ VU.map squared xs
-        squared x = x*x
 
 type NormFeatures = Features
 
-zNormalizer :: [Features] -> (Features -> NormFeatures, NormFeatures -> Features)
-zNormalizer []    = error "zNormalizer: no features"
-zNormalizer feats =
-    (normalize, denormalize)
-  where
-    normalize   (Features xs) = Features $ (xs ^-^ mean) ^/^ std
-    denormalize (Features xs) = Features $ (xs ^*^ std)  ^+^ mean
+data Normalization = Normalization { normFeatures   :: Features -> NormFeatures
+                                   , denormFeatures :: NormFeatures -> Features
+                                     -- | un-normalize feature weights (up to sort order)
+                                   , denormWeights  :: Weight -> Weight
+                                   }
 
+zNormalizer :: [Features] -> Normalization
+zNormalizer feats =
+    Normalization
+      { normFeatures   = \(Features xs) -> Features $ (xs ^-^ mean) ^/^ std
+      , denormFeatures = \(Features xs) -> Features $ (xs ^*^ std)  ^+^ mean
+      , denormWeights  = \(Features xs) -> Features $ (xs ^/^ std)
+      }
+  where
+    (mean, std) = featureMeanDev feats
+
+featureMeanDev :: [Features] -> (VU.Vector Double, VU.Vector Double)
+featureMeanDev []    = error "zNormalizer: no features"
+featureMeanDev feats = (mean, std)
+  where
     feats' = V.fromList $ map (\(Features xs) -> xs) feats
     mean = meanV feats'
     std  = VU.map sqrt $ meanV $ fmap (\xs -> VU.map squared $ xs ^-^ mean) feats'
@@ -137,17 +153,22 @@ zNormalizer feats =
     meanV xss = recip n *^ V.foldl1' (^+^) xss
       where n = realToFrac $ V.length xss
 
-    squared x = x*x
-    s   *^ xs = VU.map (*s) xs
-    xs ^/^ ys = VU.zipWith (/) xs ys
-    xs ^*^ ys = VU.zipWith (*) xs ys
-    xs ^+^ ys = VU.zipWith (+) xs ys
-    xs ^-^ ys = VU.zipWith (-) xs ys
+-- a few helpful utilities
+squared :: Num a => a -> a
+squared x = x*x
 
+(*^) :: Double -> VU.Vector Double -> VU.Vector Double
+s   *^ xs = VU.map (*s) xs
+
+(^/^), (^*^), (^+^), (^-^) :: VU.Vector Double -> VU.Vector Double -> VU.Vector Double
+xs ^/^ ys = VU.zipWith (/) xs ys
+xs ^*^ ys = VU.zipWith (*) xs ys
+xs ^+^ ys = VU.zipWith (+) xs ys
+xs ^-^ ys = VU.zipWith (-) xs ys
 
 -- | @dotStepOracle w f step == (w + step) `dot` f@.
 -- produces scorers that make use of the original dot product - only applying local modifications induced by the step
-scoreStepOracle :: Features -> Features -> (Step -> Score)
+scoreStepOracle :: Weight -> Features -> (Step -> Score)
 scoreStepOracle w@(Features w') f@(Features f') = scoreFun
   where
     scoreFun :: Step -> Score
@@ -163,7 +184,7 @@ coordAscent :: forall a qid relevance gen. (Random.RandomGen gen)
             -> ScoringMetric relevance qid a
             -> Features -- ^ initial weights
             -> M.Map qid (FRanking relevance a)
-            -> [(Score, Features)]
+            -> [(Score, Weight)]
 coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (weightRanking w0) fRankings
@@ -173,14 +194,14 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
              , f <- [id, negate]
              ] ++ [0]
 
-    go :: gen -> (Score, Features) -> [(Score, Features)]
+    go :: gen -> (Score, Weight) -> [(Score, Weight)]
     go gen w = w' : go gen' w'
       where
         w' = foldl' updateDim w dims
         dims = shuffle' [0..dim-1] dim g
         (g, gen') = Random.split gen
 
-    updateDim :: (Score, Features) -> Int -> (Score, Features)
+    updateDim :: (Score, Weight) -> Int -> (Score, Weight)
     updateDim (_, w) dim =
         maximumBy (comparing fst)
         [ (scoreStep step, l2Normalize $ stepFeature step w)
@@ -190,12 +211,10 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
       where
         scoreStep :: Step -> Score
         scoreStep step =
-            scoreRanking $ fmap (docSorted . map newScorer') cachedScoredRankings
+            scoreRanking $ fmap (sortRanking . map newScorer') cachedScoredRankings
           where
             newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
             newScorer' = middle $ \scorer -> scorer step
-
-            docSorted = sortBy (flip $ comparing $ \(_,score,_) -> score)
 
         cachedScoredRankings :: M.Map qid [(a, Step -> Score, relevance)]
         cachedScoredRankings =

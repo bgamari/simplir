@@ -151,9 +151,9 @@ train queriesPath qrelPath resultsPath splitsPath foldName = do
     gen <- newStdGen
 
     -- normalize
-    let (norm, denorm) = zNormalizer $ foldMap (map (\(_,f,_) -> f)) fRankingsUnsplit
+    let norm = zNormalizer $ foldMap (map (\(_,f,_) -> f)) fRankingsUnsplit
         normalizeFRanking :: FRanking IsRelevant DocumentName -> FRanking IsRelevant DocumentName
-        normalizeFRanking = map (\(a,b,c) -> (a, norm b, c))
+        normalizeFRanking = map (\(a,b,c) -> (a, normFeatures norm b, c))
         fRankingsUnsplitNormed = fmap normalizeFRanking fRankingsUnsplit
 
     -- split into training and test
