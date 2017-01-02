@@ -87,6 +87,10 @@ data FieldName a where
     FieldFreebaseIds :: FieldName Fac.EntityId
     FieldText        :: FieldName (TokenOrPhrase Term)
 
+instance ToJSON (FieldName a) where
+    toJSON FieldText        = toJSON $ str "text"
+    toJSON FieldFreebaseIds = toJSON $ str "freebase_id"
+
 eqFieldName :: FieldName a -> FieldName b -> Maybe (a :~: b)
 eqFieldName FieldFreebaseIds FieldFreebaseIds = Just Refl
 eqFieldName FieldText FieldText = Just Refl
@@ -170,7 +174,7 @@ data QueryNode = ConstNode { value :: Parametric Double }
                | FeatureNode { featureName  :: FeatureName
                              , child        :: QueryNode
                              }
-               | forall term. (Show term) =>
+               | forall term. (Show term, ToJSON term, FromJSON term) =>
                  RetrievalNode { name           :: Maybe QueryNodeName
                                , retrievalModel :: RetrievalModel
                                , field          :: FieldName term
@@ -327,8 +331,8 @@ instance ToJSON QueryNode where
         $ withName name
         [ "type"          .= str "retrieval_model"
         , "model"         .= retrievalModel
-        --, "field"         .= field
-        --, "terms"         .= [] -- TODO
+        , "field"         .= field
+        , "terms"         .= terms
         , "record_output" .= recordOutput
         ]
 
