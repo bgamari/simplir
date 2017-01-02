@@ -57,6 +57,7 @@ import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
 import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
+import qualified SimplIR.TREC as Robust
 import SimplIR.RetrievalModels.QueryLikelihood as QL
 
 import ReadKba
@@ -82,20 +83,29 @@ inputFiles =
 
 type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 
+documentSource :: Parser DocumentSource
+documentSource =
+    option (str >>= parseIt) (short 'f' <> long "format" <> help "document source format")
+  where
+    parseIt "kba"    = pure kbaDocuments
+    parseIt "robust" = pure robustDocuments
+    parseIt "test"   = pure testDocuments
+    parseIt _        = fail "unknown document source format"
+
 streamMode :: Parser (IO ())
 streamMode =
     scoreStreaming
       <$> optQueryFile
       <*> optParamsFile
       <*> optional (option (Fac.diskIndexPaths <$> str)
-                           (metavar "DIR" <> long "fac-index" <> short 'f'))
+                           (metavar "DIR" <> long "fac-index" <> short 'F'))
       <*> option auto (metavar "N" <> long "count" <> short 'n')
       <*> option (corpusStatsPaths <$> str)
                  (metavar "PATH" <> long "stats" <> short 's'
                  <> help "background corpus statistics index")
       <*> option str (metavar "PATH" <> long "output" <> short 'o'
                       <> help "output file name")
-      <*> pure kbaDocuments  -- testDocuments
+      <*> documentSource
       <*> inputFiles
 
 mergeCorpusStatsMode :: Parser (IO ())
@@ -112,7 +122,7 @@ corpusStatsMode =
       <$> optQueryFile
       <*> option (corpusStatsPaths <$> str) (metavar "FILE" <> long "output" <> short 'o'
                                              <> help "output file path")
-      <*> pure kbaDocuments  -- testDocuments
+      <*> documentSource
       <*> inputFiles
 
 modes :: Parser (IO ())
@@ -462,8 +472,7 @@ instance Monoid DocumentFrequency where
     mempty = DocumentFrequency 0
     DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
 
-testDocuments :: [DataSource]
-              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+testDocuments :: DocumentSource
 testDocuments dsrcs =
     mapM_ (\src -> do
                 xs <- lift $ P.T.toLazyM $ void $ P.T.E.decodeUtf8 $ dataSource src
@@ -475,10 +484,18 @@ testDocuments dsrcs =
                 mapM_ yield docs
           ) dsrcs
 
+robustDocuments :: DocumentSource
+robustDocuments dsrcs =
+    mapM_ (\src -> do
+                liftIO $ hPutStrLn stderr $ show src
+                let toDoc d = ( ( getFilePath $ dsrcLocation src
+                                , DocName $ Utf8.fromText $ Robust.docNo d)
+                              , Robust.docText d
+                              )
+                Robust.trecDocuments' (P.T.E.decodeUtf8 $ dataSource src) >-> P.P.map toDoc
+          ) dsrcs
 
-
-kbaDocuments :: [DataSource]
-             -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+kbaDocuments :: DocumentSource
 kbaDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
