@@ -159,7 +159,7 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
             newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
             newScorer' = middle $ \scorer -> scorer step
 
-            docSorted = sortBy (comparing $ \(_,score,_) -> score)
+            docSorted = sortBy (flip $ comparing $ \(_,score,_) -> score)
 
         cachedScoredRankings :: M.Map qid [(a, Step -> Score, relevance)]
         cachedScoredRankings =
@@ -168,7 +168,7 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
             newScorer :: FRanking relevance a -> [(a, Step -> Score, relevance)]
             newScorer = docSorted . map (middle (\f -> scoreStepOracle w f))
 
-            docSorted = sortBy (comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)
+            docSorted = sortBy (flip $ comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)
 
 middle :: (b->b') -> (a, b, c) -> (a,b',c)
 middle fun (a, b, c) = (a, fun b, c)
