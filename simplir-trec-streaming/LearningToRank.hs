@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
@@ -63,7 +64,9 @@ readQRel fname =
         [queryId, _dump, docId, relevance] ->
           let rel = case relevance of "0" -> NotRelevant
                                       _   -> Relevant
-          in Just (QueryId $ T.pack queryId, DocName $ Utf8.fromString docId, rel)
+              !qid = QueryId $ T.pack queryId
+              !docName = DocName $ Utf8.fromString docId
+          in Just (qid, docName, rel)
 
         _ -> Nothing
 
