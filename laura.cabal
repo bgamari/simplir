@@ -93,6 +93,8 @@ library
       vector-th-unbox >= 0.2,
       primitive,
       optparse-applicative >= 0.12,
+      random,
+      random-shuffle,
 
       monad-control,
       process,

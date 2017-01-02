@@ -23,6 +23,8 @@ module SimplIR.LearningToRank
 import Data.Ord
 import Data.List
 import Data.Maybe
+import qualified System.Random as Random
+import System.Random.Shuffle
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as V
 
@@ -120,21 +122,27 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
     scoreTerm dim off = (off + w' V.! dim) * (f' V.! dim)
     !score0 = w `dot` f
 
-coordAscent :: forall a qid relevance. ()
-            => ScoringMetric relevance qid a
+coordAscent :: forall a qid relevance gen. (Random.RandomGen gen)
+            => gen
+            -> ScoringMetric relevance qid a
             -> Features -- ^ initial weights
             -> M.Map qid (FRanking relevance a)
             -> [(Score, Features)]
-coordAscent scoreRanking w0 fRankings = iterate go (0, w0)
+coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
   where
+    score0 = scoreRanking $ fmap (weightRanking w0) fRankings
     dim = featureDim w0
     deltas = [ f x
              | x <- [0.001, 0.01, 0.1, 1, 10, 100, 1000]
              , f <- [id, negate]
              ] ++ [0]
 
-    go :: (Score, Features) -> (Score, Features)
-    go w = foldl' updateDim w [0..dim-1]
+    go :: gen -> (Score, Features) -> [(Score, Features)]
+    go gen w = w' : go gen' w'
+      where
+        w' = foldl' updateDim w dims
+        dims = shuffle' [0..dim-1] dim g
+        (g, gen') = Random.split gen
 
     updateDim :: (Score, Features) -> Int -> (Score, Features)
     updateDim (_, w) dim =

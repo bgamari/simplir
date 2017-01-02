@@ -4,7 +4,6 @@
 module Main where
 
 import Control.Monad (join, when)
-import Data.Function (on)
 import Data.Foldable
 import Data.Monoid
 import Data.Maybe
@@ -16,6 +15,8 @@ import qualified Data.Text as T
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Yaml as Yaml
+
+import System.Random
 
 import qualified Data.SmallUtf8 as Utf8
 import Query
@@ -125,6 +126,7 @@ train queriesPath qrelPath resultsPath = do
         totalRel' qid = M.findWithDefault 0 qid totalRel
 
     when (all (== 0) totalRel) $ fail "Error: No relevant documents"
+    gen <- newStdGen
 
     let initWeights :: Features
         initWeights = Features $ VU.convert $ V.map (const 1) featureNames
@@ -133,7 +135,7 @@ train queriesPath qrelPath resultsPath = do
         untilConverged eq xs = map snd $ takeWhile (\(a,b) -> not $ a `eq` b) $ zip xs (tail xs)
 
         iterates = untilConverged (\(a,_) (b,_) -> abs (a-b) < 1e-8)
-                   $ coordAscent (meanAvgPrec totalRel' Relevant) initWeights fRankings
+                   $ coordAscent gen (meanAvgPrec totalRel' Relevant) initWeights fRankings
         (evalScore, weights) = last iterates
 
     mapM_ print $ take 100 iterates
