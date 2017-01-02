@@ -1,8 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Main where
 
-import Control.Monad (join)
+import Control.Monad (join, when)
+import Data.Function (on)
 import Data.Monoid
 import Data.Maybe
 
@@ -59,10 +61,12 @@ readQRel fname =
     parseLine :: String -> Maybe (QueryId, DocumentName, IsRelevant)
     parseLine line =
       case words line of
-        [queryId, dump, docId, relevance] ->
+        [queryId, _dump, docId, relevance] ->
           let rel = case relevance of "0" -> NotRelevant
                                       _   -> Relevant
-          in Just (QueryId $ T.pack queryId, DocName $ Utf8.fromString docId, rel)
+              !qid = QueryId $ T.pack queryId
+              !docName = DocName $ Utf8.fromString docId
+          in Just (qid, docName, rel)
 
         _ -> Nothing
 
@@ -113,14 +117,20 @@ train queriesPath qrelPath resultsPath = do
     let totalRelInFRanking :: FRanking IsRelevant DocumentName -> TotalRel
         totalRelInFRanking =
             length . filter (\(_, _, rel) -> rel == Relevant)
+        fRankings' = fmap (\fr -> (fr, totalRelInFRanking fr)) fRankings
 
-
+    when (all (\(_, nRel) -> nRel == 0) fRankings')
+        $ fail "Error: No relevant documents"
     let initWeights :: Features
         initWeights = Features $ VU.convert $ V.map (const 1) featureNames
-        (evalScore, weights) = (!! 100) iterates
-        iterates = coordAscent (meanAvgPrec Relevant) initWeights
-                               (fmap (\fr -> (fr, totalRelInFRanking fr)) fRankings)
 
-    print $ take 100 iterates
+        untilConverged :: (a -> a -> Bool) ->  [a] -> [a]
+        untilConverged eq xs = map snd $ takeWhile (\(a,b) -> not $ a `eq` b) $ zip xs (tail xs)
+
+        iterates = untilConverged ((==) `on` fst)
+                   $ coordAscent (meanAvgPrec Relevant) initWeights fRankings'
+        (evalScore, weights) = last iterates
+
+    mapM_ print $ take 100 iterates
     print weights
-    return ()
+    print evalScore
