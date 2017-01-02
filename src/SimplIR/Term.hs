@@ -12,7 +12,10 @@ import qualified Data.SmallUtf8 as Utf8
 import Data.Aeson (FromJSON, ToJSON)
 
 newtype Term = Term Utf8.SmallUtf8
-             deriving (Eq, Ord, Show, NFData, Hashable, IsString, Binary, FromJSON, ToJSON)
+             deriving (Eq, Ord, NFData, Hashable, IsString, Binary, FromJSON, ToJSON)
+
+instance Show Term where
+    showsPrec _ (Term s) = showString "fromString " . shows (Utf8.toString s)
 
 fromText :: T.Text -> Term
 fromText = Term . Utf8.fromText
