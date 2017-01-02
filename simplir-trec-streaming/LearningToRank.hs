@@ -46,27 +46,6 @@ extractFeaturesFromDocument defaultFeature features doc =
                 fromResult (Aeson.Success x) = x
     in Features $ VU.convert $ fmap lookupFeature features
 
--- extractFeatures :: V.Vector FeatureName -> [ScoredDocument]
---                 -> M.Map DocumentName (VU.Vector Double)
--- extractFeatures features = foldMap extractDoc
---   where
---     extractDoc = \doc ->
---         M.singleton (docName $ scoredDocumentInfo doc) (extract doc)
---       where extract = extractFeaturesFromDocument defaultFeatures features
---     defaultFeatures fn = -1000
-
-queryFeatures :: QueryNode -> V.Vector FeatureName
-queryFeatures = V.fromList . go
-  where
-    go ConstNode{}       = []
-    go DropNode          = []
-    go SumNode{..}       = foldMap go children
-    go ProductNode{..}   = foldMap go children
-    go ScaleNode{..}     = go child
-    go FeatureNode{..}   = [featureName]
-    go RetrievalNode{..} = []
-    go CondNode{..}      = go trueChild ++ go falseChild
-
 readQRel :: FilePath -> IO (M.Map QueryId (M.Map DocumentName IsRelevant))
 readQRel fname =
     toMap . mapMaybe parseLine . lines <$> readFile fname
@@ -101,7 +80,7 @@ train :: FilePath -> FilePath -> FilePath -> IO ()
 train queriesPath qrelPath resultsPath = do
     qs <- readQueries queriesPath
     let featureNames :: V.Vector FeatureName
-        featureNames = foldMap queryFeatures qs
+        featureNames = V.fromList $ S.toList $ foldMap queryFeatures qs
 
     Just (Results allScoredDocs) <- Yaml.decodeFile resultsPath :: IO (Maybe Results)
 

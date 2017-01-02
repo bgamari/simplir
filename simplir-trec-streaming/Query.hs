@@ -25,6 +25,7 @@ module Query
     , FeatureName(..)
     , recordedFeatureName
     , featureParameterName
+    , queryFeatures
       -- * Query tree
     , QueryNode(..)
     , collectFieldTerms
@@ -38,7 +39,8 @@ import Data.Monoid
 import Data.Aeson
 import qualified Data.Vector as V
 import qualified Data.Text as T
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import qualified Data.Aeson.Types as Aeson
 import Data.Type.Equality
 import Data.Text (Text)
@@ -288,19 +290,6 @@ instance FromJSON QueryNode where
               "if"            -> ifNode
               _               -> fail "Unknown node type"
 
-collectFieldTerms :: FieldName term -> QueryNode -> [term]
-collectFieldTerms _ ConstNode {}       = []
-collectFieldTerms _ DropNode {}        = []
-collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
-collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
-collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
-collectFieldTerms f FeatureNode {..}   = collectFieldTerms f child
-collectFieldTerms f RetrievalNode {..}
-  | Just Refl <- field `eqFieldName` f = map fst $ toList terms
-  | otherwise                          = []
-collectFieldTerms f CondNode {..}      = collectFieldTerms f trueChild
-                                      <> collectFieldTerms f falseChild
-
 instance ToJSON QueryNode where
     toJSON (ConstNode {..}) = object
         [ "type"     .= str "constant"
@@ -351,12 +340,38 @@ instance ToJSON QueryNode where
         , "true_child"    .= trueChild
         ]
 
-str :: String -> String
-str = id
-
 withName :: Maybe QueryNodeName -> [Aeson.Pair] -> [Aeson.Pair]
 withName (Just name) = (("name" .= name) :)
 withName _           = id
+
+collectFieldTerms :: FieldName term -> QueryNode -> [term]
+collectFieldTerms _ ConstNode {}       = []
+collectFieldTerms _ DropNode {}        = []
+collectFieldTerms f SumNode {..}       = foldMap (collectFieldTerms f) children
+collectFieldTerms f ProductNode {..}   = foldMap (collectFieldTerms f) children
+collectFieldTerms f ScaleNode {..}     = collectFieldTerms f child
+collectFieldTerms f FeatureNode {..}   = collectFieldTerms f child
+collectFieldTerms f RetrievalNode {..}
+  | Just Refl <- field `eqFieldName` f = map fst $ toList terms
+  | otherwise                          = []
+collectFieldTerms f CondNode {..}      = collectFieldTerms f trueChild
+                                      <> collectFieldTerms f falseChild
+
+queryFeatures :: QueryNode -> S.Set FeatureName
+queryFeatures = go
+  where
+    go :: QueryNode -> S.Set FeatureName
+    go ConstNode{}       = mempty
+    go DropNode          = mempty
+    go SumNode{..}       = foldMap go children
+    go ProductNode{..}   = foldMap go children
+    go ScaleNode{..}     = go child
+    go FeatureNode{..}   = S.singleton featureName
+    go RetrievalNode{..} = mempty
+    go CondNode{..}      = go trueChild <> go falseChild
+
+str :: String -> String
+str = id
 
 -- TODO This doesn't really belong here
 kbaTokenise :: T.Text -> [(T.Text, Position)]
