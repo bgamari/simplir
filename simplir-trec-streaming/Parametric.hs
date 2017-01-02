@@ -17,6 +17,8 @@ module Parametric
 import Control.Monad (void)
 import Control.Applicative
 import Data.Foldable (toList)
+import Data.String (IsString)
+
 import Data.Aeson
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -32,6 +34,12 @@ instance FromJSON a => FromJSON (Parameters a) where
         param = withObject "parameter" $ \o -> (,) <$> o .: "name"
                                                    <*> o .: "value"
 
+instance ToJSON a => ToJSON (Parameters a) where
+    toJSON (Parameters ps) =
+        toJSON [ object [ "name" .= k, "value" .= v ]
+               | (k,v) <- M.toList ps
+               ]
+
 newtype ParamSets = ParamSets { getParamSets :: M.Map ParamSettingName (Parameters Double) }
                   deriving (Show)
 
@@ -41,11 +49,17 @@ instance FromJSON ParamSets where
       where paramSet = withObject "parameter set" $ \o ->
               (,) <$> o .: "name" <*> o .: "params"
 
+instance ToJSON ParamSets where
+    toJSON (ParamSets ps) =
+        toJSON [ object [ "name" .= k, "params" .= v ]
+               | (k,v) <- M.toList ps
+               ]
+
 newtype ParamSettingName = ParamSettingName Text
-                         deriving (Show, Eq, Ord, ToJSON, FromJSON)
+                         deriving (Show, Eq, Ord, ToJSON, FromJSON, IsString)
 
 newtype ParamName = ParamName Text
-                  deriving (Show, Eq, Ord, ToJSON)
+                  deriving (Show, Eq, Ord, ToJSON, IsString)
 
 instance FromJSON ParamName where
     parseJSON = withText "parameter name" $ pure . ParamName
