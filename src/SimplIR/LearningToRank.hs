@@ -8,6 +8,8 @@ module SimplIR.LearningToRank
     , TotalRel
     , Rankings
     , Features(..)
+      -- * Computing rankings
+    , weightRanking
       -- * Scoring metrics
     , ScoringMetric
     , meanAvgPrec
@@ -21,7 +23,6 @@ module SimplIR.LearningToRank
 import Data.Ord
 import Data.List
 import Data.Maybe
-import Data.Bifunctor
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as V
 
@@ -38,21 +39,22 @@ type Ranking relevance a = [(a, Score, relevance)]
 type TotalRel = Int
 
 -- | A collection of rankings for a set of queries.
-type Rankings rel qid a = M.Map qid (Ranking rel a, TotalRel)
+type Rankings rel qid a = M.Map qid (Ranking rel a)
+
 type ScoringMetric rel qid a = Rankings rel qid a -> Double
 
 
 meanAvgPrec :: (Ord rel)
-            => rel -> ScoringMetric rel qid a
-meanAvgPrec relThresh rankings =
-    mean (mapMaybe (avgPrec relThresh) (M.elems rankings))
+            => (qid -> TotalRel) -> rel -> ScoringMetric rel qid a
+meanAvgPrec totalRel relThresh rankings =
+    mean (mapMaybe (\(qid, ranking) -> avgPrec relThresh (totalRel qid) ranking) (M.toList rankings))
 
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
 avgPrec :: forall rel a. (Ord rel)
-        => rel -> (Ranking rel a, TotalRel) -> Maybe Double
-avgPrec relThresh (ranking, totalRel)
+        => rel -> TotalRel -> Ranking rel a -> Maybe Double
+avgPrec relThresh totalRel ranking
   | totalRel == 0 = Nothing
   | otherwise =
     let (_, relAtR) = mapAccumL numRelevantAt 0 rels
@@ -89,6 +91,14 @@ type FRanking relevance a = [(a, Features, relevance)]
 dot :: Features -> Features -> Double
 dot (Features v) (Features u) = V.sum $ V.zipWith (*) v u
 
+-- | Re-rank a set of documents given a weight vector.
+weightRanking :: Features -> FRanking rel a -> Ranking rel a
+weightRanking weight fRanking =
+    sortBy (flip $ comparing $ \(_,s,_) -> s)
+    [ (doc, weight `dot` feats, rel)
+    | (doc, feats, rel) <- fRanking
+    ]
+
 data Step = Step Int Double
 
 zeroStep :: Step
@@ -113,7 +123,7 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
 coordAscent :: forall a qid relevance. ()
             => ScoringMetric relevance qid a
             -> Features -- ^ initial weights
-            -> M.Map qid (FRanking relevance a, TotalRel)
+            -> M.Map qid (FRanking relevance a)
             -> [(Score, Features)]
 coordAscent scoreRanking w0 fRankings = iterate go (0, w0)
   where
@@ -136,16 +146,16 @@ coordAscent scoreRanking w0 fRankings = iterate go (0, w0)
       where
         scoreStep :: Step -> Score
         scoreStep step =
-            scoreRanking $ fmap (first (docSorted . map newScorer')) cachedScoredRankings
+            scoreRanking $ fmap (docSorted . map newScorer') cachedScoredRankings
           where
             newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
             newScorer' = middle $ \scorer -> scorer step
 
             docSorted = sortBy (comparing $ \(_,score,_) -> score)
 
-        cachedScoredRankings :: M.Map qid ([(a, Step -> Score, relevance)], TotalRel)
+        cachedScoredRankings :: M.Map qid [(a, Step -> Score, relevance)]
         cachedScoredRankings =
-            fmap (first newScorer) fRankings
+            fmap newScorer fRankings
           where
             newScorer :: FRanking relevance a -> [(a, Step -> Score, relevance)]
             newScorer = docSorted . map (middle (\f -> scoreStepOracle w f))
@@ -183,12 +193,12 @@ rankingC =
     , ("T!", 10, Relevant)
     ]
 
-testFeatures :: M.Map Char (FRanking IsRelevant DocId, Int)
+testFeatures :: M.Map Char (FRanking IsRelevant DocId)
 testFeatures =
-    fmap (first $ map toFeatures) testRankings
+    fmap (map toFeatures) testRankings
   where
     toFeatures (a,b,c) = (a, Features $ V.fromList [1,b], c)
 
-testRankings :: M.Map Char (TestRanking, Int)
+testRankings :: M.Map Char TestRanking
 testRankings =
-    M.fromList $ zip ['a'..] $ zip [rankingA, rankingB, rankingC] (repeat 10)
+    M.fromList $ zip ['a'..] [rankingA, rankingB, rankingC]

@@ -5,6 +5,7 @@ module Main where
 
 import Control.Monad (join, when)
 import Data.Function (on)
+import Data.Foldable
 import Data.Monoid
 import Data.Maybe
 
@@ -115,22 +116,41 @@ train queriesPath qrelPath resultsPath = do
 
 
     let totalRelInFRanking :: FRanking IsRelevant DocumentName -> TotalRel
-        totalRelInFRanking =
-            length . filter (\(_, _, rel) -> rel == Relevant)
-        fRankings' = fmap (\fr -> (fr, totalRelInFRanking fr)) fRankings
+        totalRelInFRanking = length . filter (\(_, _, rel) -> rel == Relevant)
 
-    when (all (\(_, nRel) -> nRel == 0) fRankings')
-        $ fail "Error: No relevant documents"
+        totalRel :: M.Map QueryId TotalRel
+        totalRel = fmap totalRelInFRanking fRankings
+
+        totalRel' :: QueryId -> TotalRel
+        totalRel' qid = M.findWithDefault 0 qid totalRel
+
+    when (all (== 0) totalRel) $ fail "Error: No relevant documents"
+
     let initWeights :: Features
         initWeights = Features $ VU.convert $ V.map (const 1) featureNames
 
         untilConverged :: (a -> a -> Bool) ->  [a] -> [a]
         untilConverged eq xs = map snd $ takeWhile (\(a,b) -> not $ a `eq` b) $ zip xs (tail xs)
 
-        iterates = untilConverged ((==) `on` fst)
-                   $ coordAscent (meanAvgPrec Relevant) initWeights fRankings'
+        iterates = untilConverged (\(a,_) (b,_) -> abs (a-b) < 1e-8)
+                   $ coordAscent (meanAvgPrec totalRel' Relevant) initWeights fRankings
         (evalScore, weights) = last iterates
 
     mapM_ print $ take 100 iterates
     print weights
     print evalScore
+
+
+    let perFeatureScores :: M.Map FeatureName Score
+        perFeatureScores =
+            fmap (\w -> meanAvgPrec totalRel' Relevant $ fmap (w `weightRanking`) fRankings) oneVectors
+
+        oneVectors :: M.Map FeatureName Features
+        oneVectors = fold
+            [ M.singleton featName ( Features $ VU.convert
+                                   $ V.imap (\i' _ -> if i == i' then 1 else 0) featureNames
+                                   )
+            | (i, featName) <- toList $ V.indexed featureNames
+            ]
+
+    print perFeatureScores
