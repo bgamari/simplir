@@ -6,7 +6,6 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.Yaml as Yaml
 
-import Types
 import Query
 import Parametric
 
@@ -28,4 +27,4 @@ readParameters :: ParamsFile -> IO (M.Map ParamSettingName (Parameters Double))
 readParameters fname = do
     either paramDecodeError (pure . getParamSets) =<< Yaml.decodeFileEither fname
   where
-    paramDecodeError exc = fail $ "Failed to read parameters file "
+    paramDecodeError exc = fail $ "Failed to read parameters file: "++show exc
