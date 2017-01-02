@@ -22,6 +22,7 @@ import System.Random
 import qualified Data.SmallUtf8 as Utf8
 import Query
 import SimplIR.LearningToRank
+import Parametric
 import Types
 import SimplIR.Types
 import Utils
@@ -81,6 +82,8 @@ options =
       <*> option str (short 'f' <> long "features" <> metavar "FILE" <> help "A feature file")
       <*> option str (short 's' <> long "splits" <> metavar "FILE" <> help "A query split file")
       <*> option (FoldName <$> str) (long "fold" <> metavar "SPLIT" <> help "test fold number")
+      <*> optional (option str (short 'o' <> long "output" <> metavar "FILE"
+                                <> help "Output parameters file"))
 
 newtype FoldName = FoldName String
                  deriving (Eq, Ord, Show)
@@ -99,8 +102,9 @@ readSplits splitsPath foldNumber = do
     parseLine (foldN:qs) = Just (FoldName foldN, S.fromList $ map (QueryId . T.pack) qs)
     parseLine []        = Nothing
 
-train :: FilePath -> FilePath -> FilePath -> FilePath -> FoldName -> IO ()
-train queriesPath qrelPath resultsPath splitsPath foldName = do
+train :: FilePath -> FilePath -> FilePath -> FilePath -> FoldName
+      -> Maybe FilePath -> IO ()
+train queriesPath qrelPath resultsPath splitsPath foldName outputParamsPath = do
     qs <- readQueries queriesPath
     (trainQueryIds, testQueryIds) <- readSplits splitsPath foldName
 
@@ -171,6 +175,18 @@ train queriesPath qrelPath resultsPath splitsPath foldName = do
                    $ coordAscent gen (meanAvgPrec totalRel' Relevant) initWeights fRankings
         (evalScore, weights) = last iterates
 
+    -- write out parameters
+    let paramSettingName = ParamSettingName $ T.pack "fold-"<>foldName'
+          where foldName' = case foldName of FoldName name -> T.pack name
+        params = ParamSets $ M.singleton paramSettingName $ Parameters $ M.unions
+            [ M.singleton paramName val
+            | (featName, val) <- zip (V.toList featureNames)
+                                     -- denormalize weights for retrieval engine
+                                     (case denormWeights norm weights of Features ws -> VU.toList ws)
+            , let paramName = featureParameterName featName
+            ]
+    forM_ outputParamsPath $ \output -> Yaml.encodeFile output params
+
     mapM_ print $ take 100 iterates
     print weights
     putStrLn $ "train eval score: " ++ show evalScore
@@ -179,7 +195,6 @@ train queriesPath qrelPath resultsPath splitsPath foldName = do
     let testEvalScore = meanAvgPrec totalRel' Relevant
                       $ fmap (weights `weightRanking`) testFRankings
     putStrLn $ "test eval score:  " ++ show testEvalScore
-
 
     let perFeatureScores :: M.Map FeatureName Score
         perFeatureScores =
