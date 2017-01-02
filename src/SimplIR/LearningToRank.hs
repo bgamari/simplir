@@ -117,9 +117,9 @@ coordAscent scoreRanking w0 fRankings = iterate go (0, w0)
   where
     dim = featureDim w0
     deltas = [ f x
-             | x <- [10, 1, 0.1, 0.01, 0.001]
+             | x <- [0.001, 0.01, 0.1, 1, 10, 100, 1000]
              , f <- [id, negate]
-             ]
+             ] ++ [0]
 
     go :: (Score, Features) -> (Score, Features)
     go w = foldl' updateDim w [0..dim-1]
