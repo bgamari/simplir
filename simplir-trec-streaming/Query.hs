@@ -182,6 +182,11 @@ data QueryNode = ConstNode { value :: Parametric Double }
                | FeatureNode { featureName  :: FeatureName
                              , child        :: QueryNode
                              }
+               | CondNode { predicateTerms   :: V.Vector (TokenOrPhrase Term)
+                          , predicateNegated :: Bool
+                          , trueChild        :: QueryNode
+                          , falseChild       :: QueryNode
+                          }
                | forall term. (Show term, ToJSON term, FromJSON term) =>
                  RetrievalNode { name           :: Maybe QueryNodeName
                                , retrievalModel :: RetrievalModel
@@ -189,12 +194,6 @@ data QueryNode = ConstNode { value :: Parametric Double }
                                , terms          :: V.Vector (term, Double)
                                , recordOutput   :: Maybe RecordedValueName
                                }
-
-               | CondNode { predicateTerms   :: V.Vector (TokenOrPhrase Term)
-                          , predicateNegated :: Bool
-                          , trueChild        :: QueryNode
-                          , falseChild       :: QueryNode
-                          }
 
 deriving instance Show QueryNode
 
@@ -246,6 +245,12 @@ instance FromJSON QueryNode where
               <$> o .: "name"
               <*> o .: "child"
 
+          ifNode =
+              CondNode <$> o .: "terms"
+                       <*> o .:? "negated" .!= False
+                       <*> o .: "true_child"
+                       <*> o .: "false_child"
+
           retrievalNode = do
               fieldName <- o .: "field"
               let parseTerms :: FromJSON term => Aeson.Parser (V.Vector (term, Double))
@@ -273,11 +278,6 @@ instance FromJSON QueryNode where
                                     <*> pure terms'
                                     <*> record
                   _             -> fail $ "Unknown field name "++fieldName
-          ifNode =
-              CondNode <$> o .: "terms"
-                       <*> o .:? "negated" .!= False
-                       <*> o .: "true_child"
-                       <*> o .: "false_child"
 
       in do ty <- o .: "type"
             case ty :: String of
@@ -286,8 +286,8 @@ instance FromJSON QueryNode where
               "drop"          -> pure DropNode
               "scale"         -> scaleNode
               "feature"       -> featureNode
-              "scoring_model" -> retrievalNode
               "if"            -> ifNode
+              "scoring_model" -> retrievalNode
               _               -> fail "Unknown node type"
 
 instance ToJSON QueryNode where
@@ -322,6 +322,13 @@ instance ToJSON QueryNode where
         , "name"          .= featureName
         , "child"         .= child
         ]
+    toJSON (CondNode {..}) = object
+        [ "type"          .= str "if"
+        , "terms"         .= predicateTerms
+        , "negated"       .= predicateNegated
+        , "false_child"   .= falseChild
+        , "true_child"    .= trueChild
+      ]
     toJSON (RetrievalNode {..}) = object
         $ withName name
         [ "type"          .= str "scoring_model"
@@ -330,14 +337,6 @@ instance ToJSON QueryNode where
         , "terms"         .= [ object [ "term" .= t, "weight" .= w ]
                              | (t,w) <- toList terms ]
         , "record_output" .= recordOutput
-        ]
-
-    toJSON (CondNode {..}) = object
-        [ "type"          .= str "if"
-        , "terms"         .= predicateTerms
-        , "negated"       .= predicateNegated
-        , "false_child"   .= falseChild
-        , "true_child"    .= trueChild
         ]
 
 withName :: Maybe QueryNodeName -> [Aeson.Pair] -> [Aeson.Pair]
