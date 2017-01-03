@@ -59,8 +59,12 @@ newtype QueryId = QueryId Text
 newtype WikiId = WikiId Text
                deriving (Show, Eq, Ord, ToJSON, FromJSON)
 
-deriving instance ToJSON Score
-deriving instance FromJSON Score
+instance ToJSON (Log Double) where
+    toJSON x = toJSON (realToFrac x :: Double)
+    toEncoding x = toEncoding (realToFrac x :: Double)
+
+instance FromJSON (Log Double) where
+    parseJSON = withScientific "log double" $ pure . realToFrac
 
 newtype Queries = Queries { getQueries :: M.Map QueryId QueryNode }
 
