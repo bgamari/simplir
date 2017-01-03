@@ -45,7 +45,6 @@ import qualified Data.Aeson.Types as Aeson
 import Data.Type.Equality
 import Data.Text (Text)
 
-import Numeric.Log
 import Numeric.Log.Scientific () -- for instances
 import SimplIR.Types (TokenOrPhrase(..), Position)
 import SimplIR.Term as Term
@@ -178,6 +177,7 @@ data QueryNode = ConstNode { value :: Parametric Double }
                  -- | A feature for learning-to-rank. The value of the child node is recorded as a feature and the
                  -- weight is loaded from the parameter set. Both are identified by 'featureName'.
                | FeatureNode { featureName  :: FeatureName
+                             , isLog        :: Bool
                              , child        :: QueryNode
                              }
                | CondNode { predicateTerms   :: V.Vector (TokenOrPhrase Term)
@@ -241,6 +241,7 @@ instance FromJSON QueryNode where
 
           featureNode = FeatureNode
               <$> o .: "name"
+              <*> o .: "isLog"
               <*> o .: "child"
 
           ifNode =
@@ -318,6 +319,7 @@ instance ToJSON QueryNode where
     toJSON (FeatureNode {..}) = object
         [ "type"          .= str "feature"
         , "name"          .= featureName
+        , "isLog"         .= isLog
         , "child"         .= child
         ]
     toJSON (CondNode {..}) = object

@@ -18,7 +18,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import GHC.Generics
-import Numeric.Log
+import Numeric.Log.Signed
 
 import           SimplIR.Term (Term)
 import           SimplIR.Types
@@ -26,6 +26,9 @@ import           SimplIR.RetrievalModels.QueryLikelihood (Score)
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import Query
 import Parametric
+
+-- | Signed document score.
+type SScore = SignedLog Double
 
 newtype Results = Results (M.Map (QueryId, ParamSettingName) [ScoredDocument])
                 deriving (Show)
@@ -69,7 +72,7 @@ instance FromJSON Results where
                     M.singleton (QueryId qid, ParamSettingName pset) <$> parseJSON sdoc
             _ -> fail "Results: Expected parameter sets"
 
-data ScoredDocument = ScoredDocument { scoredRankScore      :: !Score
+data ScoredDocument = ScoredDocument { scoredRankScore      :: !SScore
                                      , scoredDocumentInfo   :: !DocumentInfo
                                        -- these are left lazy to reduce intermediate allocations of these maps since
                                        -- they are filtered from the document postings
@@ -90,7 +93,7 @@ instance ToJSON ScoredDocument where
         [ "doc_name"     .= docName
         , "length"       .= docLength
         , "archive"      .= docArchive
-        , "score"        .= ln scoredRankScore
+        , "score"        .= scoredRankScore
         , "postings"     .= [ object ["term" .= term, "positions" .= positions]
                             | (term, positions) <- M.toAscList scoredTermPositions
                             ]
@@ -104,7 +107,7 @@ instance ToJSON ScoredDocument where
          $ "doc_name"     .= docName
         <> "length"       .= docLength
         <> "archive"      .= docArchive
-        <> "score"        .= ln scoredRankScore
+        <> "score"        .= scoredRankScore
         <> "postings"     .= [ object ["term" .= term, "positions" .= positions]
                              | (term, positions) <- M.toAscList scoredTermPositions
                              ]
@@ -124,7 +127,7 @@ instance FromJSON ScoredDocument where
         entities <- o .: "entities"
         recordedValues <- o .: "recorded_values" >>= parseMap (pure . RecordedValueName) parseJSON
         ScoredDocument
-            <$> fmap Exp (o .: "score")
+            <$> o .: "score"
             <*> pure (DocInfo {..})
             <*> withArray "postings" parsePostings postings
             <*> parseEntities entities
