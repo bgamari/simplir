@@ -46,6 +46,7 @@ import Data.Type.Equality
 import Data.Text (Text)
 
 import Numeric.Log
+import Numeric.Log.Scientific () -- for instances
 import SimplIR.Types (TokenOrPhrase(..), Position)
 import SimplIR.Term as Term
 import SimplIR.Tokenise
@@ -58,13 +59,6 @@ newtype QueryId = QueryId Text
 
 newtype WikiId = WikiId Text
                deriving (Show, Eq, Ord, ToJSON, FromJSON)
-
-instance ToJSON (Log Double) where
-    toJSON x = toJSON (realToFrac x :: Double)
-    toEncoding x = toEncoding (realToFrac x :: Double)
-
-instance FromJSON (Log Double) where
-    parseJSON = withScientific "log double" $ pure . realToFrac
 
 newtype Queries = Queries { getQueries :: M.Map QueryId QueryNode }
 
