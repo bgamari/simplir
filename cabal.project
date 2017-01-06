@@ -7,6 +7,12 @@ packages:
     simplir-*/*.cabal
     vendor/*/*.cabal
 
+    /opt/exp/ghc/ghc-dwarf/libraries/parallel
+    /opt/exp/haskell-packages/{constraints,vector,lens,hashable-extras}
+
+constraints:
+    pipes-safe == 2.2.5
+
 profiling-detail: exported-functions
 flags: -test-doctests
 tests: false

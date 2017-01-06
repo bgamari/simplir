@@ -28,6 +28,7 @@ library
       BTree.File
       Data.SmallUtf8
       Data.Trie
+      Numeric.Log.Scientific
       Control.Foldl.Map
       SimplIR.BinaryFile
       SimplIR.DiskIndex
@@ -86,6 +87,7 @@ library
       hashable >= 1.2 && <1.3,
       logging-facade >= 0.1 && <0.2,
       log-domain,
+      scientific,
       dlist >= 0.7,
       profunctors >= 5.1,
       foldl >= 1.1,
@@ -93,6 +95,8 @@ library
       vector-th-unbox >= 0.2,
       primitive,
       optparse-applicative >= 0.12,
+      random,
+      random-shuffle,
 
       monad-control,
       process,
