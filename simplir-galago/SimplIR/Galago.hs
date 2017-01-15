@@ -49,7 +49,7 @@ data Document = Document { docId       :: DocumentId
                          }
               deriving (Show, Generic)
 
-newtype MetadataFieldName = MetadataFieldName { unMetadataFieldName :: BS.ByteString }
+newtype MetadataFieldName = MetadataFieldName { unMetadataFieldName :: T.Text }
                           deriving (Show, Eq, Ord, Hashable, IsString)
 
 
@@ -74,21 +74,24 @@ test = [ Document { docId = "hello"
 toWarc :: [Document] -> BS.L.ByteString
 toWarc docs = P.BS.toLazy $ do
     Warc.encodeRecord
-        $ Warc.Record { recHeader  = Warc.RecordHeader Warc.warc0_16 [ Warc.ContentLength 0 ]
+        $ Warc.Record { recHeader  = Warc.addField Warc.contentLength 0
+                                     $ Warc.RecordHeader Warc.warc0_16 mempty
                       , recContent = return ()
                       }
     mapM_ (Warc.encodeRecord . toRecord) docs
 
 toRecord :: Document -> Warc.Record Identity ()
 toRecord (Document{..}) =
-    Warc.Record { recHeader = Warc.RecordHeader Warc.warc0_16 headers
+    Warc.Record { recHeader = addHeaders $ Warc.RecordHeader Warc.warc0_16 mempty
                 , recContent = P.BS.fromLazy $ content
                 }
   where
-    headers = [ Warc.OtherField "WARC-TREC-ID" (T.E.encodeUtf8 $ unDocumentId docId)
-              , Warc.ContentLength $ fromIntegral $ BS.L.length content
-              ] ++ map toMetadataField (M.toList docMetadata)
-    toMetadataField (MetadataFieldName k, v) = Warc.OtherField k (BS.L.toStrict v)
+    addHeaders hdr =
+        Warc.addField (Warc.rawField "WARC-TREC-ID") (T.L.E.encodeUtf8 $ T.L.fromStrict $ unDocumentId docId)
+      $ Warc.addField Warc.contentLength (fromIntegral $ BS.L.length content)
+      $ foldl addField hdr (M.toList docMetadata)
+    addField acc (MetadataFieldName k, v) =
+        Warc.addField (Warc.rawField $ Warc.FieldName k) v acc
 
     content :: BS.L.ByteString
     content = BS.B.toLazyByteString $ "<text>\n" <> foldMap toField (M.toList docFields) <> "</text>\n"
