@@ -44,7 +44,7 @@ data Tokenized = DoNotTokenize | DoTokenize
 
 data Document = Document { docId       :: DocumentId
                            -- | the 'Int' is a replication count to allow more efficient weighting.
-                         , docFields   :: M.Map FieldName (T.L.Text, Tokenized)
+                         , docFields   :: M.Map FieldName [(T.L.Text, Tokenized)]
                          , docMetadata :: M.Map MetadataFieldName BS.ByteString
                          }
               deriving (Show, Generic)
@@ -58,14 +58,14 @@ newtype FieldName = FieldName { unFieldName :: T.Text }
 
 test :: [Document]
 test = [ Document { docId = "hello"
-                  , docFields = M.fromList [ ("field1", ("hello", DoTokenize))
-                                           , ("field2", ("turtle", DoNotTokenize))
+                  , docFields = M.fromList [ ("field1", [("hello", DoTokenize)])
+                                           , ("field2", [("turtle", DoNotTokenize)])
                                            ]
                   , docMetadata = M.fromList [("meta1", "world")]
                   }
        , Document { docId = "hello2"
-                  , docFields = M.fromList [ ("field1", ("cucumber", DoTokenize))
-                                           , ("field2", ("sea turtle", DoNotTokenize))
+                  , docFields = M.fromList [ ("field1", [("cucumber", DoTokenize)])
+                                           , ("field2", [("sea turtle", DoNotTokenize)])
                                            ]
                   , docMetadata = M.fromList [("meta1", "shirt")]
                   }
@@ -93,8 +93,11 @@ toRecord (Document{..}) =
     content :: BS.L.ByteString
     content = BS.B.toLazyByteString $ "<text>\n" <> foldMap toField (M.toList docFields) <> "</text>\n"
 
-    toField :: (FieldName, (T.L.Text, Tokenized)) -> BS.B.Builder
-    toField  (FieldName fName, (text, tokenized)) =
+    toField :: (FieldName, [(T.L.Text, Tokenized)]) -> BS.B.Builder
+    toField (fName, values) = foldMap (toFieldValue fName) values
+
+    toFieldValue :: FieldName -> (T.L.Text, Tokenized) -> BS.B.Builder
+    toFieldValue (FieldName fName) (text, tokenized) =
         "<" <> T.E.encodeUtf8Builder fName <> tokenizeAttr <> ">" <>
         T.L.E.encodeUtf8Builder (T.L.filter isAscii text) <>
         "</" <> T.E.encodeUtf8Builder fName <> ">\n"
@@ -102,6 +105,5 @@ toRecord (Document{..}) =
         tokenizeAttr = case tokenized of
                          DoNotTokenize -> " tokenizeTagContent=false"
                          DoTokenize    -> ""
-
 
         isAscii c = ord c < 255
