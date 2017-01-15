@@ -1,0 +1,42 @@
+{
+  "corpus" : true,
+  "q-distrib" : 50,
+  "fieldIndex" : true,
+  "fieldIndexParameters" :   {
+    "nonStemmedPostings" : true,
+    "stemmedPostings" : true,
+    "stemmer" : [ "krovetz"]
+  },
+  "galagoJobDir" : "/home/dietz/trec-car/code/simplir-galago/indextmp",
+  "indexPath" : "/home/dietz/trec-car/code/simplir-galago/test.index",
+  "inputPath": ["/home/dietz/trec-car/code/simplir-galago/hello.warc"],
+
+  "q-mode" : "drmaa",
+  "mode" : "local",
+  "metadata" : true,
+  "nonStemmedPostings" : true,
+  "parser" :   {
+    "filetype": "foo",
+    "externalParsers" : [       {
+      "class" : "org.lemurproject.galago.core.parse.WARCParser",
+      "filetype" : "foo"
+    }]
+  },
+
+  "port" : 60257,
+  "server" : false,
+  "skipDistance" : 500,
+  "skipping" : true,
+  "stemmedPostings" : true,
+  "stemmer" : [ "krovetz"],
+  "stemmerClass" :   {
+    "krovetz" : "org.lemurproject.galago.core.parse.stem.KrovetzStemmer"
+  },
+  "tokenizer" :   {
+    "fields" : [ "field1" , "field2", "text"],
+    "formats" :     {
+
+    }
+  }
+}
+
