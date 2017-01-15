@@ -5,8 +5,26 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>edu.unh.cs.trema</groupId>
-    <artifactId>simplirgalago</artifactId>
+    <artifactId>simplir-galago</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <properties>
+        <galago.version>3.7</galago.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>edu.umass.ciir.snapshots</id>
+            <name>CIIR Nexus Snapshots</name>
+            <url>http://scm-ciir.cs.umass.edu:8080/nexus/content/repositories/snapshots/</url>
+        </repository>
+        <repository>
+            <id>edu.umass.ciir.releases</id>
+            <name>CIIR Nexus Releases</name>
+            <url>http://scm-ciir.cs.umass.edu:8080/nexus/content/repositories/releases/</url>
+        </repository>
+
+
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -19,6 +37,19 @@
             <artifactId>commons-lang3</artifactId>
             <version>3.3.2</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.lemurproject.galago</groupId>
+            <artifactId>core</artifactId>
+            <version>${galago.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.lemurproject.galago</groupId>
+            <artifactId>tupleflow</artifactId>
+            <version>${galago.version}</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -33,7 +64,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>MainCass</mainClass>
+                            <mainClass>edu.unh.cs.trema.simplirgalago.MainClass</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
