@@ -45,7 +45,7 @@ data Tokenized = DoNotTokenize | DoTokenize
 data Document = Document { docId       :: DocumentId
                            -- | the 'Int' is a replication count to allow more efficient weighting.
                          , docFields   :: M.Map FieldName [(T.L.Text, Tokenized)]
-                         , docMetadata :: M.Map MetadataFieldName BS.ByteString
+                         , docMetadata :: M.Map MetadataFieldName BS.L.ByteString
                          }
               deriving (Show, Generic)
 
@@ -88,7 +88,7 @@ toRecord (Document{..}) =
     headers = [ Warc.OtherField "WARC-TREC-ID" (T.E.encodeUtf8 $ unDocumentId docId)
               , Warc.ContentLength $ fromIntegral $ BS.L.length content
               ] ++ map toMetadataField (M.toList docMetadata)
-    toMetadataField (MetadataFieldName k, v) = Warc.OtherField k v
+    toMetadataField (MetadataFieldName k, v) = Warc.OtherField k (BS.L.toStrict v)
 
     content :: BS.L.ByteString
     content = BS.B.toLazyByteString $ "<text>\n" <> foldMap toField (M.toList docFields) <> "</text>\n"
