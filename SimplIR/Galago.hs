@@ -3,7 +3,17 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module SimplIR.Galago where
+module SimplIR.Galago
+    ( -- * Basic types
+      Tokenized(..)
+    , DocumentId(..)
+    , MetadataFieldName(..)
+    , FieldName(..)
+      -- * Document
+    , Document(..)
+      -- * Rendering to Galago WARC
+    , toWarc
+    ) where
 
 import Data.Char
 import Data.Monoid
