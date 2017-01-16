@@ -33,7 +33,7 @@
     "krovetz" : "org.lemurproject.galago.core.parse.stem.KrovetzStemmer"
   },
   "tokenizer" :   {
-    "fields" : [ "title","links","categories","lead","anchornames","disambiguationnames","redirectnames","text"],
+    "fields" : [ "title", "title-exact", "category", "lead","anchor", "anchor-exact","disambiguation","disambiguation-exact", "redirect", "redirect-exact","mentions","kblinks", "wikititle" , "text"],
     "formats" :     {
 
     }
