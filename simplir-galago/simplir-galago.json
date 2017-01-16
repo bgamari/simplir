@@ -7,9 +7,9 @@
     "stemmedPostings" : true,
     "stemmer" : [ "krovetz"]
   },
-  "galagoJobDir" : "/home/dietz/trec-car/code/simplir-galago/indextmp",
-  "indexPath" : "/home/dietz/trec-car/code/simplir-galago/test.index",
-  "inputPath": ["/home/dietz/trec-car/code/simplir-galago/hello.warc"],
+  "galagoJobDir" : "/home/ben/trec-car/simplir-galago/indextmp",
+  "indexPath" : "/home/ben/trec-car/simplir-galago/data/all.old.index",
+  "inputPath": ["/home/ben/trec-car/simplir-galago/data/all.old.warc"],
 
   "q-mode" : "drmaa",
   "mode" : "local",
@@ -33,7 +33,7 @@
     "krovetz" : "org.lemurproject.galago.core.parse.stem.KrovetzStemmer"
   },
   "tokenizer" :   {
-    "fields" : [ "field1" , "field2", "text"],
+    "fields" : [ "title","links","categories","lead","anchornames","disambiguationnames","redirectnames","text"],
     "formats" :     {
 
     }
