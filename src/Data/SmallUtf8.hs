@@ -13,8 +13,12 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
+import qualified Data.ByteString.Short.Internal as BS.S.I
 import qualified Data.ByteString.Builder as BS.B
 import qualified Data.Text as T
+import qualified Data.Text.Array as T.A
+import qualified Data.Text.Lazy.Builder as T.B
+import qualified Data.Text.Internal.Builder as T.B
 import qualified Data.Text.Encoding as T.E
 
 newtype SmallUtf8 = SmallUtf8 BS.S.ShortByteString
@@ -25,6 +29,15 @@ fromText = SmallUtf8 . BS.S.toShort . T.E.encodeUtf8
 
 toText :: SmallUtf8 -> T.Text
 toText (SmallUtf8 t) = T.E.decodeUtf8 $ BS.S.fromShort t
+
+toTextBuilder :: SmallUtf8 -> T.B.Builder
+toTextBuilder (SmallUtf8 t@(BS.S.I.SBS arr)) =
+    T.B.writeN n $ \dest destOff -> do
+        T.A.copyI dest destOff (T.A.Array arr) 0 n
+  where n = BS.S.length t
+
+toByteStringBuilder :: SmallUtf8 -> BS.B.Builder
+toByteStringBuilder (SmallUtf8 t) = BS.B.shortByteString t
 
 fromString :: String -> SmallUtf8
 fromString = fromText . T.pack

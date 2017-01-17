@@ -70,7 +70,7 @@ decodeDocument (hdr, content) = do
     when (msgType /= MsgResponse) $ throwE (LogMesg DEBUG "not a response")
 
     recId   <- failWith (LogMesg WARN "failed to find record id")
-             $ hdr ^? recHeaders . Lens.each . Warc._WarcRecordId
+             $ hdr ^? Warc.field Warc.warcRecordId
 
     (respHeaders, body)
             <- case Atto.parse Http.response content of
@@ -89,7 +89,7 @@ mapFoldableM f = P.P.mapM f >-> P.P.concat
 
 recordHttpMsgType :: RecordHeader -> Maybe MsgType
 recordHttpMsgType hdr = do
-    ctypeStr <- hdr ^? Warc.recHeaders . Lens.each . Warc._ContentType
+    ctypeStr <- hdr ^? Warc.field Warc.contentType
     ctype <- parseAccept ctypeStr
     guard $ ctype `matches` ("application" // "http")
     msgtype <- "msgtype" `M.lookup` parameters ctype

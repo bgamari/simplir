@@ -1,0 +1,42 @@
+--
+title: Galago Usage
+--
+
+
+# List of all galago commands
+
+    java -jar ./target/simplir-galago-1.0-SNAPSHOT-jar-with-dependencies.jar help
+
+
+# Galago build index
+To build an index modify paths in simplir-galago.json and run:
+
+    java -jar ./target/simplir-galago-1.0-SNAPSHOT-jar-with-dependencies.jar build simplir-galago.json 
+
+Paths must be global and you should double check that the job-tmp directory is empty before starting (or it will try to finish indexing the last attempt).
+
+
+Options to explore:
+
+-  "threaded" instead of "local" (Although I've witnessed index corruption with this mode)
+-  creating multiple index shards and loading them all together (will be treated as one large index)
+
+
+
+# Galago web search
+    java -jar ./target/simplir-galago-1.0-SNAPSHOT-jar-with-dependencies.jar search --port=$port --index=$indexPath
+
+There is also a batch search function, where you compose a query.json file with queryId, queryText then call
+    java ... batch-search query.json
+(see help function)
+
+
+
+# Galago eval
+
+java call example:
+    java -jar ./target/simplir-galago-1.0-SNAPSHOT-jar-with-dependencies.jar eval --judgments="fold0.1.qrels" --runs+"baseline.1.1.run"  --metrics=MAP
+
+or short: 
+    ./galagoeval.sh $qrels $run
+
