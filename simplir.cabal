@@ -1,8 +1,8 @@
-name:                laura
+name:                simplir
 version:             0.1.0.0
 -- synopsis:            
 -- description:         
-homepage:            http://github.com/bgamari/laura
+homepage:            http://git.smart-cactus.org/ben/simplir
 license:             BSD3
 license-file:        LICENSE
 author:              Ben Gamari
@@ -105,7 +105,7 @@ library
       b-tree,
       heaps,
       vector-binary-instances >= 0.2,
-      warc >=0.3 && <0.4,
+      warc >=1.0 && <1.1,
       simplir-html-clean,
       binary-serialise-cbor,
 
@@ -117,7 +117,7 @@ library
   build-tools:         hsc2hs
   default-language:    Haskell2010
 
-executable laura
+executable simplir-test
   main-is:             Main.hs
   build-depends:
       base,
@@ -137,7 +137,7 @@ executable laura
       simplir-html-clean,
       warc,
       b-tree,
-      laura
+      simplir
   default-language:    Haskell2010
   ghc-options:         -Wall
 
@@ -161,7 +161,7 @@ executable dump-postings
       containers >=0.5 && <0.6,
       warc,
       b-tree,
-      laura
+      simplir
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall
 
@@ -186,7 +186,7 @@ executable score-query
       pipes-text,
       warc,
       b-tree,
-      laura,
+      simplir,
       simplir-html-clean,
       simplir-trec
   default-language:    Haskell2010
@@ -201,4 +201,4 @@ test-suite tests
   build-depends:
     base,
     tasty,
-    laura
+    simplir

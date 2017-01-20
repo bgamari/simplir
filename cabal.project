@@ -20,7 +20,7 @@ package simplir-trec-streaming
 package simplir-tools
     ghc-options: -fprint-expanded-synonyms
 
-package laura
+package simplir
     ghc-options: -fprint-expanded-synonyms
     profiling-detail: all
     tests: true
