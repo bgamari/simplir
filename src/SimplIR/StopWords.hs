@@ -8,7 +8,7 @@ import qualified Data.HashSet as HS
 
 killStopwords :: StopWords -> [T.Text] -> [T.Text]
 killStopwords stopWords =
-    filter (`HS.member` stopWords)
+    filter (not . (`HS.member` stopWords))
 
 type StopWords = HS.HashSet T.Text
 
