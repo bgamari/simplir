@@ -207,7 +207,8 @@ executable trec-streaming-learn
       vector,
       text,
       trifecta,
-      containers,
+      -- for Map.restrictKeys
+      containers >= 0.5.8,
       aeson,
       random,
       log-domain,
