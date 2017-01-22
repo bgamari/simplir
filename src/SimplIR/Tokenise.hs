@@ -10,6 +10,7 @@ import Data.Profunctor
 import Data.Foldable (foldl')
 import Data.Char (isSpace)
 import qualified Data.CharSet as CS
+import qualified Data.CharSet.Common as CSC
 import qualified Control.Foldl as Foldl
 import Control.Foldl (Fold(..))
 
@@ -20,16 +21,23 @@ import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import SimplIR.Types
 
-killPunctuation :: T.Text -> T.Text
-killPunctuation = T.map kill
+killCharSet :: CS.CharSet -> T.Text -> T.Text
+killCharSet cs = T.map kill
   where
     kill c
-      | c `CS.member` chars = ' '
-      | otherwise           = c
-      where chars = CS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
+      | c `CS.member` cs  = ' '
+      | otherwise         = c
+
+killPunctuation :: T.Text -> T.Text
+killPunctuation = killCharSet chars
+  where
+    chars = CS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
+
+notLatin1Letters :: CS.CharSet
+notLatin1Letters = CS.complement (CSC.letter `CS.intersection` CSC.latin1)
 
 tokenise :: T.Text -> [T.Text]
-tokenise = T.words . T.toCaseFold
+tokenise = T.words . killCharSet notLatin1Letters . T.toCaseFold
 
 tokeniseWithPositions :: T.Text -> [(T.Text, Position)]
 tokeniseWithPositions t@(T.I.Text _ _ len) = unfoldr f (0,0,0,0)
