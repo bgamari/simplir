@@ -28,3 +28,9 @@
 [submodule "vendor/binary"]
 	path = vendor/binary
 	url = git://github.com/kolmodin/binary
+[submodule "vendor/safecopy"]
+	path = vendor/safecopy
+	url = git://github.com/bgamari/safecopy
+[submodule "vendor/hashable-extras"]
+	path = vendor/hashable-extras
+	url = git://github.com/bgamari/hashable-extras
