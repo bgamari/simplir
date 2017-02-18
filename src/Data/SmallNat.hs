@@ -50,7 +50,7 @@ instance Binary SmallNat where
                         putW $ n
       | otherwise  =    fail "put(SmallNat): Invalid SmallNat"
       where
-        withTag tag n = (tag `shiftL` 6) .|. n
+        withTag tag m = (tag `shiftL` 6) .|. m
         putW = putWord8 . fromIntegral
 
     get = do
