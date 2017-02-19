@@ -111,7 +111,10 @@ instance Aeson.ToJSON SmallUtf8 where
     {-# INLINE toEncoding #-}
 
 instance Aeson.ToJSONKey SmallUtf8 where
-    toJSONKey = Aeson.ToJSONKeyValue Aeson.toJSON Aeson.toEncoding
+    toJSONKey = Aeson.ToJSONKeyText toText enc
+      where enc (SmallUtf8 x) = Aeson.unsafeToEncoding $
+              BS.B.char7 '"' <> BS.B.shortByteString x <> BS.B.char7 '"'
+    {-# INLINEABLE toJSONKey #-}
 
 instance Aeson.FromJSON SmallUtf8 where
     parseJSON (Aeson.String t) = pure $ fromText t
