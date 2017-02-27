@@ -49,26 +49,14 @@ extractFeaturesFromDocument defaultFeature features doc =
     in Features $ VU.convert $ fmap lookupFeature features
 
 readQRel :: FilePath -> IO (M.Map QueryId (M.Map DocumentName IsRelevant))
-readQRel fname =
-    toMap . mapMaybe parseLine . lines <$> readFile fname
+readQRel = toMap . QRel.readQRel
   where
     toMap :: [(QueryId, DocumentName, IsRelevant)]
           -> M.Map QueryId (M.Map DocumentName IsRelevant)
     toMap xs =
       M.unionsWith M.union [ M.singleton qid (M.singleton docName isRel)
-                           | (qid, docName, isRel) <- xs ]
-
-    parseLine :: String -> Maybe (QueryId, DocumentName, IsRelevant)
-    parseLine line =
-      case words line of
-        [queryId, _dump, docId, relevance] ->
-          let rel = case relevance of "0" -> NotRelevant
-                                      _   -> Relevant
-              !qid = QueryId $ T.pack queryId
-              !docName = DocName $ Utf8.fromString docId
-          in Just (qid, docName, rel)
-
-        _ -> Nothing
+                           | (qid, docName, isRel) <- xs
+                           ]
 
 options :: Parser (IO ())
 options =

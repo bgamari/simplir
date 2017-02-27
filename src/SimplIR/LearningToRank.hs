@@ -33,7 +33,6 @@ import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector as V
 
-
 type Score = Double
 
 -- | Binary relevance judgement
@@ -50,7 +49,6 @@ type TotalRel = Int
 type Rankings rel qid a = M.Map qid (Ranking rel a)
 
 type ScoringMetric rel qid a = Rankings rel qid a -> Double
-
 
 meanAvgPrec :: (Ord rel)
             => (qid -> TotalRel) -> rel -> ScoringMetric rel qid a
