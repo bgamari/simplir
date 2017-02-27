@@ -1,8 +1,25 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Data.SmallUtf8 where
+module Data.SmallUtf8
+    ( SmallUtf8
+      -- * Conversions
+      -- ** @String@
+    , toString
+    , fromString
+      -- ** @text@ package
+    , fromText
+    , toText
+    , toTextBuilder
+      -- ** @bytestring@ package
+    , toByteString
+    , fromAscii
+    , unsafeFromByteString
+    , toShortByteString
+    , unsafeFromShortByteString
+    , toByteStringBuilder
+    ) where
 
-import Data.String
+import Data.String (IsString)
 import Data.Monoid
 import Control.DeepSeq
 import Data.Binary
@@ -21,8 +38,9 @@ import qualified Data.Text.Lazy.Builder as T.B
 import qualified Data.Text.Internal.Builder as T.B
 import qualified Data.Text.Encoding as T.E
 
+-- | An efficient representation for UTF-8 encoded strings.
 newtype SmallUtf8 = SmallUtf8 BS.S.ShortByteString
-             deriving (Eq, Ord, Show, NFData, Hashable, IsString)
+                  deriving (Eq, Ord, Show, NFData, Hashable, IsString)
 
 fromText :: T.Text -> SmallUtf8
 fromText = SmallUtf8 . BS.S.toShort . T.E.encodeUtf8
@@ -36,8 +54,6 @@ toTextBuilder (SmallUtf8 t@(BS.S.I.SBS arr)) =
         T.A.copyI dest destOff (T.A.Array arr) 0 n
   where n = BS.S.length t
 
-toByteStringBuilder :: SmallUtf8 -> BS.B.Builder
-toByteStringBuilder (SmallUtf8 t) = BS.B.shortByteString t
 
 fromString :: String -> SmallUtf8
 fromString = fromText . T.pack
@@ -45,8 +61,25 @@ fromString = fromText . T.pack
 toString :: SmallUtf8 -> String
 toString = T.unpack . toText
 
+-- TODO: fix
 fromAscii :: BS.ByteString -> SmallUtf8
 fromAscii = SmallUtf8 . BS.S.toShort
+
+toByteString :: SmallUtf8 -> BS.ByteString
+toByteString (SmallUtf8 b) = BS.S.fromShort b
+
+-- | Assumes 'BS.ByteString' contains correctly encoded UTF-8.
+unsafeFromByteString :: BS.ByteString -> SmallUtf8
+unsafeFromByteString = SmallUtf8 . BS.S.toShort
+
+toByteStringBuilder :: SmallUtf8 -> BS.B.Builder
+toByteStringBuilder (SmallUtf8 t) = BS.B.shortByteString t
+
+toShortByteString :: SmallUtf8 -> BS.S.ShortByteString
+toShortByteString (SmallUtf8 b) = b
+
+unsafeFromShortByteString :: BS.S.ShortByteString -> SmallUtf8
+unsafeFromShortByteString = SmallUtf8
 
 instance Binary SmallUtf8 where
     get = do
@@ -77,6 +110,15 @@ instance Aeson.ToJSON SmallUtf8 where
         BS.B.char7 '"' <> BS.B.shortByteString x <> BS.B.char7 '"'
     {-# INLINE toEncoding #-}
 
+instance Aeson.ToJSONKey SmallUtf8 where
+    toJSONKey = Aeson.ToJSONKeyText toText enc
+      where enc (SmallUtf8 x) = Aeson.unsafeToEncoding $
+              BS.B.char7 '"' <> BS.B.shortByteString x <> BS.B.char7 '"'
+    {-# INLINEABLE toJSONKey #-}
+
 instance Aeson.FromJSON SmallUtf8 where
     parseJSON (Aeson.String t) = pure $ fromText t
     parseJSON _                = fail "ToJson(SmallUtf8): Expected String"
+
+instance Aeson.FromJSONKey SmallUtf8 where
+    fromJSONKey = Aeson.FromJSONKeyText fromText

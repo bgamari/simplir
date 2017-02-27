@@ -21,6 +21,7 @@ library
   other-modules:
       SimplIR.DiskIndex.Posting.Merge
       SimplIR.DiskIndex.Posting.Types
+      SimplIR.ReadStopWords
       Data.SmallNat
       Control.Foldl.Vector
 
@@ -40,6 +41,7 @@ library
       SimplIR.DiskIndex.Posting.Tests
       SimplIR.DiskIndex.Tests
       SimplIR.RetrievalModels.QueryLikelihood
+      SimplIR.StopWords
       AccumPostings
       SimplIR.DataSource
       SimplIR.DataSource.Gpg
@@ -56,6 +58,7 @@ library
 
   build-depends:
       base >=4.8 && <4.10,
+      template-haskell,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
