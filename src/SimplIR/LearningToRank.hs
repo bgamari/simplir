@@ -13,7 +13,7 @@ module SimplIR.LearningToRank
     , zNormalizer
     , Normalization(..)
       -- * Computing rankings
-    , weightRanking
+    , rerank
       -- * Scoring metrics
     , ScoringMetric
     , meanAvgPrec
@@ -39,14 +39,15 @@ type Score = Double
 data IsRelevant = NotRelevant | Relevant
                 deriving (Ord, Eq, Show)
 
--- | A ranking of documents along with relevant annotations
-type Ranking relevance a = [(a, Score, relevance)]
+-- | A ranking of documents
+newtype Ranking a = Ranking { getRanking :: [(Score, a)] }
+                  deriving (Show)
 
 -- | The total number of relevant documents for a query.
 type TotalRel = Int
 
 -- | A collection of rankings for a set of queries.
-type Rankings rel qid a = M.Map qid (Ranking rel a)
+type Rankings rel qid a = M.Map qid (Ranking (a, rel))
 
 type ScoringMetric rel qid a = Rankings rel qid a -> Double
 
@@ -58,13 +59,14 @@ meanAvgPrec totalRel relThresh rankings =
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
-avgPrec :: forall rel a. (Ord rel)
-        => rel -> TotalRel -> Ranking rel a -> Maybe Double
+avgPrec :: forall rel doc. (Ord rel)
+        => rel -> TotalRel -> Ranking (doc, rel) -> Maybe Double
 avgPrec relThresh totalRel ranking
   | totalRel == 0 = Nothing
   | otherwise =
     let (_, relAtR) = mapAccumL numRelevantAt 0 rels
-        rels = map (\(_, _, rel) -> rel) ranking
+        rels :: [rel]
+        rels = map (snd . snd) (getRanking ranking)
 
         numRelevantAt :: Int -> rel -> (Int, Int)
         numRelevantAt accum rel
@@ -98,15 +100,15 @@ type FRanking relevance a = [(a, Features, relevance)]
 dot :: Features -> Features -> Double
 dot (Features v) (Features u) = VU.sum $ VU.zipWith (*) v u
 
-sortRanking :: Ranking rel a -> Ranking rel a
-sortRanking = sortBy (flip $ comparing $ \(_,s,_) -> s)
+mkRanking :: [(Score, a)] -> Ranking a
+mkRanking = Ranking . sortBy (flip $ comparing fst)
 
 -- | Re-rank a set of documents given a weight vector.
-weightRanking :: Features -> FRanking rel a -> Ranking rel a
-weightRanking weight fRanking =
-    sortRanking
-    [ (doc, weight `dot` feats, rel)
-    | (doc, feats, rel) <- fRanking
+rerank :: Features -> [(a, Features)] -> Ranking a
+rerank weight fRanking =
+    mkRanking
+    [ (weight `dot` feats, doc)
+    | (doc, feats) <- fRanking
     ]
 
 data Step = Step Int Double
@@ -185,7 +187,7 @@ coordAscent :: forall a qid relevance gen. (Random.RandomGen gen)
             -> [(Score, Weight)]
 coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
   where
-    score0 = scoreRanking $ fmap (weightRanking w0) fRankings
+    score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
     dim = featureDim w0
     deltas = [ f x
              | x <- [0.001 * 2^n | n <- [1..25::Int]]
@@ -209,10 +211,10 @@ coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
       where
         scoreStep :: Step -> Score
         scoreStep step =
-            scoreRanking $ fmap (sortRanking . map newScorer') cachedScoredRankings
+            scoreRanking $ fmap (mkRanking . map newScorer') cachedScoredRankings
           where
-            newScorer' ::  (a, Step -> Score, relevance) -> (a, Score, relevance)
-            newScorer' = middle $ \scorer -> scorer step
+            newScorer' ::  (a, Step -> Score, relevance) -> (Score, (a, relevance))
+            newScorer' (doc,scorer,rel) = (scorer step, (doc, rel))
 
         cachedScoredRankings :: M.Map qid [(a, Step -> Score, relevance)]
         cachedScoredRankings =
@@ -229,37 +231,42 @@ middle fun (a, b, c) = (a, fun b, c)
 -----------------------
 -- Testing
 
+{-
 type DocId = String
-type TestRanking = Ranking IsRelevant DocId
+type TestRanking = Ranking (DocId, IsRelevant)
 
 rankingA :: TestRanking
-rankingA =
-    [ ("ben", 10, Relevant)
-    , ("laura", 9, Relevant)
-    , ("T!", 3, Relevant)
-    , ("snowman", 4, NotRelevant)
-    , ("cat", 5, NotRelevant)
+rankingA = Ranking
+    [ aDoc "ben"     10 Relevant
+    , aDoc "laura"   9 Relevant
+    , aDoc "T!"      3 Relevant
+    , aDoc "snowman" 4 NotRelevant
+    , aDoc "cat"     5 NotRelevant
     ]
 
+aDoc docid score rel = (score, (docid, rel))
+
 rankingB :: TestRanking
-rankingB =
-    [ ("ben", 3, NotRelevant)
-    , ("laura", 9, Relevant)
-    , ("snowman", 4, Relevant)
+rankingB = Ranking
+    [ aDoc "ben" 3 NotRelevant
+    , aDoc "laura" 9 Relevant
+    , aDoc "snowman" 4 Relevant
     ]
 
 rankingC :: TestRanking
-rankingC =
-    [ ("cat", 9, Relevant)
-    , ("T!", 10, Relevant)
+rankingC = Ranking
+    [ aDoc "cat" 9 Relevant
+    , aDoc "T!" 10 Relevant
     ]
 
 testFeatures :: M.Map Char (FRanking IsRelevant DocId)
 testFeatures =
     fmap (map toFeatures) testRankings
   where
-    toFeatures (a,b,c) = (a, Features $ VU.fromList [1,b], c)
+    toFeatures :: _
+    toFeatures (a,b) = (a, Features $ VU.fromList [1,b])
 
 testRankings :: M.Map Char TestRanking
 testRankings =
     M.fromList $ zip ['a'..] [rankingA, rankingB, rankingC]
+-}

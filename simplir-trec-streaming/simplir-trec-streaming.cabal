@@ -198,25 +198,3 @@ executable extract-kba-documents
       simplir-trec
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall -O2 -threaded
-
-
-executable trec-streaming-learn
-  main-is:             LearningToRank.hs
-  build-depends:
-      base,
-      vector,
-      text,
-      trifecta,
-      -- for Map.restrictKeys
-      containers >= 0.5.8,
-      aeson,
-      random,
-      log-domain,
-      binary,
-      unordered-containers,
-      yaml,
-      optparse-applicative,
-      simplir-trec-streaming,
-      simplir
-  default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall -O2 -threaded

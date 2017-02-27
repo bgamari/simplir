@@ -4,9 +4,9 @@
 -- | A simple parser for the common @qrel@ query relevance format.
 module SimplIR.Format.QRel
     ( -- * Types
-      QueryId(..)
-    , DocumentName(..)
-    , QRel
+      QueryId
+    , DocumentName
+    , Entry(..)
       -- * Parsing
     , readQRel
     ) where
@@ -21,24 +21,24 @@ import qualified Data.Text.IO as T
 
 import SimplIR.LearningToRank
 
-newtype QueryId = QueryId T.Text
-                deriving (Show, IsString, Eq, Ord, Hashable)
+type QueryId = T.Text
+type DocumentName = T.Text
 
-newtype DocumentName = DocumentName T.Text
-                     deriving (Show, IsString, Eq, Ord, Hashable)
+data Entry = Entry { queryId      :: !QueryId
+                   , documentName :: !DocumentName
+                   , relevance    :: !IsRelevant
+                   }
 
-type QRel = [(QueryId, DocumentName, IsRelevant)]
-
-readQRel :: FilePath -> IO QRel
+readQRel :: FilePath -> IO [Entry]
 readQRel fname =
     mapMaybe parseLine . T.lines <$> T.readFile fname
   where
-    parseLine :: T.Text -> Maybe (QueryId, DocumentName, IsRelevant)
+    parseLine :: T.Text -> Maybe Entry
     parseLine line =
       case T.words line of
         [queryId, _dump, docId, relevance] ->
           let rel = case relevance of "0" -> NotRelevant
                                       _   -> Relevant
-          in Just (QueryId queryId, DocumentName docId, rel)
+          in Just (Entry queryId docId rel)
 
         _ -> Nothing
