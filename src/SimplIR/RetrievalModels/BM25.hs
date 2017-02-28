@@ -4,11 +4,8 @@ module SimplIR.RetrievalModels.BM25 where
 
 import Data.Maybe
 import Data.Hashable
-import Data.Semigroup
-import Data.Profunctor
 import Numeric.Log hiding (sum)
 import qualified Data.HashMap.Strict as HM
-import Control.Foldl as Foldl
 import SimplIR.RetrievalModels.CorpusStats
 
 type Score = Log Double
