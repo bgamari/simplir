@@ -36,7 +36,7 @@ parseRunFile = catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly)
 
 parseLine :: Parser RankingEntry
 parseLine = do
-    let textField = fmap T.pack $ some $ noneOf " "
+    let textField = fmap T.pack $ some $ noneOf " \t\n"
     queryId <- textField
     void space
     void textField  -- reserved (Q1?)
@@ -44,9 +44,7 @@ parseLine = do
     documentName <- textField
     void space
     documentRank <- fromIntegral <$> natural
-    void space
     documentScore <- double
-    void space
     methodName <- textField
     void newline
     return $ RankingEntry {..}
@@ -61,7 +59,7 @@ writeRunFile fname entries =
     [ TB.fromText (queryId e) <> " Q1 "
       <> TB.fromText (documentName e) <> " "
       <> TB.decimal (documentRank e) <> " "
-      <> TB.realFloat (documentScore e) <> "  "
+      <> TB.realFloat (documentScore e) <> " "
       <> TB.fromText (methodName e) <> "\n"
     | e <- entries
     ]
