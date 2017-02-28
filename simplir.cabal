@@ -43,8 +43,10 @@ library
       SimplIR.DiskIndex.Tests
       SimplIR.Format.TrecRunFile
       SimplIR.Format.QRel
+      SimplIR.RetrievalModels.CorpusStats
       SimplIR.RetrievalModels.QueryLikelihood
       SimplIR.RetrievalModels.TfIdf
+      SimplIR.RetrievalModels.BM25
       SimplIR.StopWords
       AccumPostings
       SimplIR.DataSource

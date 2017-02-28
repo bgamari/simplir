@@ -1,11 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module SimplIR.RetrievalModels.TfIdf
-    ( -- * Background statistics
-      CorpusStats(..)
-    , TermStats(..)
-    , documentTermStats
-      -- * Scoring
+    ( -- * Scoring
+      Score
     , tfIdf
     , tfIdf'
     ) where
@@ -17,45 +14,13 @@ import Data.Profunctor
 import Numeric.Log hiding (sum)
 import qualified Data.HashMap.Strict as HM
 import Control.Foldl as Foldl
+import SimplIR.RetrievalModels.CorpusStats
 
 type Score = Log Double
-type CorpusDocCount = Int
-type TermFreq = Int
-
-data TermStats = TermStats { documentFrequency :: !Int
-                           , termFrequency     :: !Int
-                           }
-               deriving (Show)
-
-instance Semigroup TermStats where
-    TermStats a b <> TermStats x y = TermStats (a+x) (b+y)
-instance Monoid TermStats where
-    mempty = TermStats 0 0
-    mappend = (<>)
-
-data CorpusStats term = CorpusStats { corpusTerms :: !(HM.HashMap term TermStats)
-                                    , corpusSize  :: !CorpusDocCount
-                                    }
-
--- | A 'Foldl.Fold' over documents (bags of words) accumulating TermStats
-documentTermStats :: forall term. (Hashable term, Eq term)
-                  => Foldl.Fold [term] (CorpusStats term)
-documentTermStats =
-    CorpusStats <$> termStats <*> Foldl.length
-  where
-    termStats = lmap toTermStats $ Foldl.handles traverse Foldl.mconcat
-    toTermStats :: [term] -> [HM.HashMap term TermStats]
-    toTermStats terms =
-        [ HM.singleton term (TermStats 1 n)
-        | (term, n) <- HM.toList terms'
-        ]
-      where
-        terms' = HM.fromListWith (+) $ zip terms (repeat 1)
-{-# INLINEABLE documentTermStats #-}
 
 tfIdf :: (Eq term, Hashable term)
       => CorpusStats term -> term -> TermFreq -> Score
-tfIdf stats term tf = tfIdf' (corpusSize stats) termStats tf
+tfIdf stats term tf = tfIdf' (corpusDocCount stats) termStats tf
   where termStats = fromMaybe mempty $ HM.lookup term (corpusTerms stats)
 
 tfIdf' :: CorpusDocCount -> TermStats -> TermFreq -> Score
