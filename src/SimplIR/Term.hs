@@ -23,6 +23,9 @@ fromText = Term . Utf8.fromText
 toText :: Term -> T.Text
 toText (Term t) = Utf8.toText t
 
+toString :: Term -> String
+toString (Term t) = Utf8.toString t
+
 fromString :: String -> Term
 fromString = fromText . T.pack
 
