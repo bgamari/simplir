@@ -7,8 +7,10 @@ module SimplIR.RetrievalModels.TfIdf
     , documentTermStats
       -- * Scoring
     , tfIdf
+    , tfIdf'
     ) where
 
+import Data.Maybe
 import Data.Hashable
 import Data.Semigroup
 import Data.Profunctor
@@ -51,6 +53,11 @@ documentTermStats =
         terms' = HM.fromListWith (+) $ zip terms (repeat 1)
 {-# INLINEABLE documentTermStats #-}
 
-tfIdf :: CorpusDocCount -> TermStats -> TermFreq -> Score
-tfIdf docCount termStats tf =
+tfIdf :: (Eq term, Hashable term)
+      => CorpusStats term -> term -> TermFreq -> Score
+tfIdf stats term tf = tfIdf' (corpusSize stats) termStats tf
+  where termStats = fromMaybe mempty $ HM.lookup term (corpusTerms stats)
+
+tfIdf' :: CorpusDocCount -> TermStats -> TermFreq -> Score
+tfIdf' docCount termStats tf =
     realToFrac tf * log (realToFrac docCount / (1 + realToFrac (documentFrequency termStats)))
