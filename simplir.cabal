@@ -192,6 +192,20 @@ executable simplir-learn2rank
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall
 
+executable simplir-merge-runs
+  main-is:             MergeRankings.hs
+  build-depends:
+      base >=4.8 && <4.10,
+      pipes,
+      foldl,
+      profunctors,
+      text >=1.2 && <1.3,
+      unordered-containers >= 0.2,
+      optparse-applicative >= 0.12,
+      simplir
+  default-language:    Haskell2010
+  ghc-options:         -rtsopts -Wall
+
 executable score-query
   main-is:             ScoreTest.hs
   build-depends:
