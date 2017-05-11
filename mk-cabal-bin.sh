@@ -1,8 +1,6 @@
 #!/bin/bash -e
 
 mkdir -p bin
-for i in $(find dist-newstyle/build/ -executable -a -type f -a -! -iname '*.so'); do
-    f="`pwd`/$i"
-    ln -fs $f bin/$(basename $i)
+for e in $(jq -r '..|."bin-file"?|strings' < dist-newstyle/cache/plan.json); do
+    ln -s $e bin/$(basename $e)
 done
-
