@@ -44,7 +44,7 @@ parseLine = do
     documentName <- textField
     void space
     documentRank <- fromIntegral <$> natural
-    documentScore <- double
+    documentScore <- either realToFrac id <$> integerOrDouble
     methodName <- textField
     void newline
     return $ RankingEntry {..}
