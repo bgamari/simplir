@@ -59,6 +59,7 @@ import qualified SimplIR.DiskIndex.Document as DocIdx
 import SimplIR.TopK
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
+import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import SimplIR.RetrievalModels.QueryLikelihood
 
 type QueryId = T.Text
@@ -271,7 +272,7 @@ scoreStreaming queryFile resultCount statsFile outputRoot docSource readDocLocs 
             >-> cat'                         @(DocumentInfo, M.Map Term [Position])
             >-> P.P.map (\ (docInfo, termPostings) ->
                             let (facDocLen, entityIdPostings) = maybe (0, M.empty) (first docLength) . (second M.filter entityIdPostings  ) $ BTree.lookup facindex (docName docInfo)
-                           let facDocLen = fst $ facEntry
+                            in (docInfo, termPostings, entityIdPostings))
             >-> cat'                         @( DocumentInfo
                                               , M.Map Term [Position]
                                               , M.Map EntityId TermFrequency )
