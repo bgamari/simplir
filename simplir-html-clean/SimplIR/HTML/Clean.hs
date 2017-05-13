@@ -1,7 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module SimplIR.HTML.Clean (clean, HtmlDocument(..)) where
+module SimplIR.HTML.Clean
+    ( clean
+    , cleanTokens
+    , HtmlDocument(..)
+    ) where
 
 import Data.Maybe (fromMaybe)
 import Control.Applicative
@@ -130,9 +134,11 @@ needsWhitespace = HS.fromList
 
 -- | Extract the essence of an HTML document.
 clean :: Text -> HtmlDocument
-clean content =
-    let tags = canonicalizeTags
-             $ parseTokens content
+clean = cleanTokens . parseTokens
+
+cleanTokens :: [Token] -> HtmlDocument
+cleanTokens tokens =
+    let tags = canonicalizeTags tokens
         docTitle = extractTitle tags
         docBody = extractBody tags
     in HtmlDocument {..}
