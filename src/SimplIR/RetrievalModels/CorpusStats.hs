@@ -31,9 +31,9 @@ instance Monoid TermStats where
     mempty = TermStats 0 0
     mappend = (<>)
 
-data CorpusStats term = CorpusStats { corpusTerms     :: !(HM.HashMap term TermStats)
+data CorpusStats term = CorpusStats { corpusTerms      :: !(HM.HashMap term TermStats)
                                       -- ^ per-term usage statistics
-                                    , corpusDocCount  :: !CorpusDocCount
+                                    , corpusDocCount   :: !CorpusDocCount
                                       -- ^ total document count
                                     , corpusTokenCount :: !CorpusTokenCount
                                       -- ^ total token count
@@ -45,7 +45,8 @@ documentTermStats :: forall term. (Hashable term, Eq term)
 documentTermStats =
     CorpusStats <$> termStats <*> Foldl.length <*> lmap Prelude.length Foldl.sum
   where
-    termStats = lmap toTermStats $ Foldl.handles traverse Foldl.mconcat
+    accumTermStats = Foldl.Fold (HM.unionWith mappend) mempty id
+    termStats = lmap toTermStats $ Foldl.handles traverse accumTermStats
     toTermStats :: [term] -> [HM.HashMap term TermStats]
     toTermStats terms =
         [ HM.singleton term (TermStats 1 n)
