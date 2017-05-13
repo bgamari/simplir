@@ -25,7 +25,7 @@ library
                        pipes-attoparsec >=0.5 && <0.6,
                        pipes-parse >=3.0 && <3.1,
                        lens >=4.13 && <4.16,
-                       html-parse >=0.1 && <0.2
+                       html-parse >=0.2 && <0.3
   ghc-options:         -Wall
 
 benchmark bench

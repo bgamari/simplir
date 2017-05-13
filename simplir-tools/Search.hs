@@ -128,7 +128,7 @@ optQueryFile :: Parser QueryFile
 optQueryFile =
     option str (metavar "FILE" <> long "query" <> short 'q' <> help "query file")
 
-readQueries :: QueryFile -> IO (M.Map QueryId ([Term], [EntityId]))
+readQueries :: QueryFile -> IO (M.Map QueryId ([Term], [Fac.EntityId]))
 readQueries fname = do
     queries <- M.unions . mapMaybe parse . lines <$> readFile fname
     let allTerms = foldMap S.fromList queries
@@ -209,7 +209,7 @@ data ScoredDocument = ScoredDocument { scoredRankScore     :: Score
                                      , scoredDocumentInfo  :: DocumentInfo
                                      , scoredTermPositions :: M.Map Term [Position]
                                      , scoredTermScore     :: Score
-                                     , scoredEntityFreqs   :: M.Map EntityId TermFreq
+                                     , scoredEntityFreqs   :: M.Map Fac.EntityId TermFrequency
                                      , scoredEntityScore   :: Score
                                      }
 
@@ -275,7 +275,7 @@ scoreStreaming queryFile resultCount statsFile outputRoot docSource readDocLocs 
                             in (docInfo, termPostings, entityIdPostings))
             >-> cat'                         @( DocumentInfo
                                               , M.Map Term [Position]
-                                              , M.Map EntityId TermFrequency )
+                                              , M.Map Fac.EntityId TermFrequency )
 
         liftIO $ writeFile (outputRoot<.>"run") $ unlines
             [ unwords [ qid, T.unpack archive, Utf8.toString docName, show rank, show score, "simplir" ]

@@ -23,6 +23,7 @@ data Document = Document { docNo       :: Text
                          , docDate     :: Text
                          , docHeadline :: Text
                          , docText     :: Text
+                         , docHtml     :: [Token]
                          }
               deriving (Show)
 
@@ -53,6 +54,7 @@ tokensToDocument toks =
       docDate = T.strip $ tagContent "DATE"
       docHeadline = tagContent "HEADLINE"
       docText = tagContent "TEXT"
+      docHtml = takeInsideTag "HTML" toks
   in Document {..}
 
 takeContent :: [Token] -> Text

@@ -3,6 +3,7 @@
 module SimplIR.RetrievalModels.CorpusStats
     ( -- * Background statistics
       CorpusStats(..)
+    , addCorpusStats
     , CorpusDocCount
     , CorpusTokenCount
     , TermStats(..)
@@ -38,6 +39,14 @@ data CorpusStats term = CorpusStats { corpusTerms      :: !(HM.HashMap term Term
                                     , corpusTokenCount :: !CorpusTokenCount
                                       -- ^ total token count
                                     }
+
+addCorpusStats :: (Hashable term, Eq term)
+               => CorpusStats term -> CorpusStats term -> CorpusStats term
+addCorpusStats a b =
+    CorpusStats { corpusTerms = HM.unionWith mappend (corpusTerms a) (corpusTerms b)
+                , corpusDocCount = corpusDocCount a + corpusDocCount b
+                , corpusTokenCount = corpusTokenCount a + corpusTokenCount b
+                }
 
 -- | A 'Foldl.Fold' over documents (bags of words) accumulating TermStats
 documentTermStats :: forall term. (Hashable term, Eq term)
