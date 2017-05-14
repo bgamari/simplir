@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module SimplIR.TREC where
 
+import Control.Exception
 import Control.Monad (unless)
 import Control.Monad.Trans.Class
 import Data.Maybe (mapMaybe)
@@ -27,15 +29,21 @@ data Document = Document { docNo       :: Text
                          }
               deriving (Show)
 
-trecDocuments' :: Monad m => Producer T.Text m a -> Producer Document m ()
+-- | Parse a stream of 'Document's. May throw a 'ParsingError'.
+trecDocuments' :: forall r m. (Monad m) => Producer T.Text m r -> Producer Document m r
 trecDocuments' = go . P.A.parsed token
   where
-    go :: Monad m => Producer Token m a -> Producer Document m ()
+    go :: Producer Token m (Either (ParsingError, Producer T.Text m r) r)
+       -> Producer Document m r
     go xs = do
         prefix <- xs ^. Parse.span (not . isOpenTag "DOC") >-> P.P.drain
         (toks, rest) <- lift $ P.P.toListM' $ prefix ^. Parse.span (not . isCloseTag "DOC")
-        unless (null toks) $ do yield $ tokensToDocument toks
-                                go rest
+        unless (null toks) $ yield $ tokensToDocument toks
+        mx <- lift $ next rest
+        case mx of
+          Right (x, xs')           -> go (yield x >> xs')
+          Left (Left (err, _rest)) -> throw err
+          Left (Right r)           -> pure r
 
 trecDocuments :: TL.Text -> [Document]
 trecDocuments = go . parseTokensLazy
