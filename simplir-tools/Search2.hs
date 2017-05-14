@@ -121,7 +121,7 @@ type ArchiveName = T.Text
 trecSource :: [DataSource]
            -> Producer ((ArchiveName, DocumentName), Trec.Document) (SafeT IO) ()
 trecSource dsrcs =
-    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeUtf8 $ dataSource dsrc)
+    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ dataSource dsrc)
                     >-> P.P.map (\d -> ( ( getFileName $ dsrcLocation dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , d))
