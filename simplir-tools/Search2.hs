@@ -107,7 +107,7 @@ buildIndex :: DocumentSource -> IO [DataSource] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     let --foldCorpusStats = Foldl.generalize documentTermStats
-        indexFold = (,) <$> BuildIdx.buildIndex 100000 "index" <*> pure ()
+        indexFold = (,) <$> BuildIdx.buildIndex 10000 "index" <*> pure ()
         toIndexDoc ((archiveName, docName), text) =
             ((archiveName, docName), tokenise text)
     (idx, corpusStats) <- runSafeT $ foldProducer indexFold
@@ -128,6 +128,7 @@ trecSource dsrcs =
                     >-> P.P.chain (liftIO . print . fst)
           ) dsrcs
 
+
 trecDocuments :: [DataSource]
               -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecDocuments dsrcs =
@@ -136,9 +137,19 @@ trecDocuments dsrcs =
 trecHtmlDocuments :: [DataSource]
                   -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecHtmlDocuments dsrcs =
-    trecSource dsrcs >-> P.P.map (second $ scrapeHtml . Trec.docBody)
+    trecSource dsrcs
+      >-> P.P.map (second $ maybeScrape . Trec.docBody)
   where
+    maybeScrape s
+      | isHtml s  = scrapeHtml s
+      | otherwise = s
+
     scrapeHtml = TL.toStrict . HTML.Clean.docBody . HTML.Clean.clean
+
+    isHtml s =
+        let beginning = T.toCaseFold $ T.take 200 s
+        in "<html" `T.isInfixOf` beginning
+           || "<!doctype" `T.isInfixOf` beginning
 
 kbaDocuments :: [DataSource]
              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
