@@ -131,14 +131,14 @@ trecSource dsrcs =
 trecDocuments :: [DataSource]
               -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecDocuments dsrcs =
-    trecSource dsrcs >-> P.P.map (second Trec.docText)
+    trecSource dsrcs >-> P.P.map (second Trec.docBody)
 
 trecHtmlDocuments :: [DataSource]
                   -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecHtmlDocuments dsrcs =
-    trecSource dsrcs >-> P.P.map (second $ scrapeHtml  . Trec.docHtml)
+    trecSource dsrcs >-> P.P.map (second $ scrapeHtml . Trec.docBody)
   where
-    scrapeHtml = TL.toStrict . HTML.Clean.docBody . HTML.Clean.cleanTokens
+    scrapeHtml = TL.toStrict . HTML.Clean.docBody . HTML.Clean.clean
 
 kbaDocuments :: [DataSource]
              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
