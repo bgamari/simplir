@@ -36,6 +36,7 @@ parseRunFile = catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly)
 
 parseLine :: Parser RankingEntry
 parseLine = do
+    many newline
     let textField = fmap T.pack $ some $ noneOf " \t\n"
     queryId <- textField
     void space
@@ -46,7 +47,7 @@ parseLine = do
     documentRank <- fromIntegral <$> natural
     documentScore <- either realToFrac id <$> integerOrDouble
     methodName <- textField
-    void newline <g|> eof
+    void (some newline) <|> eof
     return $ RankingEntry {..}
 
 readRunFile :: FilePath -> IO [RankingEntry]
