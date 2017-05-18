@@ -46,7 +46,7 @@ parseLine = do
     documentRank <- fromIntegral <$> natural
     documentScore <- either realToFrac id <$> integerOrDouble
     methodName <- textField
-    void newline
+    void newline <g|> eof
     return $ RankingEntry {..}
 
 readRunFile :: FilePath -> IO [RankingEntry]
