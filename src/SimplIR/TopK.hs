@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module SimplIR.TopK
     ( -- * Computing top-k lists
@@ -23,6 +24,7 @@ data Accum a = Accum { insertions :: !Int
                      , threshold  :: !(Maybe a)
                        -- ^ current threshold
                      , heap       :: !(H.Heap a)
+                       -- ^ the current top @k@
                      }
 
 topK :: Ord a => Int -> Fold.Fold a [a]
@@ -46,7 +48,7 @@ minK updatePeriod k =
     step acc@(Accum _ (Just thresh) _) x
       | x > thresh = acc
     -- update threshold
-    step acc@(Accum 0 mthresh heap) x =
+    step acc@(Accum 0 _mthresh heap) x =
         let (heap', rest) = H.splitAt (k-1) heap
             threshold'    = fst <$> H.uncons rest
             acc'          = acc { insertions = updatePeriod
@@ -65,6 +67,7 @@ testMinK :: (Ord a, Show a) => Int -> Positive Int -> [a] -> Property
 testMinK updatePeriod (Positive k) xs =
     Fold.fold (minK updatePeriod k) xs === take k (H.sort xs)
 
+tests :: TestTree
 tests = testGroup "top-k"
     [ testProperty "testMinK 1" (testMinK @Int 1)
     , testProperty "testMinK 10" (testMinK @Int 10)
