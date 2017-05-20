@@ -6,7 +6,6 @@ module Progress
    ) where
 
 import Data.IORef
-import Data.Monoid
 import Control.Monad (forever, void)
 import Control.Concurrent (forkIO, threadDelay)
 import Pipes

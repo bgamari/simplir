@@ -97,7 +97,7 @@ recordHttpMsgType hdr = do
     case CI.mk msgtype of
         "response" -> pure MsgResponse
         "request"  -> pure MsgRequest
-        a          -> mzero
+        _          -> mzero
 
 data LogMesg = LogMesg !LogLevel String
 
@@ -110,7 +110,7 @@ decodeTextWithCharSet charset = do
                 $ fmap Right $ ICU.open charset Nothing
     case mconverter of
         Right converter -> return $ ICU.toUnicode converter
-        Left err        -> throwE $ LogMesg INFO $ "failed to open converter for "++show charset++": "++show err
+        Left errMsg     -> throwE $ LogMesg INFO $ "failed to open converter for "++show charset++": "++show errMsg
 
 findDecoder :: MonadIO m => Http.Response -> ExceptT LogMesg m (BS.ByteString -> T.Text)
 findDecoder resp = do

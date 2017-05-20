@@ -45,8 +45,8 @@ insert xs0 r0 = go xs0
     go (x:xs) (Trie r m) =
         Trie r (HM.alter f x m)
       where
-        f Nothing  = Just $ singleton xs r0
-        f (Just m) = Just $ go xs m
+        f Nothing   = Just $ singleton xs r0
+        f (Just m0) = Just $ go xs m0
 
 lookup :: (Eq a, Hashable a) => [a] -> Trie a r -> Maybe r
 lookup = flip go
@@ -58,7 +58,7 @@ lookup = flip go
           Nothing    -> Nothing
 
 step :: (Eq a, Hashable a) => a -> Trie a r -> Maybe (Trie a r)
-step x (Trie r m) = HM.lookup x m
+step x (Trie _ m) = HM.lookup x m
 
 matches :: forall a r. (Eq a, Hashable a)
         => [a] -> Trie a r -> [([a], r)]
@@ -69,8 +69,8 @@ matches' :: forall a b r. (Eq a, Hashable a)
 matches' extract xs0 trie0 = go xs0 []
   where
     go :: [b] -> [([b], Trie a r)] -> [([b], r)]
-    go [] tries = []
-    go (x:xs) tries =
+    go []     _tries = []
+    go (x:xs) tries  =
         let tries' = mapMaybe stepTrie (([], trie0) : tries)
 
             stepTrie :: ([b], Trie a r) -> Maybe ([b], Trie a r)
@@ -78,9 +78,9 @@ matches' extract xs0 trie0 = go xs0 []
                 case step (extract x) trie of
                   Just trie' -> Just (x:history, trie')
                   Nothing    -> Nothing
-        in mapMaybe matches tries' ++ go xs tries'
+        in mapMaybe emitMatch tries' ++ go xs tries'
 
-    matches :: ([b], Trie a r) -> Maybe ([b], r)
-    matches (history, Trie (Just x) _) = Just (reverse history, x)
-    matches _ = Nothing
+    emitMatch :: ([b], Trie a r) -> Maybe ([b], r)
+    emitMatch (history, Trie (Just x) _) = Just (reverse history, x)
+    emitMatch _ = Nothing
 

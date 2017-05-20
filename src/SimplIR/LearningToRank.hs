@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module SimplIR.LearningToRank
     ( -- * Basic types
