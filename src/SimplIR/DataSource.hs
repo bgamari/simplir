@@ -109,8 +109,8 @@ withCompressedSource :: MonadSafe m
                      => DataLocation -> Maybe Compression
                      -> (Producer ByteString m () -> m a)
                      -> m a
-withCompressedSource loc compr action =
-    action $ decompress compr (produce loc)
+withCompressedSource loc compr doIt =
+    doIt $ decompress compr (produce loc)
 
 -- | A 'DataSource' describes the location of some bit of data, as well any
 -- decompression it may need
