@@ -9,15 +9,15 @@ module SimplIR.Format.QRel
     , Entry(..)
       -- * Parsing
     , readQRel
+      -- * Reexports
+    , IsRelevant(..)
     ) where
 
 import Data.Maybe
-import Data.String
-
-import Data.Hashable
-import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import qualified Data.HashMap.Strict as HM
+import qualified Data.HashMap.Lazy as HM.Lazy
 
 import SimplIR.LearningToRank
 
@@ -42,3 +42,10 @@ readQRel fname =
           in Just (Entry queryId docId rel)
 
         _ -> Nothing
+
+mapQRels :: [Entry ] -> HM.Lazy.HashMap QueryId [Entry]
+mapQRels entries =
+    HM.fromListWith (++) $
+      [ (queryId entry, [entry])
+      | entry <- entries
+      ]
