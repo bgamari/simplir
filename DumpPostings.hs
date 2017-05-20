@@ -36,6 +36,6 @@ main = do
         forM_ terms $ \term ->
           let term' = Term.fromString term
           in case DiskIndex.lookupPostings term' idx of
-               Just postings ->
-                 putStrLn $ showTermPostings term' postings
+               Just postings -> putStrLn $ showTermPostings term' postings
+               Nothing       -> return ()
     return ()
