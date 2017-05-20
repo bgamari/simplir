@@ -56,9 +56,10 @@ decodeDocuments :: MonadIO m
 decodeDocuments =
     mapFoldableM (runExceptT . decodeDocument)
   where
-    logError (docName, Right x)                  = return $ Just x
-    logError (docName, Left (LogMesg level msg)) = do log level $ "failed: "++msg
-                                                      return Nothing
+    logError (_docName, Right x)                 = return $ Just x
+    logError (docName, Left (LogMesg level msg)) = do
+        log level $ "failed: "++docName++": "++msg
+        return Nothing
 
 decodeDocument :: MonadIO m
                => (RecordHeader, BS.L.ByteString)
@@ -75,8 +76,8 @@ decodeDocument (hdr, content) = do
     (respHeaders, body)
             <- case Atto.parse Http.response content of
                    Atto.Done rest respHeaders -> return (respHeaders, rest)
-                   Atto.Fail err _ _          ->
-                       throwE $ LogMesg WARN $ "failed to parse response HTTP headers: "++ show err
+                   Atto.Fail errMsg _ _       ->
+                       throwE $ LogMesg WARN $ "failed to parse response HTTP headers: "++ show errMsg
 
     decode  <- findDecoder respHeaders
 

@@ -5,6 +5,8 @@
 
 module SimplIR.DiskIndex.Posting.Collect
     ( collectPostings
+      -- * Tests
+    , test
     , tests
     ) where
 

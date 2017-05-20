@@ -20,7 +20,6 @@ module SimplIR.DiskIndex
 import System.FilePath
 import System.Directory
 import Data.Binary
-import Data.Monoid
 import qualified Data.Map as M
 import Pipes (Producer)
 

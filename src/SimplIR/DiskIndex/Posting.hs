@@ -20,7 +20,7 @@ import           SimplIR.Term
 merge :: forall p. Binary p
       => PostingIndexPath p -> [(DocIdDelta, PostingIndexPath p)] -> IO ()
 merge destDir parts = do
-    idxs <- forM parts $ \(docIdMap, path) ->
+    idxs <- forM parts $ \(_docIdMap, path) ->
         either (const $ error $ "Failed to open posting index: "++getPostingIndexPath path) id
             <$> open path
 
@@ -31,4 +31,5 @@ merge destDir parts = do
     let mergedSize = sum $ map termCount idxs
     Merge.merge postingChunkSize destDir mergedSize (zip docIds0 allPostings)
 
+postingChunkSize :: Int
 postingChunkSize = 64

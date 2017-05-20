@@ -36,7 +36,7 @@ parseRunFile = catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly)
 
 parseLine :: Parser RankingEntry
 parseLine = do
-    many newline
+    void $ many newline
     let textField = fmap T.pack $ some $ noneOf " \t\n"
     queryId <- textField
     void space

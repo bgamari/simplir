@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | A simple parser for the common @qrel@ query relevance format.
 module SimplIR.Format.QRel
@@ -36,10 +37,10 @@ readQRel fname =
     parseLine :: T.Text -> Maybe Entry
     parseLine line =
       case T.words line of
-        [queryId, _dump, docId, relevance] ->
-          let rel = case relevance of "0" -> NotRelevant
+        [queryId, _dump, documentName, rel] ->
+          let relevance = case rel of "0" -> NotRelevant
                                       _   -> Relevant
-          in Just (Entry queryId docId rel)
+          in Just $ Entry{..}
 
         _ -> Nothing
 

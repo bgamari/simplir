@@ -52,7 +52,7 @@ mergePostings =
 
 -- | Merge small chunks
 mergeChunks :: Int -> [PostingsChunk p] -> [PostingsChunk p]
-mergeChunks chunkSize = id -- TODO
+mergeChunks _chunkSize = id -- TODO
 
 -- | Given a set of $n$ sorted @[Entry p a]@s, lazily interleave them in sorted
 -- order.
@@ -91,7 +91,7 @@ interleavePostings = mergeTerms . heapMerge . map (map (uncurry H.Entry))
     -- Merge chunks belonging to the same term
     mergeTerms :: [H.Entry Term [PostingsChunk p]] -> [(Term, [PostingsChunk p])]
     mergeTerms [] = []
-    mergeTerms xs@(H.Entry term chunks : _) =
+    mergeTerms xs@(H.Entry term _chunks : _) =
         let (postingsOfTerm, rest) = span (\(H.Entry term' _) -> term == term') xs
         in ( term
            , fold $ sortBy (comparing $ startDocId . head) $ map H.payload postingsOfTerm
@@ -109,9 +109,6 @@ test =
        ])
     ]
   where
-    p :: Int -> Posting ()
-    p n = Posting (DocId n) ()
-
     chunk :: [Int] -> PostingsChunk ()
     chunk docIds' =
         Chunk docId0

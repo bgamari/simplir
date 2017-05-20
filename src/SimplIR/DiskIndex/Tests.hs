@@ -31,7 +31,7 @@ mergeContainsAll chunks' = monadicIO $ do
     let chunks = map (M.filter (not . M.null)) chunks'
 
     -- generate chunk indexes
-    indexDirs <- liftIO $ forM (zip [0..] chunks) $ \(i,docs) -> do
+    indexDirs <- liftIO $ forM (zip [0::Int ..] chunks) $ \(i,docs) -> do
         let indexDir = tempDir </> "index-"++show i
         let postings :: M.Map Term [Posting Int]
             postings = fmap sort $ M.fromListWith mappend
