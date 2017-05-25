@@ -496,7 +496,7 @@ robustDocuments dsrcs =
                 liftIO $ hPutStrLn stderr $ show src
                 let toDoc d = ( ( getFilePath $ dsrcLocation src
                                 , DocName $ Utf8.fromText $ Robust.docNo d)
-                              , Robust.docText d
+                              , Robust.docBody d
                               )
                 Robust.trecDocuments' (P.T.E.decodeUtf8 $ dataSource src) >-> P.P.map toDoc
           ) dsrcs
