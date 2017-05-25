@@ -14,6 +14,7 @@ cabal-version:       >=1.10
 
 executable simplir
   main-is:             Search.hs
+  buildable:           False
   build-depends:
       base >=4.8 && <4.10,
       pipes-bytestring >=2.1 && <2.2,

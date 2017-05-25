@@ -422,7 +422,7 @@ trecDocuments dsrcs =
     mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeUtf8 $ dataSource dsrc)
                     >-> P.P.map (\d -> ( ( getFileName $ dsrcLocation dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
-                                       , Trec.docText d)))
+                                       , Trec.docBody d)))
           dsrcs
 
 kbaDocuments :: [DataSource]
