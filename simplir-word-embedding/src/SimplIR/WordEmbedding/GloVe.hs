@@ -1,6 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | GloVe: Global Vectors for Word Representation
+--
+-- See <https://nlp.stanford.edu/projects/glove/>
+--
+-- Reference: Jeffrey Pennington, Richard Socher, and Christopher D. Manning. 2014. /GloVe: Global Vectors for Word Representation/
 module SimplIR.WordEmbedding.GloVe where
 
 import GHC.TypeLits
@@ -16,8 +21,8 @@ import qualified Data.Array.Unboxed as A
 import SimplIR.WordEmbedding
 
 -- | Parse GloVe word embeddings from file.
-parseGlove :: FilePath -> IO SomeWordEmbedding
-parseGlove path = parseGlove' <$> TL.readFile path
+readGlove :: FilePath -> IO SomeWordEmbedding
+readGlove path = parseGlove' <$> TL.readFile path
 
 -- | Parse GloVe word embeddings.
 parseGlove' :: TL.Text -> SomeWordEmbedding
