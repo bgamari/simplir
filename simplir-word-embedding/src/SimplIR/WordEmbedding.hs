@@ -11,13 +11,17 @@ module SimplIR.WordEmbedding
       EmbeddingDim
     , WordVec(WordVec)
     , unWordVec
-    , wordVecDim
     , generateWordVec
+      -- ** Queries
+    , wordVecDim
+    , wordVecElems
       -- ** Operations
     , normaliseWordVec
     , normWordVec
     , scaleWordVec
+    , subtractWordVec
     , dotWordVecs
+    , sumWordVecs
       -- * Word embeddings
     , WordEmbedding
     , SomeWordEmbedding(..)
@@ -84,6 +88,13 @@ sumWordVecs xs =
 dotWordVecs :: WordVec n -> WordVec n -> Double
 dotWordVecs (WordVec a) (WordVec b) =
     sum $ map realToFrac $ zipWith (*) (A.elems a) (A.elems b)
+
+subtractWordVec :: forall n. KnownNat n => WordVec n -> WordVec n -> WordVec n
+subtractWordVec (WordVec a) (WordVec b) =
+    WordVec $ A.listArray (bounds @n) $ zipWith (-) (A.elems a) (A.elems b)
+
+wordVecElems :: WordVec n -> [Float]
+wordVecElems (WordVec a) = A.elems a
 
 -- | Word vector addition.
 instance KnownNat n => Monoid (WordVec n) where
