@@ -11,7 +11,6 @@ module SimplIR.RetrievalModels.QueryLikelihood
 import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Strict as HM
-import Data.Maybe (fromMaybe)
 import Numeric.Log hiding (sum)
 import SimplIR.Types
 
@@ -27,6 +26,11 @@ data Smoothing term
       -- ^ Given by Dirichlet factor $mu$ and background
       -- term probability. Values around the average
       -- document length or of order 100 are good guesses.
+      --
+      -- Note that in the event that a query term has zero background
+      -- probability you may see infinite scores. A common hack to avoid this is
+      -- to assume that the collection frequency of such terms is somewhere
+      -- between 0 and 1.
     | Laplace
     | JelinekMercer !(Log Double) (Distribution term)
       -- ^ Jelinek-Mercer smoothing.
@@ -36,7 +40,7 @@ score ::
          Smoothing term
       -> DocumentLength -- ^ the length of the document which we are scoring
       -> term           -- ^ the term
-      -> Double         -- ^ how many times does it occur?
+      -> Double         -- ^ how many times does it occur in the document?
       -> Score
 score smoothing (DocLength docLen) term tf =
     case smoothing of
@@ -61,13 +65,12 @@ queryLikelihood smoothing query = \docLen docTerms ->
         docTfs = foldl' accum (fmap (const 0) queryTerms) docTerms
 
         accum :: HM.HashMap term Double -> (term, Double) -> HM.HashMap term Double
-        accum acc (term, tf) = HM.adjust (+tf) term acc
-    in product [ (score smoothing docLen term tf)**(realToFrac $ queryTf term)
-               | (term, tf) <- HM.toList docTfs
+        accum qacc (dterm, dtf) = HM.adjust (+dtf) dterm qacc
+    in product [ (score smoothing docLen qterm dtf)**(realToFrac qTf)
+               | (qterm, dtf) <- HM.toList docTfs
+                 -- by construction docTfs will contain only query terms
+               , let Just qTf = HM.lookup qterm queryTerms
                ]
   where
     queryTerms :: HM.HashMap term Double
     queryTerms = HM.fromList query
-
-    queryTf :: term -> Double
-    queryTf term = fromMaybe 0 $ HM.lookup term queryTerms
