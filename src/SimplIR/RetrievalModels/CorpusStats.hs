@@ -14,6 +14,7 @@ module SimplIR.RetrievalModels.CorpusStats
 import Data.Hashable
 import Data.Semigroup
 import Data.Profunctor
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import Control.Foldl as Foldl
 
@@ -50,14 +51,26 @@ addCorpusStats a b =
 
 -- | A 'Foldl.Fold' over documents (bags of words) accumulating TermStats
 documentTermStats :: forall term. (Hashable term, Eq term)
-                  => Foldl.Fold [term] (CorpusStats term)
-documentTermStats =
+                  => Maybe (HS.HashSet term) -> Foldl.Fold [term] (CorpusStats term)
+documentTermStats interestingTerms =
     CorpusStats <$> termStats <*> Foldl.length <*> lmap Prelude.length Foldl.sum
   where
     accumTermStats = Foldl.Fold (HM.unionWith mappend) mempty id
     termStats = lmap toTermStats $ Foldl.handles traverse accumTermStats
     toTermStats :: [term] -> [HM.HashMap term TermStats]
-    toTermStats terms =
+    toTermStats = maybe unfilteredToTermStats filteredToTermStats interestingTerms
+
+    filteredToTermStats :: HS.HashSet term -> [term] -> [HM.HashMap term TermStats]
+    filteredToTermStats filterTerms terms =
+        [ HM.singleton term (TermStats 1 n)
+        | (term, n) <- HM.toList terms'
+        , term `HS.member` filterTerms
+        ]
+      where
+        terms' = HM.fromListWith (+) $ zip terms (repeat 1)
+
+    unfilteredToTermStats :: [term] -> [HM.HashMap term TermStats]
+    unfilteredToTermStats terms =
         [ HM.singleton term (TermStats 1 n)
         | (term, n) <- HM.toList terms'
         ]
