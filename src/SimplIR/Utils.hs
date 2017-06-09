@@ -10,6 +10,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
 import qualified Pipes.ByteString as P.BS
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | A variant of 'cat' with the type parameters rearranged for convenient use
 -- with @TypeApplications@.
@@ -99,3 +100,25 @@ foldChunksOf n
       | otherwise = do
         sIn' <- stepIn sIn x
         return (m+1, sIn', sOut)
+
+statusEvery :: MonadIO m => Int -> (Int -> String) -> Pipe a a m r
+statusEvery period msg = go 0 period
+  where
+    go !i 0 = do
+        x <- await
+        liftIO $ putStrLn $ msg (period*i)
+        yield x
+        go (i+1) period
+    go i n = do
+        await >>= yield
+        go i (n-1)
+
+-- | Wrap
+statusList :: Int -> (Int -> String) -> [a] -> [a]
+statusList period str = go 0 period
+  where
+    go !m 0 (x:xs) = unsafePerformIO $ do
+        putStrLn $ str (m*period)
+        return (x : go (m+1) period xs)
+    go m n (x:xs) = x : go m (n-1) xs
+    go _ _ []     = []
