@@ -16,7 +16,7 @@ import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Read as TR
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Array.Unboxed as A
+import qualified Data.Vector.Indexed as VI
 
 import SimplIR.WordEmbedding
 
@@ -34,7 +34,7 @@ parseGlove' contents =
                 case TL.words line of
                   []     -> mempty
                   w : ws -> HM.singleton (TL.toStrict w)
-                                         (WordVec $ A.listArray dimRange $ map parseFloat ws)
+                                         (WordVec $ VI.fromList dimRange $ map parseFloat ws)
 
               dimRange :: (EmbeddingDim n, EmbeddingDim n)
               dimRange = (minBound, maxBound)

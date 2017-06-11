@@ -36,7 +36,9 @@ import Data.Semigroup
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Text as T
 import qualified Data.HashMap.Strict as HM
-import qualified Data.Array.Unboxed as A
+import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Indexed as VI
+import Control.Monad.Primitive
 import GHC.TypeLits
 
 -- | A embedding dimension index.
@@ -48,7 +50,7 @@ instance KnownNat n => Bounded (EmbeddingDim n) where
     maxBound = EmbeddingDim $ fromIntegral (natVal (Proxy @n)) - 1
 
 -- | A embedding word vector.
-newtype WordVec (n :: Nat) = WordVec { unWordVec :: A.UArray (EmbeddingDim n) Float }
+newtype WordVec (n :: Nat) = WordVec { unWordVec :: VI.Vector VU.Vector (EmbeddingDim n) Float }
 
 -- | Normalise (in the L2 sense) a word vector.
 normaliseWordVec :: WordVec n -> WordVec n
@@ -56,22 +58,21 @@ normaliseWordVec v = scaleWordVec (normWordVec v) v
 
 -- | The L2 norm of a word vector
 normWordVec :: WordVec n -> Float
-normWordVec (WordVec v) = sqrt $ sum $ map squared $ A.elems v
-  where squared x = x*x
+normWordVec = VI.norm . unWordVec
 
 -- | Scale a word vector
 scaleWordVec :: Float -> WordVec n -> WordVec n
-scaleWordVec s (WordVec v) = WordVec $ A.amap (* s) v
+scaleWordVec s (WordVec v) = WordVec $ VI.map (* s) v
 
 -- | The dimension of a word vector.
 wordVecDim :: WordVec n -> Int
-wordVecDim = rangeSize . A.bounds . unWordVec
+wordVecDim = rangeSize . VI.bounds . unWordVec
 
 -- | Create a word-vector by from the result of the given action at each
 -- dimension. Useful for generating random word vectors.
-generateWordVec :: forall n m. (Monad m, KnownNat n)
+generateWordVec :: forall n m. (PrimMonad m, KnownNat n)
                 => (EmbeddingDim n -> m Float) -> m (WordVec n)
-generateWordVec f = WordVec . A.listArray (bounds @n) <$> mapM f (range $ bounds @n)
+generateWordVec f = WordVec <$> VI.generateM (bounds @n) f
 
 bounds :: forall (n :: Nat). KnownNat n => (EmbeddingDim n, EmbeddingDim n)
 bounds = (minBound, maxBound)
@@ -79,33 +80,31 @@ bounds = (minBound, maxBound)
 -- | The sum of a set of word-vectors.
 sumWordVecs :: forall n. KnownNat n => [WordVec n] -> WordVec n
 sumWordVecs xs =
-    WordVec $ A.accumArray (+) 0 (bounds @n)
+    WordVec $ VI.accum' (bounds @n) (+) 0
     [ (i, v)
     | WordVec vec <- xs
-    , (i, v) <- A.assocs vec
+    , (i, v) <- VI.assocs vec
     ]
 
 dotWordVecs :: WordVec n -> WordVec n -> Double
 dotWordVecs (WordVec a) (WordVec b) =
-    sum $ map realToFrac $ zipWith (*) (A.elems a) (A.elems b)
+    VI.sum $ VI.map realToFrac $ VI.zipWith (*) a b
 
 subtractWordVec :: forall n. KnownNat n => WordVec n -> WordVec n -> WordVec n
-subtractWordVec (WordVec a) (WordVec b) =
-    WordVec $ A.listArray (bounds @n) $ zipWith (-) (A.elems a) (A.elems b)
+subtractWordVec (WordVec a) (WordVec b) = WordVec $ VI.zipWith (-) a b
 
 wordVecElems :: WordVec n -> [Float]
-wordVecElems (WordVec a) = A.elems a
+wordVecElems (WordVec a) = VI.elems a
 
 -- | Word vector addition.
 instance KnownNat n => Monoid (WordVec n) where
-    mempty = WordVec $ A.accumArray (+) 0 (bounds @n) []
+    mempty = WordVec $ VI.replicate (bounds @n) 0
     mappend = (<>)
     mconcat = sumWordVecs
 
 -- | Word vector addition.
 instance KnownNat n => Semigroup (WordVec n) where
-    WordVec a <> WordVec b =
-        WordVec $ A.listArray (bounds @n) (zipWith (+) (A.elems a) (A.elems b))
+    WordVec a <> WordVec b = WordVec $ VI.accum (+) a (VI.assocs b)
 
     sconcat (x :| xs) = sumWordVecs (x:xs)
     stimes n = scaleWordVec (realToFrac n)

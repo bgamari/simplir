@@ -31,3 +31,6 @@
 [submodule "vendor/xml"]
 	path = vendor/xml
 	url = git://github.com/snoyberg/xml
+[submodule "vendor/indexed-vector"]
+	path = vendor/indexed-vector
+	url = git://github.com/bgamari/indexed-vector
