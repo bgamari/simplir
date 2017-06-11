@@ -6,3 +6,6 @@
 dist
 dist-newstyle
 .cabal-sandbox
+TAGS
+.ghc.environment.*
+cabal.project.local
