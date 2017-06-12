@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module SimplIR.RetrievalModels.CorpusStats
@@ -16,7 +17,9 @@ import Data.Semigroup
 import Data.Profunctor
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
-import Control.Foldl as Foldl
+import qualified Control.Foldl as Foldl
+import qualified Data.Binary.Serialise.CBOR as CBOR
+import GHC.Generics
 
 type CorpusDocCount = Int
 type CorpusTokenCount = Int
@@ -25,7 +28,8 @@ type TermFreq = Int
 data TermStats = TermStats { documentFrequency :: !Int
                            , termFrequency     :: !Int
                            }
-               deriving (Show)
+               deriving (Show, Generic)
+instance CBOR.Serialise TermStats
 
 instance Semigroup TermStats where
     TermStats a b <> TermStats x y = TermStats (a+x) (b+y)
@@ -40,6 +44,21 @@ data CorpusStats term = CorpusStats { corpusTerms      :: !(HM.HashMap term Term
                                     , corpusTokenCount :: !CorpusTokenCount
                                       -- ^ total token count
                                     }
+                      deriving (Generic)
+instance (Hashable term, Eq term, CBOR.Serialise term) => CBOR.Serialise (CorpusStats term)
+
+-- | Assumes sets cover non-overlapping sets of documents.
+instance (Eq term, Hashable term) => Monoid (CorpusStats term) where
+    mempty = emptyCorpusStats
+    mappend = addCorpusStats
+    mconcat = addManyCorpusStats
+
+emptyCorpusStats :: (Eq term, Hashable term) => CorpusStats term
+emptyCorpusStats =
+    CorpusStats { corpusTerms = mempty
+                , corpusDocCount = 0
+                , corpusTokenCount = 0
+                }
 
 addCorpusStats :: (Hashable term, Eq term)
                => CorpusStats term -> CorpusStats term -> CorpusStats term
@@ -47,6 +66,15 @@ addCorpusStats a b =
     CorpusStats { corpusTerms = HM.unionWith mappend (corpusTerms a) (corpusTerms b)
                 , corpusDocCount = corpusDocCount a + corpusDocCount b
                 , corpusTokenCount = corpusTokenCount a + corpusTokenCount b
+                }
+
+addManyCorpusStats :: (Hashable term, Eq term)
+                   => [CorpusStats term] -> CorpusStats term
+addManyCorpusStats xs =
+    CorpusStats { corpusTerms = HM.fromListWith mappend
+                                $ concatMap (HM.toList . corpusTerms) xs
+                , corpusDocCount = sum $ map corpusDocCount xs
+                , corpusTokenCount = sum $ map corpusTokenCount xs
                 }
 
 -- | A 'Foldl.Fold' over documents (bags of words) accumulating TermStats
