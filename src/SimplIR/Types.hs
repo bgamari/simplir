@@ -13,6 +13,7 @@ module SimplIR.Types
     ( -- * Often-needed types
       DocumentName(..)
     , DocumentLength(..)
+    , getDocumentLength
     , TermFrequency(..)
     , getTermFrequency
       -- * Positions within documents
@@ -153,6 +154,9 @@ derivingUnbox "Posting"
 -- | The length of a document in tokens.
 newtype DocumentLength = DocLength Int
                        deriving (Eq, Ord, Show, Enum, Binary, Aeson.ToJSON, Aeson.FromJSON)
+
+getDocumentLength :: Real a => DocumentLength -> a
+getDocumentLength (DocLength n) = fromIntegral n
 
 -- | A number of occurrences of a 'Term'
 newtype TermFrequency = TermFreq Int

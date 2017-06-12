@@ -9,9 +9,9 @@ import Numeric.Log hiding (sum)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 import SimplIR.RetrievalModels.CorpusStats
+import SimplIR.Types
 
 type Score = Log Double
-type DocLength = Int
 
 data BM25Params = BM25Params { k1 :: !(Log Double)
                              , b  :: !(Log Double)
@@ -22,7 +22,7 @@ sensibleParams = BM25Params 1.2 0.75
 
 bm25 :: (Eq term, Hashable term)
      => BM25Params -> CorpusStats term
-     -> HS.HashSet term -> DocLength -> HM.HashMap term TermFreq -> Score
+     -> HS.HashSet term -> DocumentLength -> HM.HashMap term TermFreq -> Score
 bm25 params stats queryTerms docLen terms =
     sum $ map (uncurry $ bm25Term params stats docLen)
     $ filter (\(term, _) -> term `HS.member` queryTerms)
@@ -30,7 +30,7 @@ bm25 params stats queryTerms docLen terms =
 
 bm25Term :: (Eq term, Hashable term)
          => BM25Params -> CorpusStats term
-         -> DocLength -> term -> TermFreq -> Score
+         -> DocumentLength -> term -> TermFreq -> Score
 bm25Term params CorpusStats{..} docLen term tf =
     bm25Term' params corpusDocCount corpusTokenCount docLen termStats tf
   where
@@ -38,9 +38,9 @@ bm25Term params CorpusStats{..} docLen term tf =
 {-# INLINEABLE bm25 #-}
 
 bm25Term' :: BM25Params -> CorpusDocCount -> CorpusTokenCount
-          -> DocLength -> TermStats -> TermFreq -> Score
+          -> DocumentLength -> TermStats -> TermFreq -> Score
 bm25Term' BM25Params{..} docCount tokCount docLen TermStats{..} tf =
-    idf * tf' * (k1 + 1) / (tf' + k1 * (1 - b + b * realToFrac docLen / avgDocLen))
+    idf * tf' * (k1 + 1) / (tf' + k1 * (1 - b + b * getDocumentLength docLen / avgDocLen))
   where
     avgDocLen = realToFrac tokCount / realToFrac docCount
     tf' = realToFrac tf
