@@ -32,6 +32,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Short.Internal as BS.S.I
 import qualified Data.ByteString.Builder as BS.B
+import qualified Data.Binary.Serialise.CBOR as CBOR
 import qualified Data.Text as T
 import qualified Data.Text.Array as T.A
 import qualified Data.Text.Lazy.Builder as T.B
@@ -122,3 +123,8 @@ instance Aeson.FromJSON SmallUtf8 where
 
 instance Aeson.FromJSONKey SmallUtf8 where
     fromJSONKey = Aeson.FromJSONKeyText fromText
+
+-- TODO: Serialise directly from SmallByteString
+instance CBOR.Serialise SmallUtf8 where
+    decode = unsafeFromByteString <$> CBOR.decode
+    encode = CBOR.encode . toByteString
