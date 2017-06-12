@@ -2,17 +2,20 @@
 
 module SimplIR.Term where
 
-import Data.String (IsString)
 import Control.DeepSeq
-import Data.Binary
-import Data.Hashable
 import Test.QuickCheck
 import qualified Data.Text as T
 import qualified Data.SmallUtf8 as Utf8
+
+import Data.String (IsString)
+import Data.Binary (Binary)
+import Data.Binary.Serialise.CBOR (Serialise)
+import Data.Hashable (Hashable)
 import Data.Aeson (FromJSON, ToJSON)
 
 newtype Term = Term Utf8.SmallUtf8
-             deriving (Eq, Ord, NFData, Hashable, IsString, Binary, FromJSON, ToJSON)
+             deriving (Eq, Ord, NFData, Hashable, IsString,
+                       Binary, FromJSON, ToJSON, Serialise)
 
 instance Show Term where
     showsPrec _ (Term s) = showString "fromString " . shows (Utf8.toString s)
