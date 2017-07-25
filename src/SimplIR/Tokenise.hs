@@ -27,11 +27,13 @@ killCharSet cs = T.map kill
     kill c
       | c `CS.member` cs  = ' '
       | otherwise         = c
+{-# INLINEABLE killCharSet #-}
 
 killPunctuation :: T.Text -> T.Text
 killPunctuation = killCharSet chars
   where
     chars = CS.fromList "\t\n\r;\"&/:!#?$%()@^*+-,=><[]{}|`~_`"
+{-# INLINEABLE killPunctuation #-}
 
 notLatin1Letters :: CS.CharSet
 notLatin1Letters = CS.complement (CSC.letter `CS.intersection` CSC.latin1)
