@@ -19,8 +19,8 @@ module SimplIR.TrecStreaming
 
 import Control.Applicative
 import Data.Int
-import Data.Foldable
 import GHC.Generics
+import Prelude
 
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
