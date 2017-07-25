@@ -54,7 +54,7 @@ main = do
     let query' = map (,1) query
         termPostings :: Monad m => [(Term, Producer (Posting [Position]) m ())]
         termPostings = map (\term -> ( term
-                                     , each $ fromMaybe [] $ DiskIndex.lookupPostings term idx)
+                                     , each $ fromMaybe [] $ DiskIndex.lookupPostings' term idx)
                            ) query
 
     results <- foldProducer (Fold.generalize $ topK resultCount)

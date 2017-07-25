@@ -10,6 +10,7 @@ module SimplIR.DiskIndex
       -- * Queries
     , lookupDoc
     , lookupPostings
+    , lookupPostings'
     , termPostings
     , documents
       -- * Typed wrapper
@@ -67,12 +68,21 @@ lookupDoc :: (Binary docmeta)
 lookupDoc docId = Doc.lookupDoc docId . docIdx
 
 -- | Lookup the 'Posting's of a 'Term' in the index.
-lookupPostings :: (Binary p)
+lookupPostings' :: (Binary p)
+                => Term                  -- ^ the term
+                -> DiskIndex docmeta p
+                -> Maybe [Posting p]     -- ^ the postings of the term
+lookupPostings' term idx =
+    PostingIdx.lookup (tfIdx idx) term
+
+lookupPostings :: (Binary p, Binary docmeta)
                => Term                  -- ^ the term
                -> DiskIndex docmeta p
-               -> Maybe [Posting p]     -- ^ the postings of the term
+               -> Maybe [(Maybe docmeta, p)]  -- ^ the postings of the term
 lookupPostings term idx =
-    PostingIdx.lookup (tfIdx idx) term
+    fmap (map lookupMeta) $ lookupPostings' term idx
+  where
+    lookupMeta p = (lookupDoc (postingDocId p) idx, postingBody p)
 
 -- | Enumerate the postings for all terms in the index.
 termPostings :: (Binary p)
