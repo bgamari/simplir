@@ -2,13 +2,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module SimplIR.RetrievalModels.CorpusStats
-    ( -- * Background statistics
-      CorpusStats(..)
-    , addCorpusStats
-    , CorpusDocCount
+    ( -- * Types
+      CorpusDocCount
     , CorpusTokenCount
     , TermStats(..)
     , TermFreq
+    , CorpusStats(..)
+
+     -- * Background statistics
+    , lookupTermStats
+    , corpusTermFrequency
+
+      -- * Construction
+    , addCorpusStats
     , documentTermStats
     ) where
 
@@ -46,6 +52,18 @@ data CorpusStats term = CorpusStats { corpusTerms      :: !(HM.HashMap term Term
                                     }
                       deriving (Generic)
 instance (Hashable term, Eq term, CBOR.Serialise term) => CBOR.Serialise (CorpusStats term)
+
+lookupTermStats :: (Eq term, Hashable term)
+                => CorpusStats term -> term -> Maybe TermStats
+lookupTermStats cs t = HM.lookup t (corpusTerms cs)
+
+corpusTermFrequency :: (Eq term, Hashable term, Fractional a)
+                    => CorpusStats term -> term -> a
+corpusTermFrequency cs t =
+    case lookupTermStats cs t of
+      Nothing -> 0
+      Just ts -> realToFrac (termFrequency ts) / realToFrac (corpusTokenCount cs)
+{-# INLINEABLE corpusTermFrequency #-}
 
 -- | Assumes sets cover non-overlapping sets of documents.
 instance (Eq term, Hashable term) => Monoid (CorpusStats term) where

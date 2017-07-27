@@ -41,6 +41,9 @@ library
       SimplIR.DiskIndex.Document
       SimplIR.DiskIndex.Posting.Tests
       SimplIR.DiskIndex.Tests
+      SimplIR.SimpleIndex
+      SimplIR.SimpleIndex.Models.QueryLikelihood
+      SimplIR.SimpleIndex.Models.BM25
       SimplIR.Format.TrecRunFile
       SimplIR.Format.QRel
       SimplIR.RetrievalModels.CorpusStats
