@@ -33,11 +33,11 @@ data ActivePosting m p = AP { apPosting   :: !(Posting p)
 apDocId :: ActivePosting m p -> DocumentId
 apDocId = postingDocId . apPosting
 
-instance Eq p => Eq (ActivePosting m p) where
-    (==) = (==) `on` apPosting
+instance Eq (ActivePosting m p) where
+    (==) = (==) `on` (postingDocId . apPosting)
 
-instance Ord p => Ord (ActivePosting m p) where
-    compare = compare `on` apPosting
+instance Ord (ActivePosting m p) where
+    compare = compare `on` (postingDocId . apPosting)
 
 -- | Given a set of terms and their sorted postings, collect the postings for
 -- all documents.
@@ -55,7 +55,7 @@ instance Ord p => Ord (ActivePosting m p) where
 -- , (DocId 3, [("cat", ()), ("dog", ())])
 -- , (DocId 4, [("dog", ())])
 -- ]
-collectPostings :: forall m p. (Ord p, Monad m)
+collectPostings :: forall m p. (Monad m)
                 => [(Term, Producer (Posting p) m ())]
                 -> Producer (DocumentId, [(Term, p)]) m ()
 collectPostings = start
