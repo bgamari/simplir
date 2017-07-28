@@ -25,18 +25,19 @@ import qualified Pipes.Prelude as P.P
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
-data ActivePosting m p = AP { apPosting   :: !(Posting p)
-                            , apTerm      :: !Term
-                            , apRemaining :: Producer (Posting p) m ()
-                            }
+data ActivePosting m term p = AP { apPosting   :: !(Posting p)
+                                 , apTerm      :: !term
+                                 , apRemaining :: Producer (Posting p) m ()
+                                 }
 
-apDocId :: ActivePosting m p -> DocumentId
+apDocId :: ActivePosting m term p -> DocumentId
 apDocId = postingDocId . apPosting
+{-# INLINEABLE apDocId #-}
 
-instance Eq (ActivePosting m p) where
+instance Eq (ActivePosting m term p) where
     (==) = (==) `on` (postingDocId . apPosting)
 
-instance Ord (ActivePosting m p) where
+instance Ord (ActivePosting m term p) where
     compare = compare `on` (postingDocId . apPosting)
 
 -- | Given a set of terms and their sorted postings, collect the postings for
@@ -55,9 +56,9 @@ instance Ord (ActivePosting m p) where
 -- , (DocId 3, [("cat", ()), ("dog", ())])
 -- , (DocId 4, [("dog", ())])
 -- ]
-collectPostings :: forall m p. (Monad m)
-                => [(Term, Producer (Posting p) m ())]
-                -> Producer (DocumentId, [(Term, p)]) m ()
+collectPostings :: forall term m p. (Monad m)
+                => [(term, Producer (Posting p) m ())]
+                -> Producer (DocumentId, [(term, p)]) m ()
 collectPostings = start
   where
     start prods = do
@@ -66,16 +67,16 @@ collectPostings = start
         go (mconcat s0)
 
     -- | Request a posting
-    nextPosting :: (Term, Producer (Posting p) m ())
-                -> m (H.Heap (ActivePosting m p))
+    nextPosting :: (term, Producer (Posting p) m ())
+                -> m (H.Heap (ActivePosting m term p))
     nextPosting (term, prod) = do
         mx <- next prod
         case mx of
             Right (posting, actives) -> return $ H.singleton $ AP posting term actives
             Left ()                  -> return H.empty
 
-    go :: H.Heap (ActivePosting m p)
-       -> Producer (DocumentId, [(Term, p)]) m ()
+    go :: H.Heap (ActivePosting m term p)
+       -> Producer (DocumentId, [(term, p)]) m ()
     go actives
       | H.null actives     = return ()
       | otherwise          = do
@@ -83,7 +84,7 @@ collectPostings = start
         let minDocId = apDocId $ H.minimum actives
             (postings, actives') = H.span (\x -> apDocId x == minDocId) actives
 
-            docPostings :: [(Term, p)]
+            docPostings :: [(term, p)]
             docPostings =
                 [ (apTerm, postingBody apPosting)
                 | AP {..} <- H.toUnsortedList postings ]
@@ -94,6 +95,7 @@ collectPostings = start
         new <- lift $ mapM (\ap -> nextPosting (apTerm ap, apRemaining ap))
                     $ H.toUnsortedList postings
         go (actives' <> mconcat new)
+{-# INLINEABLE collectPostings #-}
 
 test :: Monad m => [(Term, Producer (Posting ()) m ())]
 test =
