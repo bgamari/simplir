@@ -27,6 +27,7 @@ module SimplIR.WordEmbedding
     , SomeWordEmbedding(..)
     , someWordEmbeddingDim
     , wordEmbeddingDim
+    , wordEmbeddingDimBounds
     , embedTerms
     ) where
 
@@ -121,6 +122,11 @@ someWordEmbeddingDim (SomeWordEmbedding d) = wordEmbeddingDim d
 -- | The dimension of a word embedding
 wordEmbeddingDim :: forall n. KnownNat n => WordEmbedding n -> Int
 wordEmbeddingDim _ = fromIntegral $ natVal (Proxy @n)
+
+wordEmbeddingDimBounds :: forall (n :: Nat). KnownNat n
+                       => WordEmbedding n -> (EmbeddingDim n, EmbeddingDim n)
+wordEmbeddingDimBounds _ = bounds
+
 
 -- | The sum over the embeddings of a set of terms, dropping terms for which we
 -- have no embedding.
