@@ -45,7 +45,7 @@ import qualified Pipes.Prelude as P.P
 import qualified Pipes.Text as P.T
 import qualified Pipes.Text.Encoding as P.T.E
 
-import Options.Applicative hiding ((<>))
+import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
