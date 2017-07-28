@@ -43,7 +43,7 @@ args =
 main :: IO ()
 main = do
     (indexPath, resultCount, qid, query) <- execParser $ info (helper <*> args) mempty
-    idx <- DiskIndex.open indexPath :: IO (DiskIndex (DocumentName, DocumentLength) [Position])
+    idx <- DiskIndex.open indexPath :: IO (DiskIndex Term (DocumentName, DocumentLength) [Position])
     Right tfIdx <- BTree.open (indexPath </> "term-freqs")
         :: IO (Either String (BTree.LookupTree Term TermFrequency))
     collLength <- decode <$> BS.L.readFile (indexPath </> "coll-length") :: IO Int

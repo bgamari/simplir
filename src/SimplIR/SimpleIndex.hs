@@ -28,7 +28,7 @@ import Data.Binary (Binary)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
-import qualified Data.Binary.Serialise.CBOR as S
+import qualified Codec.Serialise as S
 import System.FilePath
 import Numeric.Log
 
@@ -36,7 +36,6 @@ import SimplIR.Types (DocumentId, DocumentLength(..))
 import SimplIR.DiskIndex.Build
 import SimplIR.DiskIndex.Posting.Collect
 import qualified SimplIR.DiskIndex as DiskIndex
-import SimplIR.Term as Term
 import SimplIR.RetrievalModels.CorpusStats as CorpusStats
 
 
@@ -46,7 +45,7 @@ newtype OnDiskIndex term doc posting
 
 
 data Index term doc posting
-     = Index { postingsIndex :: DiskIndex.DiskIndex (DocumentLength, doc) posting
+     = Index { postingsIndex :: DiskIndex.DiskIndex term (DocumentLength, doc) posting
              , corpusStats   :: CorpusStats term
              }
 
@@ -67,7 +66,7 @@ open path = do
     return (Index postings stats)
 
 -- | Build an index with term-frequency postings.
-buildTermFreq :: forall doc term. (term ~ Term, Ord term, Binary doc)
+buildTermFreq :: forall doc term. (Ord term, Hashable term, Binary term, S.Serialise term, Binary doc)
               => FilePath              -- ^ output path
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
@@ -91,10 +90,11 @@ buildTermFreq path docs = do
         in ((docLength, doc), termFreqs)
 
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
-                                 (DiskIndex.OnDiskIndex (DocumentLength, doc) Int)
+                                 (DiskIndex.OnDiskIndex term (DocumentLength, doc) Int)
     buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (postingsPath path'))
+{-# INLINEABLE buildTermFreq #-}
 
-lookupPostings :: forall term doc posting. (Binary posting, Binary doc, term ~ Term)
+lookupPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
                => Index term doc posting
                -> term
                -> [(doc, posting)]
@@ -102,9 +102,10 @@ lookupPostings index term =
       map (first snd)
     $ fromMaybe []
     $ DiskIndex.lookupPostings term (postingsIndex index)
+{-# INLINEABLE lookupPostings #-}
 
 -- | Query an index.
-score :: forall term doc posting. (term ~ Term, Ord posting, Binary doc, Binary posting)
+score :: forall term doc posting. (Hashable term, Ord term, Binary term, Binary doc, Binary posting, Ord posting)
       => Index term doc posting      -- ^ index
       -> RetrievalModel term doc posting      -- ^ retrieval model
       -> [term]                               -- ^ query terms
@@ -126,6 +127,7 @@ score index model =
            ]
   where
     !scoreDoc = model (corpusStats index)
+{-# INLINEABLE score #-}
 
 
 type RetrievalModel term doc posting

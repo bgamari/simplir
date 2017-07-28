@@ -46,9 +46,9 @@ mergeContainsAll chunks' = monadicIO $ do
         return indexDir
 
     -- merge indexes
-    indexes <- liftIO $ mapM (DiskIndex.open @DocumentName @Int) indexDirs
+    indexes <- liftIO $ mapM (DiskIndex.open @Term @DocumentName @Int) indexDirs
     let indexDir = tempDir </> "merged"
-    liftIO $ DiskIndex.merge @DocumentName @Int indexDir indexes
+    liftIO $ DiskIndex.merge @Term @DocumentName @Int indexDir indexes
     liftIO $ mapM_ removeDirectoryRecursive indexDirs
 
     -- check merged index

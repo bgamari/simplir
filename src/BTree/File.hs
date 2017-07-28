@@ -7,6 +7,7 @@ module BTree.File
     ) where
 
 import Control.Monad.IO.Class
+import Control.Monad.Catch
 import qualified BTree
 import Pipes
 import qualified Pipes.Prelude as P.P
@@ -25,7 +26,7 @@ merge f (BTreePath outPath) trees = do
     BTree.mergeTrees (\a b -> pure $ f a b) 64 outPath trees'
 {-# INLINE merge #-}
 
-fromOrdered :: (MonadIO m, Binary k, Binary a)
+fromOrdered :: (MonadIO m, MonadMask m, Binary k, Binary a)
             => BTree.Size -> BTreePath k a -> Producer (k, a) m () -> m ()
 fromOrdered maxSize (BTreePath path) xs =
     BTree.fromOrderedToFile 64 maxSize path (xs >-> P.P.map (uncurry BTree.BLeaf))

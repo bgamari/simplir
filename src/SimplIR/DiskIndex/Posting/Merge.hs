@@ -25,11 +25,11 @@ import qualified SimplIR.Encoded as E
 import qualified SimplIR.EncodedList as EL
 import BTree (BLeaf(..))
 
-merge :: forall p. (Binary p)
-      => Int                -- ^ Chunk size
-      -> PostingIndexPath p -- ^ Merged output
-      -> Int                -- ^ Merged index size (in terms)
-      -> [(DocIdDelta, [(Term, [PostingsChunk p])])]
+merge :: forall term p. (Binary term, Ord term, Binary p)
+      => Int                     -- ^ Chunk size
+      -> PostingIndexPath term p -- ^ Merged output
+      -> Int                     -- ^ Merged index size (in terms)
+      -> [(DocIdDelta, [(term, [PostingsChunk p])])]
       -- ^ a set of posting sources, along with their 'DocumentId' offsets
       -> IO ()
 merge chunkSize outFile mergedSize =
@@ -39,15 +39,15 @@ merge chunkSize outFile mergedSize =
     . map (fmap $ mergeChunks chunkSize)
     . mergePostings
 
-mergePostings :: forall p. ()
-              => [(DocIdDelta, [(Term, [PostingsChunk p])])]
-              -> [(Term, [PostingsChunk p])]
+mergePostings :: forall term p. (Ord term)
+              => [(DocIdDelta, [(term, [PostingsChunk p])])]
+              -> [(term, [PostingsChunk p])]
 mergePostings =
-      interleavePostings . map applyDocIdDelta
+    interleavePostings . map applyDelta
   where
-    applyDocIdDelta :: (DocIdDelta, [(Term, [PostingsChunk p])])
-                    -> [(Term, [PostingsChunk p])]
-    applyDocIdDelta (delta, terms) =
+    applyDelta :: (DocIdDelta, [(term, [PostingsChunk p])])
+               -> [(term, [PostingsChunk p])]
+    applyDelta (delta, terms) =
         map (fmap $ map $ applyDocIdDeltaToChunk delta) terms
 
 -- | Merge small chunks
@@ -84,12 +84,13 @@ prop_heapMerge_sorted (map getOrdered -> ents) =
 instance (Arbitrary p, Arbitrary a) => Arbitrary (H.Entry p a) where
     arbitrary = H.Entry <$> arbitrary <*> arbitrary
 
-interleavePostings :: [[(Term, [PostingsChunk p])]]
-                   -> [(Term, [PostingsChunk p])]
+interleavePostings :: forall term p. (Eq term, Ord term)
+                   => [[(term, [PostingsChunk p])]]
+                   -> [(term, [PostingsChunk p])]
 interleavePostings = mergeTerms . heapMerge . map (map (uncurry H.Entry))
   where
     -- Merge chunks belonging to the same term
-    mergeTerms :: [H.Entry Term [PostingsChunk p]] -> [(Term, [PostingsChunk p])]
+    mergeTerms :: [H.Entry term [PostingsChunk p]] -> [(term, [PostingsChunk p])]
     mergeTerms [] = []
     mergeTerms xs@(H.Entry term _chunks : _) =
         let (postingsOfTerm, rest) = span (\(H.Entry term' _) -> term == term') xs

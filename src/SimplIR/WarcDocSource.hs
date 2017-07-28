@@ -55,11 +55,6 @@ decodeDocuments :: MonadIO m
                 => Pipe (RecordHeader, BS.L.ByteString) (DocumentName, T.Text) m r
 decodeDocuments =
     mapFoldableM (runExceptT . decodeDocument)
-  where
-    logError (_docName, Right x)                 = return $ Just x
-    logError (docName, Left (LogMesg level msg)) = do
-        log level $ "failed: "++docName++": "++msg
-        return Nothing
 
 decodeDocument :: MonadIO m
                => (RecordHeader, BS.L.ByteString)

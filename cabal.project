@@ -6,6 +6,7 @@ packages:
     ./*.cabal
     simplir-*/*.cabal
     vendor/*/*.cabal
+    vendor/binary-serialise-cbor/*/*.cabal
 
 constraints:
     pipes-safe == 2.2.5

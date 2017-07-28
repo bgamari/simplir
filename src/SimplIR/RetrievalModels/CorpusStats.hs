@@ -24,7 +24,7 @@ import Data.Profunctor
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Control.Foldl as Foldl
-import qualified Data.Binary.Serialise.CBOR as CBOR
+import qualified Codec.Serialise as CBOR
 import GHC.Generics
 
 type CorpusDocCount = Int

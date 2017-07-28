@@ -22,7 +22,6 @@ import Numeric.Log.Signed
 
 import           SimplIR.Term (Term)
 import           SimplIR.Types
-import           SimplIR.RetrievalModels.QueryLikelihood (Score)
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import Query
 import Parametric

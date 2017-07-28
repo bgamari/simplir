@@ -4,13 +4,15 @@
 
 module SimplIR.Utils where
 
+import Control.Monad ((>=>))
+import System.IO.Unsafe (unsafePerformIO)
+
 import qualified Control.Foldl as Foldl
 import Pipes
 import qualified Pipes.Prelude as P.P
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as BS
 import qualified Pipes.ByteString as P.BS
-import System.IO.Unsafe (unsafePerformIO)
 
 -- | A variant of 'cat' with the type parameters rearranged for convenient use
 -- with @TypeApplications@.
@@ -20,6 +22,10 @@ cat' = cat
 foldProducer :: Monad m => Foldl.FoldM m a b -> Producer a m () -> m b
 foldProducer (Foldl.FoldM step initial extract) =
     P.P.foldM step initial extract
+
+foldProducer' :: Monad m => Foldl.FoldM m a b -> Producer a m r -> m (b, r)
+foldProducer' (Foldl.FoldM step initial extract) =
+    P.P.foldM' step initial extract
 
 -- | Fold over fixed-size chunks of the output of a 'Producer' with the given
 -- 'FoldM', emitting the result from each.
@@ -122,3 +128,50 @@ statusList period str = go 0 period
         return (x : go (m+1) period xs)
     go m n (x:xs) = x : go m (n-1) xs
     go _ _ []     = []
+
+zipFoldM :: forall i m a b. Monad m
+         => i -> (i -> i)
+         -> Foldl.FoldM m (i, a) b
+         -> Foldl.FoldM m a b
+zipFoldM idx0 succ' (Foldl.FoldM step0 initial0 extract0) =
+    Foldl.FoldM step initial extract
+  where
+    initial = do s <- initial0
+                 return (idx0, s)
+    extract = extract0 . snd
+    step (!idx, s) x = do
+        s' <- step0 s (idx, x)
+        return (succ' idx, s')
+{-# INLINEABLE zipFoldM #-}
+
+zipFold :: forall i a b.
+           i -> (i -> i)
+        -> Foldl.Fold (i, a) b
+        -> Foldl.Fold a b
+zipFold idx0 succ' (Foldl.Fold step0 initial0 extract0) =
+    Foldl.Fold step initial extract
+  where
+    initial = (idx0, initial0)
+    extract = extract0 . snd
+    step (!idx, s) x =
+        let s' = step0 s (idx, x)
+        in (succ' idx, s')
+{-# INLINEABLE zipFold #-}
+
+premapM' :: Monad m
+         => (a -> m b)
+         -> Foldl.FoldM m b c
+         -> Foldl.FoldM m a c
+premapM' f (Foldl.FoldM step0 initial0 extract0) =
+    Foldl.FoldM step initial0 extract0
+  where
+    step s x = f x >>= step0 s
+{-# INLINEABLE premapM' #-}
+
+postmapM' :: Monad m
+          => (b -> m c)
+          -> Foldl.FoldM m a b
+          -> Foldl.FoldM m a c
+postmapM' f (Foldl.FoldM step0 initial0 extract0) =
+    Foldl.FoldM step0 initial0 (extract0 >=> f)
+{-# INLINEABLE postmapM' #-}

@@ -18,7 +18,7 @@ args =
 main :: IO ()
 main = do
     (index, terms) <- execParser $ info (helper <*> args) mempty
-    idx <- DiskIndex.open index :: IO (DiskIndex.DiskIndex (DocumentName, DocumentLength) [Position])
+    idx <- DiskIndex.open index :: IO (DiskIndex.DiskIndex Term.Term (DocumentName, DocumentLength) [Position])
 
     let toDocName :: DocumentId -> String
         toDocName = maybe "none" show . flip DiskIndex.lookupDoc idx
