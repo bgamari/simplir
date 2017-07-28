@@ -6,7 +6,6 @@ module SimplIR.DiskIndex.Build
     ( buildIndex
     ) where
 
-import Control.Monad ((>=>))
 import Control.Monad.IO.Class
 import Data.Profunctor
 import System.Directory (removeDirectoryRecursive)
@@ -80,49 +79,3 @@ collectIndex =
     toPosting docId (term, p) = M.singleton term $ [Posting docId p]
 {-# INLINEABLE collectIndex #-}
 
-zipFoldM :: forall i m a b. Monad m
-         => i -> (i -> i)
-         -> Foldl.FoldM m (i, a) b
-         -> Foldl.FoldM m a b
-zipFoldM idx0 succ' (Foldl.FoldM step0 initial0 extract0) =
-    Foldl.FoldM step initial extract
-  where
-    initial = do s <- initial0
-                 return (idx0, s)
-    extract = extract0 . snd
-    step (!idx, s) x = do
-        s' <- step0 s (idx, x)
-        return (succ' idx, s')
-{-# INLINEABLE zipFoldM #-}
-
-zipFold :: forall i a b.
-           i -> (i -> i)
-        -> Foldl.Fold (i, a) b
-        -> Foldl.Fold a b
-zipFold idx0 succ' (Foldl.Fold step0 initial0 extract0) =
-    Foldl.Fold step initial extract
-  where
-    initial = (idx0, initial0)
-    extract = extract0 . snd
-    step (!idx, s) x =
-        let s' = step0 s (idx, x)
-        in (succ' idx, s')
-{-# INLINEABLE zipFold #-}
-
-premapM' :: Monad m
-         => (a -> m b)
-         -> Foldl.FoldM m b c
-         -> Foldl.FoldM m a c
-premapM' f (Foldl.FoldM step0 initial0 extract0) =
-    Foldl.FoldM step initial0 extract0
-  where
-    step s x = f x >>= step0 s
-{-# INLINEABLE premapM' #-}
-
-postmapM' :: Monad m
-          => (b -> m c)
-          -> Foldl.FoldM m a b
-          -> Foldl.FoldM m a c
-postmapM' f (Foldl.FoldM step0 initial0 extract0) =
-    Foldl.FoldM step0 initial0 (extract0 >=> f)
-{-# INLINEABLE postmapM' #-}
