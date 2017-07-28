@@ -9,7 +9,6 @@
 module SimplIR.WordEmbedding
     ( -- * Word vectors
       EmbeddingDim
-    , embeddingDimBounds
     , WordVec(WordVec)
     , unWordVec
     , generateWordVec
@@ -28,6 +27,7 @@ module SimplIR.WordEmbedding
     , SomeWordEmbedding(..)
     , someWordEmbeddingDim
     , wordEmbeddingDim
+    , wordEmbeddingDimBounds
     , embedTerms
     ) where
 
@@ -74,9 +74,6 @@ wordVecDim = rangeSize . VI.bounds . unWordVec
 generateWordVec :: forall n m. (PrimMonad m, KnownNat n)
                 => (EmbeddingDim n -> m Float) -> m (WordVec n)
 generateWordVec f = WordVec <$> VI.generateM (bounds @n) f
-
-embeddingDimBounds :: forall (n :: Nat). KnownNat n => (EmbeddingDim n, EmbeddingDim n)
-embeddingDimBounds = bounds
 
 bounds :: forall (n :: Nat). KnownNat n => (EmbeddingDim n, EmbeddingDim n)
 bounds = (minBound, maxBound)
@@ -125,6 +122,11 @@ someWordEmbeddingDim (SomeWordEmbedding d) = wordEmbeddingDim d
 -- | The dimension of a word embedding
 wordEmbeddingDim :: forall n. KnownNat n => WordEmbedding n -> Int
 wordEmbeddingDim _ = fromIntegral $ natVal (Proxy @n)
+
+wordEmbeddingDimBounds :: forall (n :: Nat). KnownNat n
+                       => WordEmbedding n -> (EmbeddingDim n, EmbeddingDim n)
+wordEmbeddingDimBounds _ = bounds
+
 
 -- | The sum over the embeddings of a set of terms, dropping terms for which we
 -- have no embedding.
