@@ -17,7 +17,7 @@ module SimplIR.DiskIndex.Posting.Internal
 import Data.Foldable
 
 import Data.Binary
-
+import Control.Monad.Catch
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
@@ -101,7 +101,7 @@ walkChunks (DiskIndex btree) =
     fromBLeaf (BTree.BLeaf k v) = (k, v)
 {-# INLINEABLE walkChunks #-}
 
-write :: (Binary term, MonadIO m)
+write :: (Binary term, MonadIO m, MonadMask m)
       => PostingIndexPath term p -> Int
       -> Producer (BLeaf term (EL.EncodedList (PostingsChunk p))) m ()
       -> m ()
