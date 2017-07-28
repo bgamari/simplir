@@ -28,7 +28,7 @@ import Data.Binary (Binary)
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
-import qualified Data.Binary.Serialise.CBOR as S
+import qualified Codec.Serialise as S
 import System.FilePath
 import Numeric.Log
 

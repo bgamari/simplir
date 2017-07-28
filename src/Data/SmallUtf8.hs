@@ -32,7 +32,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Short.Internal as BS.S.I
 import qualified Data.ByteString.Builder as BS.B
-import qualified Data.Binary.Serialise.CBOR as CBOR
+import qualified Codec.Serialise as CBOR
 import qualified Data.Text as T
 import qualified Data.Text.Array as T.A
 import qualified Data.Text.Lazy.Builder as T.B

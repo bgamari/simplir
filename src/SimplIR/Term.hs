@@ -9,7 +9,7 @@ import qualified Data.SmallUtf8 as Utf8
 
 import Data.String (IsString)
 import Data.Binary (Binary)
-import Data.Binary.Serialise.CBOR (Serialise)
+import Codec.Serialise (Serialise)
 import Data.Hashable (Hashable)
 import Data.Aeson (FromJSON, ToJSON)
 
