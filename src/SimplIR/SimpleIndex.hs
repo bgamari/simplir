@@ -5,8 +5,9 @@
 -- | A simple wrapper around "SimplIR.DiskIndex".
 module SimplIR.SimpleIndex
     ( -- * On disk
-      OnDiskIndexWithStats(..)
+      OnDiskIndex(..)
       -- * Index
+    , Index
     , open
     , buildTermFreq
       -- * Querying
@@ -39,37 +40,37 @@ import SimplIR.Term as Term
 import SimplIR.RetrievalModels.CorpusStats as CorpusStats
 
 
-newtype OnDiskIndexWithStats term doc posting
-    = OnDiskIndexWithStats FilePath
+newtype OnDiskIndex term doc posting
+    = OnDiskIndex FilePath
     deriving (Eq, Ord, Show)
 
 
-data IndexWithStats term doc posting
-     = IndexWithStats { postingsIndex :: DiskIndex.DiskIndex (DocumentLength, doc) posting
-                      , corpusStats   :: CorpusStats term
-                      }
+data Index term doc posting
+     = Index { postingsIndex :: DiskIndex.DiskIndex (DocumentLength, doc) posting
+             , corpusStats   :: CorpusStats term
+             }
 
 
-postingsPath :: OnDiskIndexWithStats term doc posting -> FilePath
-postingsPath (OnDiskIndexWithStats f) = f <.> "postings"
+postingsPath :: OnDiskIndex term doc posting -> FilePath
+postingsPath (OnDiskIndex f) = f <.> "postings"
 
-statsPath :: OnDiskIndexWithStats term doc posting -> FilePath
-statsPath (OnDiskIndexWithStats f) = f <.> "stats"
+statsPath :: OnDiskIndex term doc posting -> FilePath
+statsPath (OnDiskIndex f) = f <.> "stats"
 
 -- | Open an index.
 open :: (Hashable term, Eq term, S.Serialise term)
-     => OnDiskIndexWithStats term doc posting
-     -> IO (IndexWithStats term doc posting)
+     => OnDiskIndex term doc posting
+     -> IO (Index term doc posting)
 open path = do
     postings <- DiskIndex.open (postingsPath path)
     stats <- S.deserialise <$> BSL.readFile (statsPath path)
-    return (IndexWithStats postings stats)
+    return (Index postings stats)
 
 -- | Build an index with term-frequency postings.
 buildTermFreq :: forall doc term. (term ~ Term, Ord term, Binary doc)
               => FilePath              -- ^ output path
               -> [(doc, [term])]       -- ^ documents and their contents
-              -> IO (OnDiskIndexWithStats term doc Int)
+              -> IO (OnDiskIndex term doc Int)
 buildTermFreq path docs = do
     (stats, _idx) <-
         runSafeT $ Foldl.foldM ((,) <$> Foldl.generalize buildStats
@@ -78,7 +79,7 @@ buildTermFreq path docs = do
     BSL.writeFile (statsPath path') $ S.serialise stats
     return path'
   where
-    path' = OnDiskIndexWithStats path
+    path' = OnDiskIndex path
 
     buildStats :: Foldl.Fold (doc, [term]) (CorpusStats term)
     buildStats = Foldl.premap snd (CorpusStats.documentTermStats Nothing)
@@ -94,7 +95,7 @@ buildTermFreq path docs = do
     buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (postingsPath path'))
 
 lookupPostings :: forall term doc posting. (Binary posting, Binary doc, term ~ Term)
-               => IndexWithStats term doc posting
+               => Index term doc posting
                -> term
                -> [(doc, posting)]
 lookupPostings index term =
@@ -104,7 +105,7 @@ lookupPostings index term =
 
 -- | Query an index.
 score :: forall term doc posting. (term ~ Term, Ord posting, Binary doc, Binary posting)
-      => IndexWithStats term doc posting      -- ^ index
+      => Index term doc posting      -- ^ index
       -> RetrievalModel term doc posting      -- ^ retrieval model
       -> [term]                               -- ^ query terms
       -> [(Log Double, doc)]
