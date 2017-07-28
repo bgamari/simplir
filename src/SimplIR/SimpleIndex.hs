@@ -12,9 +12,11 @@ module SimplIR.SimpleIndex
       -- * Querying
     , RetrievalModel
     , score
+    , lookupPostings
     ) where
 
 import Data.Maybe
+import Data.Bifunctor
 
 import Pipes
 import qualified Pipes.Prelude as PP
@@ -90,6 +92,15 @@ buildTermFreq path docs = do
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
                                  (DiskIndex.OnDiskIndex (DocumentLength, doc) Int)
     buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (postingsPath path'))
+
+lookupPostings :: forall term doc posting. (Binary posting, Binary doc, term ~ Term)
+               => IndexWithStats term doc posting
+               -> term
+               -> [(doc, posting)]
+lookupPostings index term =
+      map (first snd)
+    $ fromMaybe []
+    $ DiskIndex.lookupPostings term (postingsIndex index)
 
 -- | Query an index.
 score :: forall term doc posting. (term ~ Term, Ord posting, Binary doc, Binary posting)

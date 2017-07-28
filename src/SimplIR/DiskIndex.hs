@@ -78,11 +78,15 @@ lookupPostings' term idx =
 lookupPostings :: (Binary p, Binary docmeta)
                => Term                  -- ^ the term
                -> DiskIndex docmeta p
-               -> Maybe [(Maybe docmeta, p)]  -- ^ the postings of the term
+               -> Maybe [(docmeta, p)]  -- ^ the postings of the term
 lookupPostings term idx =
     fmap (map lookupMeta) $ lookupPostings' term idx
   where
-    lookupMeta p = (lookupDoc (postingDocId p) idx, postingBody p)
+    lookupMeta p = (doc, postingBody p)
+      where
+        doc = case lookupDoc (postingDocId p) idx of
+                Nothing -> error $ "Failed to find document "++show (postingDocId p)
+                Just d  -> d
 
 -- | Enumerate the postings for all terms in the index.
 termPostings :: (Binary p)
