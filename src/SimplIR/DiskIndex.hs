@@ -31,26 +31,26 @@ import qualified SimplIR.DiskIndex.Posting.Types as PostingIdx
 import qualified SimplIR.DiskIndex.Posting.Merge as PostingIdx.Merge
 import qualified SimplIR.DiskIndex.Document as Doc
 
--- | @DiskIndex docmeta p@ is an on-disk index with document metadata @docmeta@
+-- | @DiskIndex doc p@ is an on-disk index with document metadata @doc@
 -- and posting-type @p@.
-data DiskIndex docmeta p
+data DiskIndex doc p
     = DiskIndex { tfIdx  :: PostingIdx.DiskIndex p
-                , docIdx :: Doc.DocIndex docmeta
+                , docIdx :: Doc.DocIndex doc
                 }
 
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: FilePath -> IO (DiskIndex docmeta p)
+open :: FilePath -> IO (DiskIndex doc p)
 open path = do
     doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
     Right tf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
     return $ DiskIndex tf doc
 
 -- | Build an on-disk index from a set of documents and their postings.
-fromDocuments :: (Binary docmeta, Binary p)
+fromDocuments :: (Binary doc, Binary p)
               => FilePath                 -- ^ destination path
-              -> [(DocumentId, docmeta)]  -- ^ document metadata and postings
+              -> [(DocumentId, doc)]  -- ^ document metadata and postings
               -> M.Map Term [Posting p]
               -> IO ()
 fromDocuments dest docs postings = do
@@ -58,27 +58,27 @@ fromDocuments dest docs postings = do
     PostingIdx.fromTermPostings postingChunkSize (PostingIdx.PostingIndexPath $ dest </> "postings") postings
     Doc.write (Doc.DocIndexPath $ dest </> "documents") (M.fromList docs)
 
-documents :: (Monad m, Binary docmeta)
-          => DiskIndex docmeta p -> Producer (DocumentId, docmeta) m ()
+documents :: (Monad m, Binary doc)
+          => DiskIndex doc p -> Producer (DocumentId, doc) m ()
 documents = Doc.documents . docIdx
 
 -- | Lookup the metadata of a document.
-lookupDoc :: (Binary docmeta)
-          => DocumentId -> DiskIndex docmeta p -> Maybe docmeta
+lookupDoc :: (Binary doc)
+          => DocumentId -> DiskIndex doc p -> Maybe doc
 lookupDoc docId = Doc.lookupDoc docId . docIdx
 
 -- | Lookup the 'Posting's of a 'Term' in the index.
 lookupPostings' :: (Binary p)
                 => Term                  -- ^ the term
-                -> DiskIndex docmeta p
+                -> DiskIndex doc p
                 -> Maybe [Posting p]     -- ^ the postings of the term
 lookupPostings' term idx =
     PostingIdx.lookup (tfIdx idx) term
 
-lookupPostings :: (Binary p, Binary docmeta)
+lookupPostings :: (Binary p, Binary doc)
                => Term                  -- ^ the term
-               -> DiskIndex docmeta p
-               -> Maybe [(docmeta, p)]  -- ^ the postings of the term
+               -> DiskIndex doc p
+               -> Maybe [(doc, p)]  -- ^ the postings of the term
 lookupPostings term idx =
     fmap (map lookupMeta) $ lookupPostings' term idx
   where
@@ -90,7 +90,7 @@ lookupPostings term idx =
 
 -- | Enumerate the postings for all terms in the index.
 termPostings :: (Binary p)
-             => DiskIndex docmeta p
+             => DiskIndex doc p
              -> [(Term, [Posting p])]
 termPostings idx =
     PostingIdx.walk (tfIdx idx)
@@ -99,9 +99,9 @@ termPostings idx =
 postingChunkSize :: Int
 postingChunkSize = 2^(14 :: Int)
 
-merge :: forall docmeta p. (Binary p, Binary docmeta)
+merge :: forall doc p. (Binary p, Binary doc)
       => FilePath              -- ^ destination path
-      -> [DiskIndex docmeta p] -- ^ indices to merge
+      -> [DiskIndex doc p] -- ^ indices to merge
       -> IO ()
 merge dest idxs = do
     createDirectoryIfMissing True dest
@@ -119,9 +119,9 @@ merge dest idxs = do
                            (zip docIds0 allPostings)
 
 -- | A typed newtype wrapper
-newtype OnDiskIndex docmeta p = OnDiskIndex { onDiskIndexPath :: FilePath }
+newtype OnDiskIndex doc p = OnDiskIndex { onDiskIndexPath :: FilePath }
 
-openOnDiskIndex :: (Binary docmeta)
-                => OnDiskIndex docmeta p
-                -> IO (DiskIndex docmeta p)
+openOnDiskIndex :: (Binary doc)
+                => OnDiskIndex doc p
+                -> IO (DiskIndex doc p)
 openOnDiskIndex = open . onDiskIndexPath
