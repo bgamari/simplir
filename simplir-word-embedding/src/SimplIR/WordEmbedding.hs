@@ -9,6 +9,7 @@
 module SimplIR.WordEmbedding
     ( -- * Word vectors
       EmbeddingDim
+    , embeddingDimBounds
     , WordVec(WordVec)
     , unWordVec
     , generateWordVec
@@ -73,6 +74,9 @@ wordVecDim = rangeSize . VI.bounds . unWordVec
 generateWordVec :: forall n m. (PrimMonad m, KnownNat n)
                 => (EmbeddingDim n -> m Float) -> m (WordVec n)
 generateWordVec f = WordVec <$> VI.generateM (bounds @n) f
+
+embeddingDimBounds :: forall (n :: Nat). KnownNat n => (EmbeddingDim n, EmbeddingDim n)
+embeddingDimBounds = bounds
 
 bounds :: forall (n :: Nat). KnownNat n => (EmbeddingDim n, EmbeddingDim n)
 bounds = (minBound, maxBound)
