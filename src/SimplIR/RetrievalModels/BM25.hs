@@ -20,6 +20,10 @@ data BM25Params = BM25Params { k1 :: !(Log Double)
 sensibleParams :: BM25Params
 sensibleParams = BM25Params 1.2 0.75
 
+-- | This is Lucene's variant on Okapi BM-25. It ignores query term frequency
+-- and document length bias.
+--
+-- We use the SMART probidf version of idf (with offset of 0.5 division by zero)
 bm25 :: (Eq term, Hashable term)
      => BM25Params -> CorpusStats term
      -> HS.HashSet term -> DocumentLength -> HM.HashMap term TermFreq -> Score
@@ -27,6 +31,7 @@ bm25 params stats queryTerms docLen terms =
     sum $ map (uncurry $ bm25Term params stats docLen)
     $ filter (\(term, _) -> term `HS.member` queryTerms)
     $ HM.toList terms
+{-# INLINEABLE bm25 #-}
 
 bm25Term :: (Eq term, Hashable term)
          => BM25Params -> CorpusStats term
@@ -35,7 +40,7 @@ bm25Term params CorpusStats{..} docLen term tf =
     bm25Term' params corpusDocCount corpusTokenCount docLen termStats tf
   where
     termStats = fromMaybe mempty $ HM.lookup term corpusTerms
-{-# INLINEABLE bm25 #-}
+{-# INLINEABLE bm25Term #-}
 
 bm25Term' :: BM25Params -> CorpusDocCount -> CorpusTokenCount
           -> DocumentLength -> TermStats -> TermFreq -> Score
