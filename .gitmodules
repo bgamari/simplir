@@ -37,3 +37,6 @@
 [submodule "vendor/fork-map"]
 	path = vendor/fork-map
 	url = git@git.smart-cactus.org:ben/fork-map
+[submodule "vendor/trifecta"]
+	path = vendor/trifecta
+	url = git://github.com/ekmett/trifecta
