@@ -15,6 +15,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     SimplIR.HTML.Clean
+  hs-source-dirs:      src
   other-extensions:    RecordWildCards, OverloadedStrings
   build-depends:       base >=4.9 && <5.0,
                        text >=1.2 && <1.4,
@@ -31,5 +32,6 @@ executable html-clean
                        bytestring,
                        deepseq,
                        unordered-containers,
-                       html-parse
+                       html-parse,
+                       simplir-html-clean
   default-language:    Haskell2010
