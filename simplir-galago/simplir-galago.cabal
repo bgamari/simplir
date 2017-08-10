@@ -14,7 +14,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     SimplIR.Galago
-  build-depends:       base >=4.9 && <4.10,
+  build-depends:       base,
                        bytestring,
                        text,
                        containers,
