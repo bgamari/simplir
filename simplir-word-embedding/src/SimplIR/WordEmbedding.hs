@@ -81,8 +81,8 @@ bounds = (minBound, maxBound)
 
 -- | The sum of a set of word-vectors.
 sumWordVecs :: forall n. KnownNat n => [WordVec n] -> WordVec n
-sumWordVecs =
-    WordVec . VI.zipManyWith (+) . map unWordVec
+sumWordVecs [] = mempty
+sumWordVecs xs = WordVec $ VI.zipManyWith (+) $ map unWordVec xs
 
 dotWordVecs :: WordVec n -> WordVec n -> Double
 dotWordVecs (WordVec a) (WordVec b) =
