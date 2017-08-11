@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -10,6 +9,7 @@ module SimplIR.Format.QRel
     , Entry(..)
       -- * Parsing
     , readQRel
+    , mapQRels
       -- * Reexports
     , IsRelevant(..)
     ) where
@@ -44,9 +44,9 @@ readQRel fname =
 
         _ -> Nothing
 
-mapQRels :: [Entry ] -> HM.Lazy.HashMap QueryId [Entry]
+mapQRels :: [Entry] -> HM.Lazy.HashMap QueryId [Entry]
 mapQRels entries =
-    HM.fromListWith (++) $
+    HM.fromListWith (flip (++))
       [ (queryId entry, [entry])
       | entry <- entries
       ]
