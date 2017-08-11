@@ -1,7 +1,6 @@
 module SimplIR.SimpleIndex.Models.BM25
     ( -- * Parameters
       BM25.BM25Params(..)
-    , BM25.sensibleParams
       -- * Scoring
     , bm25
     , BM25.sensibleParams
