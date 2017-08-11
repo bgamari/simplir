@@ -19,10 +19,11 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector.Indexed as VI
 
 import SimplIR.WordEmbedding
+import SimplIR.Utils.Compact
 
 -- | Parse GloVe word embeddings from file.
 readGlove :: FilePath -> IO SomeWordEmbedding
-readGlove path = parseGlove' <$> TL.readFile path
+readGlove path = inCompact (parseGlove' <$> TL.readFile path)
 
 -- | Parse GloVe word embeddings.
 parseGlove' :: TL.Text -> SomeWordEmbedding

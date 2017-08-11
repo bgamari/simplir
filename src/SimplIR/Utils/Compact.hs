@@ -7,9 +7,9 @@ import Control.DeepSeq
 import GHC.Compact
 #endif
 
-inCompact :: NFData a => a -> IO a
+inCompact :: NFData a => IO a -> IO a
 #if __GLASGOW_HASKELL__ > 802
-inCompact = getCompact <$> compact
+inCompact action = action >>= fmap getCompact . compact
 #else
-inCompact = return
+inCompact = id
 #endif

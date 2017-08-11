@@ -31,6 +31,7 @@ module SimplIR.WordEmbedding
     , embedTerms
     ) where
 
+import Control.DeepSeq
 import Data.Proxy
 import Data.Ix
 import Data.Semigroup
@@ -111,6 +112,9 @@ type WordEmbedding n = HM.HashMap T.Text (WordVec n)
 
 data SomeWordEmbedding where
     SomeWordEmbedding :: KnownNat n => !(WordEmbedding n) -> SomeWordEmbedding
+
+instance NFData SomeWordEmbedding where
+    rnf x = x `seq` ()
 
 someWordEmbeddingDim :: SomeWordEmbedding -> Int
 someWordEmbeddingDim (SomeWordEmbedding d) = wordEmbeddingDim d

@@ -63,9 +63,8 @@ open :: (Hashable term, Eq term, S.Serialise term)
      -> IO (Index term doc posting)
 open path = do
     postings <- DiskIndex.open (postingsPath path)
-    stats <- S.deserialise <$> BSL.readFile (statsPath path)
-    stats' <- inCompact stats
-    return (Index postings stats')
+    stats <- inCompact (S.deserialise <$> BSL.readFile (statsPath path))
+    return (Index postings stats)
 
 -- | Build an index with term-frequency postings.
 buildTermFreq :: forall doc term. (Ord term, Hashable term, Binary term, S.Serialise term, Binary doc)
