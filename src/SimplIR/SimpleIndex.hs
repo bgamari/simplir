@@ -37,6 +37,7 @@ import SimplIR.DiskIndex.Build
 import SimplIR.DiskIndex.Posting.Collect
 import qualified SimplIR.DiskIndex as DiskIndex
 import SimplIR.RetrievalModels.CorpusStats as CorpusStats
+import SimplIR.Utils.Compact
 
 
 newtype OnDiskIndex term doc posting
@@ -63,7 +64,8 @@ open :: (Hashable term, Eq term, S.Serialise term)
 open path = do
     postings <- DiskIndex.open (postingsPath path)
     stats <- S.deserialise <$> BSL.readFile (statsPath path)
-    return (Index postings stats)
+    stats' <- inCompact stats
+    return (Index postings stats')
 
 -- | Build an index with term-frequency postings.
 buildTermFreq :: forall doc term. (Ord term, Hashable term, Binary term, S.Serialise term, Binary doc)

@@ -61,6 +61,7 @@ library
       SimplIR.Tokenise
       SimplIR.TopK
       SimplIR.Utils
+      SimplIR.Utils.Compact
       SimplIR.Types
       SimplIR.Term
       SimplIR.WarcDocSource

@@ -18,6 +18,7 @@ module SimplIR.RetrievalModels.CorpusStats
     , documentTermStats
     ) where
 
+import Control.DeepSeq
 import Data.Hashable
 import Data.Semigroup
 import Data.Profunctor
@@ -52,6 +53,8 @@ data CorpusStats term = CorpusStats { corpusTerms      :: !(HM.HashMap term Term
                                     }
                       deriving (Generic)
 instance (Hashable term, Eq term, CBOR.Serialise term) => CBOR.Serialise (CorpusStats term)
+instance NFData (CorpusStats term) where
+    rnf x = x `seq` ()
 
 lookupTermStats :: (Eq term, Hashable term)
                 => CorpusStats term -> term -> Maybe TermStats
