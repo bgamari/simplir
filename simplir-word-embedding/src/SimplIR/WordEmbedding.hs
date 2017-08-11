@@ -80,12 +80,8 @@ bounds = (minBound, maxBound)
 
 -- | The sum of a set of word-vectors.
 sumWordVecs :: forall n. KnownNat n => [WordVec n] -> WordVec n
-sumWordVecs xs =
-    WordVec $ VI.accum' (bounds @n) (+) 0
-    [ (i, v)
-    | WordVec vec <- xs
-    , (i, v) <- VI.assocs vec
-    ]
+sumWordVecs =
+    WordVec . VI.zipManyWith (+) . map unWordVec
 
 dotWordVecs :: WordVec n -> WordVec n -> Double
 dotWordVecs (WordVec a) (WordVec b) =
