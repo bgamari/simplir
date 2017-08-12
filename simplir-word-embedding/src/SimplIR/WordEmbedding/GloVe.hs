@@ -23,7 +23,7 @@ import SimplIR.Utils.Compact
 
 -- | Parse GloVe word embeddings from file.
 readGlove :: FilePath -> IO SomeWordEmbedding
-readGlove path = inCompact (parseGlove' <$> TL.readFile path)
+readGlove path = inCompactM (parseGlove' <$> TL.readFile path)
 
 -- | Parse GloVe word embeddings.
 parseGlove' :: TL.Text -> SomeWordEmbedding

@@ -1,15 +1,25 @@
 {-# LANGUAGE CPP #-}
 
-module SimplIR.Utils.Compact (inCompact) where
+#if __GLASGOW_HASKELL__ > 802
+#define USE_COMPACT
+#endif
+
+module SimplIR.Utils.Compact
+    ( inCompactM
+    , inCompact
+    ) where
 
 import Control.DeepSeq
-#if __GLASGOW_HASKELL__ > 802
+#ifdef USE_COMPACT
 import GHC.Compact
 #endif
 
-inCompact :: NFData a => IO a -> IO a
-#if __GLASGOW_HASKELL__ > 802
-inCompact action = action >>= fmap getCompact . compact
+inCompactM :: NFData a => IO a -> IO a
+inCompact :: NFData a => a -> a
+#ifdef USE_COMPACT
+inCompactM action = action >>= fmap getCompact . compact
+inCompact         = unsafePerformIO . fmap getCompact . compact
 #else
-inCompact = id
+inCompactM = id
+inCompact  = id
 #endif
