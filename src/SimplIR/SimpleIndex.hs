@@ -105,9 +105,9 @@ lookupPostings index term =
     $ DiskIndex.lookupPostings term (postingsIndex index)
 {-# INLINEABLE lookupPostings #-}
 
--- | Query an index.
+-- | Query an index, returning un-sorted results.
 score :: forall term doc posting. (Hashable term, Ord term, Binary term, Binary doc, Binary posting, Ord posting)
-      => Index term doc posting      -- ^ index
+      => Index term doc posting               -- ^ index
       -> RetrievalModel term doc posting      -- ^ retrieval model
       -> [term]                               -- ^ query terms
       -> [(Log Double, doc)]
