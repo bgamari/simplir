@@ -4,6 +4,7 @@
 module SimplIR.TopK
     ( -- * Computing top-k lists
       topK, topK'
+    , collectTopK
     , H.Entry(..)
       -- * Tests
     , tests
@@ -26,6 +27,11 @@ data Accum a = Accum { insertions :: !Int
                      , heap       :: !(H.Heap a)
                        -- ^ the current top @k@
                      }
+
+-- | Collect the top-\(k\) elements of a 'Foldable'.
+collectTopK :: (Foldable f, Ord a) => Int -> f a -> [a]
+collectTopK k = Fold.fold (topK k)
+{-# INLINE collectTopK #-}
 
 topK :: Ord a => Int -> Fold.Fold a [a]
 topK k = topK' (1 + k `div` 20) k
