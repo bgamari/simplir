@@ -51,6 +51,7 @@ library
       SimplIR.RetrievalModels.QueryLikelihood
       SimplIR.RetrievalModels.TfIdf
       SimplIR.RetrievalModels.BM25
+      SimplIR.RetrievalModels.RelevanceModel
       SimplIR.StopWords
       AccumPostings
       SimplIR.DataSource
