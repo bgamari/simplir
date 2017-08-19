@@ -14,6 +14,7 @@ module SimplIR.SimpleIndex
     , RetrievalModel
     , score
     , lookupPostings
+    , descending
     ) where
 
 import Data.Maybe
@@ -25,6 +26,7 @@ import Pipes.Safe
 import Data.Hashable
 import qualified Data.HashSet as HS
 import Data.Binary (Binary)
+import Data.Ord
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
@@ -129,6 +131,12 @@ score index model =
   where
     !scoreDoc = model (corpusStats index)
 {-# INLINEABLE score #-}
+
+
+descending :: forall doc.
+            (Log Double, doc) -> (Log Double, doc) -> Ordering
+descending = flip $ comparing fst
+{-# INLINEABLE descending #-}
 
 
 type RetrievalModel term doc posting
