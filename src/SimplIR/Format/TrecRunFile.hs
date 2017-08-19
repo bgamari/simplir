@@ -57,7 +57,7 @@ readRunFile fname =
 writeRunFile :: FilePath -> [RankingEntry] -> IO ()
 writeRunFile fname entries =
     TL.writeFile fname $ TB.toLazyText $ mconcat
-    [ TB.fromText (queryId e) <> " Q1 "
+    [ TB.fromText (queryId e) <> " Q0 "
       <> TB.fromText (documentName e) <> " "
       <> TB.decimal (documentRank e) <> " "
       <> TB.realFloat (documentScore e) <> " "
