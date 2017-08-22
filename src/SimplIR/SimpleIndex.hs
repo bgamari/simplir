@@ -14,6 +14,7 @@ module SimplIR.SimpleIndex
     , RetrievalModel
     , score
     , lookupPostings
+    , termPostings
     , descending
     ) where
 
@@ -34,7 +35,7 @@ import qualified Codec.Serialise as S
 import System.FilePath
 import Numeric.Log
 
-import SimplIR.Types (DocumentId, DocumentLength(..))
+import SimplIR.Types (DocumentId, DocumentLength(..), Posting(..))
 import SimplIR.DiskIndex.Build
 import SimplIR.DiskIndex.Posting.Collect
 import qualified SimplIR.DiskIndex as DiskIndex
@@ -96,6 +97,14 @@ buildTermFreq path docs = do
                                  (DiskIndex.OnDiskIndex term (DocumentLength, doc) Int)
     buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (postingsPath path'))
 {-# INLINEABLE buildTermFreq #-}
+
+termPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
+             => Index term doc posting
+             -> [(term, [(doc, posting)])]
+termPostings idx = map (second $ map toPair) $ DiskIndex.termPostings (postingsIndex idx)
+  where toPair (Posting docId p) = (doc, p)
+          where Just (_docLen, doc) = DiskIndex.lookupDoc docId (postingsIndex idx)
+{-# INLINEABLE termPostings #-}
 
 lookupPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
                => Index term doc posting
