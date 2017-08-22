@@ -465,7 +465,7 @@ scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRo
 -- | Find occurrences of a set of phrases in an ordered sequence of 'Term's.
 findPhrases :: [[Term]] -> [(Term, Position)] -> [([Term], Position)]
 findPhrases phrases terms =
-    map mergeMatches $ Trie.matches' fst terms trie
+    map mergeMatches $ Trie.overlappingMatches' fst terms trie
   where
     trie = Trie.fromList $ map (\x -> (x,x)) phrases
     mergeMatches :: ([(Term, Position)], [Term]) -> ([Term], Position)
