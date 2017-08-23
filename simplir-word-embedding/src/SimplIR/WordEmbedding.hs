@@ -33,10 +33,14 @@ module SimplIR.WordEmbedding
 
 import Control.DeepSeq
 import Data.Proxy
+import Data.Bifunctor
 import Data.Ix
+import Data.Foldable
 import Data.Semigroup
+import qualified Data.Trie as Trie
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Indexed as VI
@@ -135,3 +139,11 @@ embedTerms embedding terms =
     mconcat [ v
             | term <- terms
             , Just v <- pure $ HM.lookup term embedding ]
+
+embedText :: KnownNat n => WordEmbedding n -> TL.Text -> WordVec n
+embedText embedding = fold . flip Trie.sequentialMatches trie . TL.unpack
+  where
+    !trie = embeddingTrie embedding
+
+embeddingTrie :: KnownNat n => WordEmbedding n -> Trie.Trie Char (WordVec n)
+embeddingTrie = Trie.fromList . map (first T.unpack) . HM.toList

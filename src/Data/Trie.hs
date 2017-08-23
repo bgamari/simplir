@@ -90,7 +90,7 @@ step x (Trie _ m) = HM.lookup x m
 data Matches c a = Match !a   (Matches c a) -- ^ A match was found
                  | NoMatch !c (Matches c a) -- ^ No match was found; returns the non-matching character.
                  | EndOfSequence            -- ^ End of sequence
-                 deriving (Functor)
+                 deriving (Functor, Foldable)
 
 -- | Find the maximal match of the given sequence, returning the terminal value
 -- and the suffix.
