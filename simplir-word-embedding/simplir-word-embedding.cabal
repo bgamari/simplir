@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     SimplIR.WordEmbedding,
-                       SimplIR.WordEmbedding.GloVe
+                       SimplIR.WordEmbedding.Parse
   other-extensions:    GeneralizedNewtypeDeriving, BangPatterns, DataKinds, PolyKinds, ScopedTypeVariables, KindSignatures, TypeApplications, GADTs
   build-depends:       base >=4.9 && <4.11,
                        deepseq >= 1.4 && < 1.5,
