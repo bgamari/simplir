@@ -23,7 +23,8 @@ sensibleParams = BM25Params 1.2 0.75
 -- | This is Lucene's variant on Okapi BM-25. It ignores query term frequency
 -- and document length bias.
 --
--- We use the SMART probidf version of idf (with offset of 0.5 division by zero)
+-- We use the SMART probidf version of idf (with offset of 0.5 to avoid division
+-- by zero).
 bm25 :: (Eq term, Hashable term)
      => BM25Params -> CorpusStats term
      -> HS.HashSet term -> DocumentLength -> HM.HashMap term TermFreq -> Score
