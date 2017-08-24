@@ -29,6 +29,7 @@ module SimplIR.WordEmbedding
     , wordEmbeddingDim
     , wordEmbeddingDimBounds
     , embedTerms
+    , embedText
     ) where
 
 import Control.DeepSeq
@@ -140,6 +141,7 @@ embedTerms embedding terms =
             | term <- terms
             , Just v <- pure $ HM.lookup term embedding ]
 
+-- | Embed a passage of text using maximal trie matching.
 embedText :: KnownNat n => WordEmbedding n -> TL.Text -> WordVec n
 embedText embedding = fold . flip Trie.sequentialMatches trie . TL.unpack
   where
