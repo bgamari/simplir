@@ -50,7 +50,7 @@ import GHC.TypeLits
 
 -- | A embedding dimension index.
 newtype EmbeddingDim n = EmbeddingDim Int
-                 deriving (Show, Eq, Ord, Ix)
+                       deriving (Show, Eq, Ord, Ix)
 
 instance KnownNat n => Bounded (EmbeddingDim n) where
     minBound = EmbeddingDim 0
@@ -58,6 +58,7 @@ instance KnownNat n => Bounded (EmbeddingDim n) where
 
 -- | A embedding word vector.
 newtype WordVec (n :: Nat) = WordVec { unWordVec :: VI.Vector VU.Vector (EmbeddingDim n) Float }
+                           deriving (Show)
 
 -- | Normalise (in the L2 sense) a word vector.
 normaliseWordVec :: WordVec n -> WordVec n
