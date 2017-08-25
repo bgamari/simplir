@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module SimplIR.LearningToRank
@@ -25,11 +26,13 @@ module SimplIR.LearningToRank
     , IsRelevant(..)
     ) where
 
+import GHC.Generics
 import Data.Ord
 import Data.List
 import Data.Maybe
 import qualified System.Random as Random
 import System.Random.Shuffle
+import Data.Hashable
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector as V
@@ -38,7 +41,8 @@ type Score = Double
 
 -- | Binary relevance judgement
 data IsRelevant = NotRelevant | Relevant
-                deriving (Ord, Eq, Show)
+                deriving (Ord, Eq, Show, Generic)
+instance Hashable IsRelevant
 
 -- | A ranking of documents
 newtype Ranking a = Ranking { getRanking :: [(Score, a)] }
