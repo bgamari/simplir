@@ -13,12 +13,14 @@ module SimplIR.Format.QRel
     , mapQRels
       -- * Relevance
     , RelevanceScale
+    , gradedRelevance
     , binaryRelevance
     , IsRelevant(..)
     ) where
 
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.Read as TR
 import qualified Data.Text.IO as T
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM.Lazy
@@ -39,6 +41,12 @@ binaryRelevance :: RelevanceScale IsRelevant
 binaryRelevance "0" = NotRelevant
 binaryRelevance "1" = Relevant
 binaryRelevance s   = error $ "binaryRelevance: unknown relevance: "++show s
+
+gradedRelevance :: RelevanceScale Int
+gradedRelevance s =
+    case TR.decimal s of
+        Right (n, _) -> n
+        Left _       -> error "parseRel"
 
 readQRel :: forall rel. RelevanceScale rel -> FilePath -> IO [Entry rel]
 readQRel parseRel fname =
