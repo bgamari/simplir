@@ -44,7 +44,7 @@ binaryRelevance s   = error $ "binaryRelevance: unknown relevance: "++show s
 
 gradedRelevance :: RelevanceScale Int
 gradedRelevance s =
-    case TR.decimal s of
+    case TR.signed TR.decimal s of
         Right (n, _) -> n
         Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
 
