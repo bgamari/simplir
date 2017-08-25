@@ -79,7 +79,7 @@ learnMode =
     run :: FilePath -> FilePath -> [(FeatureName, FilePath)] -> IO ()
     run modelFile qrelFile featureFiles = do
         runFiles <- traverse Run.readRunFile $ M.fromListWith (error "Duplicate feature") featureFiles
-        qrel <- QRel.readQRel qrelFile
+        qrel <- QRel.readQRel QRel.binaryRelevance qrelFile
         gen0 <- newStdGen
         let relevance :: M.Map (Run.QueryId, QRel.DocumentName) IsRelevant
             relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]

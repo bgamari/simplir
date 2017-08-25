@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | A simple parser for the common @qrel@ query relevance format.
 module SimplIR.Format.QRel
@@ -10,7 +11,9 @@ module SimplIR.Format.QRel
       -- * Parsing
     , readQRel
     , mapQRels
-      -- * Reexports
+      -- * Relevance
+    , RelevanceScale
+    , binaryRelevance
     , IsRelevant(..)
     ) where
 
@@ -25,26 +28,32 @@ import SimplIR.LearningToRank
 type QueryId = T.Text
 type DocumentName = T.Text
 
-data Entry = Entry { queryId      :: !QueryId
-                   , documentName :: !DocumentName
-                   , relevance    :: !IsRelevant
-                   }
+data Entry rel = Entry { queryId      :: !QueryId
+                       , documentName :: !DocumentName
+                       , relevance    :: !rel
+                       }
 
-readQRel :: FilePath -> IO [Entry]
-readQRel fname =
+type RelevanceScale rel = T.Text -> rel
+
+binaryRelevance :: RelevanceScale IsRelevant
+binaryRelevance "0" = NotRelevant
+binaryRelevance "1" = Relevant
+binaryRelevance s   = error $ "binaryRelevance: unknown relevance: "++show s
+
+readQRel :: forall rel. RelevanceScale rel -> FilePath -> IO [Entry rel]
+readQRel parseRel fname =
     mapMaybe parseLine . T.lines <$> T.readFile fname
   where
-    parseLine :: T.Text -> Maybe Entry
+    parseLine :: T.Text -> Maybe (Entry rel)
     parseLine line =
       case T.words line of
         [queryId, _dump, documentName, rel] ->
-          let relevance = case rel of "0" -> NotRelevant
-                                      _   -> Relevant
+          let relevance = parseRel rel
           in Just $ Entry{..}
 
         _ -> Nothing
 
-mapQRels :: [Entry] -> HM.Lazy.HashMap QueryId [Entry]
+mapQRels :: [Entry rel] -> HM.Lazy.HashMap QueryId [Entry rel]
 mapQRels entries =
     HM.fromListWith (flip (++))
       [ (queryId entry, [entry])
