@@ -33,19 +33,19 @@ modes = subparser $
 
 type FeatureFiles = [(FeatureName, FilePath)]
 
-featureFile :: ReadM (FeatureName, FilePath)
-featureFile = str >>= parse
-  where
-    parse s
-      | (name,path) <- break (/= '=') s
-      , not $ null name
-      , not $ null path
-      = return (FeatureName $ T.pack name, tail path)
-      | otherwise = fail "Mal-formed feature file: expected '[feature]=[path]'"
-
-featureFiles :: Parser FeatureFiles
-featureFiles =
+optFeatureFiles :: Parser FeatureFiles
+optFeatureFiles =
     some $ argument featureFile $ metavar "FEATURE=PATH" <> help "Feature name and run file path"
+  where
+    featureFile :: ReadM (FeatureName, FilePath)
+    featureFile = str >>= parse
+      where
+        parse s
+          | (name,path) <- break (/= '=') s
+          , not $ null name
+          , not $ null path
+          = return (FeatureName $ T.pack name, tail path)
+          | otherwise = fail "Mal-formed feature file: expected '[feature]=[path]'"
 
 newtype FeatureName = FeatureName T.Text
                     deriving (Ord, Eq, Show, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
@@ -74,7 +74,7 @@ learnMode :: Parser (IO ())
 learnMode =
     run <$> option str (short 'o' <> long "output" <> metavar "OUTPUT" <> help "Output model file")
         <*> option str (short 'q' <> long "qrel" <> metavar "QREL" <> help "qrel file")
-        <*> featureFiles
+        <*> optFeatureFiles
   where
     run :: FilePath -> FilePath -> [(FeatureName, FilePath)] -> IO ()
     run modelFile qrelFile featureFiles = do
@@ -122,7 +122,7 @@ untilConverged eq xs = map snd $ takeWhile (\(a,b) -> not $ a `eq` b) $ zip xs (
 predictMode :: Parser (IO ())
 predictMode =
     run <$> option str (short 'm' <> long "model" <> metavar "MODEL" <> help "Input model file")
-        <*> featureFiles
+        <*> optFeatureFiles
   where
     run :: FilePath -> [(FeatureName, FilePath)] -> IO ()
     run modelFile featureFiles = do
@@ -133,8 +133,8 @@ predictMode =
         let features = toDocFeatures (M.keysSet $ modelWeights model) runFiles
             queries :: M.Map Run.QueryId [(QRel.DocumentName, Features)]
             queries = M.fromListWith (<>)
-                      [ (queryId, [(doc, features)])
-                      | ((queryId, doc), features) <- M.assocs features
+                      [ (queryId, [(doc, fs)])
+                      | ((queryId, doc), fs) <- M.assocs features
                       ]
 
             rankings :: M.Map Run.QueryId (Ranking QRel.DocumentName)
