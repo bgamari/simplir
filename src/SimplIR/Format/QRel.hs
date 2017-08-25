@@ -46,7 +46,7 @@ gradedRelevance :: RelevanceScale Int
 gradedRelevance s =
     case TR.decimal s of
         Right (n, _) -> n
-        Left _       -> error "parseRel"
+        Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
 
 readQRel :: forall rel. RelevanceScale rel -> FilePath -> IO [Entry rel]
 readQRel parseRel fname =
