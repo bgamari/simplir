@@ -90,7 +90,7 @@ step x (Trie _ m) = HM.lookup x m
 data Matches c a = Match !a   (Matches c a) -- ^ A match was found
                  | NoMatch !c (Matches c a) -- ^ No match was found; returns the non-matching character.
                  | EndOfSequence            -- ^ End of sequence
-                 deriving (Functor, Foldable)
+                 deriving (Show, Eq, Ord, Functor, Foldable)
 
 -- | Find the maximal match of the given sequence, returning the terminal value
 -- and the suffix.
@@ -99,8 +99,9 @@ sequentialMatch :: (Eq c, Hashable c)
 sequentialMatch = go
   where
     go trie (c:cs)
-      | Just next <- step c trie
-      = go next cs
+      | Just trie' <- step c trie
+      , res@(Just _) <- go trie' cs -- FIXME: quadratic
+      = res
     go (Trie (Just terminal) _) cs
       = Just (terminal, cs)
     go _ _
@@ -108,6 +109,10 @@ sequentialMatch = go
 
 -- | Given a sequence, find the sequence of non-overlapping maximal matches of
 -- the given trie.
+--
+-- >>> let trie = fromList [ (x,x) | x <- ["hello", "hello world", "hello bears"] ]
+-- >>> Data.Foldable.toList $ Trie.sequentialMatches "there is a hello in the hello bears trie" trie
+-- ["hello","hello bears"]
 sequentialMatches :: forall a r. (Eq a, Hashable a)
                   => [a] -> Trie a r -> Matches a r
 sequentialMatches xs0 trie = go xs0
