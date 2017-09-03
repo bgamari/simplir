@@ -5,6 +5,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE BangPatterns #-}
 
 module SimplIR.WordEmbedding
     ( -- * Word vectors
