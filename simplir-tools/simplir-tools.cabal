@@ -73,6 +73,7 @@ executable simplir2
       b-tree,
       simplir,
       simplir-html-clean,
+      simplir-data-source,
       simplir-trec-streaming,
       simplir-trec
   default-language:    Haskell2010

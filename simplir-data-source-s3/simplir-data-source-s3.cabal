@@ -1,0 +1,22 @@
+name:                simplir-data-source-s3
+version:             0.1.0.0
+-- synopsis:            
+-- description:         
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2017 Ben Gamari
+category:            Web
+build-type:          Simple
+extra-source-files:  ChangeLog.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     SimplIR.DataSource.S3
+  build-depends:       base >=4.10 && <4.11,
+                       text,
+                       pipes-safe,
+                       pipes-s3,
+                       simplir-data-source
+  default-language:    Haskell2010

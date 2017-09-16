@@ -38,14 +38,14 @@ import SimplIR.Tokenise
 import SimplIR.WarcDocSource
 import AccumPostings
 import SimplIR.DataSource
+import SimplIR.DataSource.Compression
 import SimplIR.DiskIndex as DiskIndex
 
 --dsrc = S3Object { s3Bucket = "aws-publicdatasets"
 --                , s3Object = "common-crawl/crawl-data/CC-MAIN-2015-40/segments/1443736672328.14/warc/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
 --                }
 --dsrc = LocalFile "../0000tw-00.warc"
-dsrc = LocalFile "data/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
-compression = Just GZip
+Just dsrc = parseDataSource localFile "data/CC-MAIN-20151001215752-00004-ip-10-137-6-227.ec2.internal.warc.gz"
 
 main :: IO ()
 main = do
@@ -64,7 +64,7 @@ main = do
     runSafeT $ do
         let warc :: Warc.Warc (SafeT IO) ()
             warc = Warc.parseWarc
-                   $ decompress compression (produce dsrc >-> progressPipe compProg (Sum . BS.length))
+                   $ decompressed (runDataSource dsrc >-> progressPipe compProg (Sum . BS.length))
                    >-> progressPipe expProg (Sum . BS.length)
 
         (docIds, postings) <-

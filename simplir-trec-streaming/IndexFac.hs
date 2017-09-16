@@ -96,23 +96,25 @@ queryMode =
         , "entities" Json..= entities
         ]
 
-inputFiles :: Parser (IO [DataSource])
+inputFiles :: Parser (IO [DataSource (SafeT IO)])
 inputFiles =
     concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
   where
-    concatThem :: [IO [DataSource]] -> IO [DataSource]
+    concatThem :: [IO [DataSource (SafeT IO)]] -> IO [DataSource (SafeT IO)]
     concatThem = fmap concat . sequence
 
-    parse :: String -> IO [DataSource]
+    parse :: String -> IO [DataSource (SafeT IO)]
     parse ('@':rest) = map parse' . lines <$> readFile rest
     parse fname      = return [parse' fname]
-    parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
+    parse'           = fromMaybe (error "unknown input file type") . parseDataSource dsrcs . T.pack
+
+    dsrcs = localFile
 
 
-facEntities :: [DataSource]
+facEntities :: [DataSource (SafeT IO)]
             -> Producer (DocumentInfo, [Fac.EntityId]) (SafeT IO) ()
 facEntities dsrcs =
-    mapM_ (\dsrc -> Fac.parseDocuments (P.T.decodeUtf8 $ dataSource dsrc)
+    mapM_ (\dsrc -> Fac.parseDocuments (P.T.decodeUtf8 $ runDataSource dsrc)
                     >-> P.P.map (\d -> ( DocInfo (Fac.docArchive d)
                                                  (DocName $ Utf8.fromText
                                                             -- Drop timestamp prefix
@@ -121,7 +123,7 @@ facEntities dsrcs =
                                        , map Fac.annEntity (Fac.docAnnotations d)))
           ) dsrcs
 
-buildIndex :: DiskIndex -> IO [DataSource] -> IO ()
+buildIndex :: DiskIndex -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex output readDocLocs = do
     dsrcs <- readDocLocs
 

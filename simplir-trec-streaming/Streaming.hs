@@ -69,19 +69,22 @@ import qualified Data.Trie as Trie
 import Parametric
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 
-inputFiles :: Parser (IO [DataSource])
+inputFiles :: Parser (IO [DataSource (SafeT IO)])
 inputFiles =
     concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
   where
-    concatThem :: [IO [DataSource]] -> IO [DataSource]
+    concatThem :: [IO [DataSource (SafeT IO)]] -> IO [DataSource (SafeT IO)]
     concatThem = fmap concat . sequence
 
-    parse :: String -> IO [DataSource]
+    parse :: String -> IO [DataSource (SafeT IO)]
     parse ('@':rest) = map parse' . lines <$> readFile rest
     parse fname      = return [parse' fname]
-    parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
+    parse'           = fromMaybe (error "unknown input file type") . parseDataSource dsrcs . T.pack
 
-type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+    dsrcs = localFile
+
+type DocumentSource = [DataSource (SafeT IO)]
+                   -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 
 documentSource :: Parser DocumentSource
 documentSource =
@@ -147,7 +150,7 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-corpusStats :: QueryFile -> CorpusStatsPaths -> DocumentSource -> IO [DataSource] -> IO ()
+corpusStats :: QueryFile -> CorpusStatsPaths -> DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 corpusStats queryFile output docSource readDocLocs = do
     docs <- readDocLocs
     queries <- readQueries queryFile
@@ -371,7 +374,7 @@ scoreStreaming :: QueryFile             -- ^ queries
                -> CorpusStatsPaths      -- ^ corpus background statistics
                -> FilePath              -- ^ output path
                -> DocumentSource        -- ^
-               -> IO [DataSource]       -- ^ an action to read the list of documents to score
+               -> IO [DataSource (SafeT IO)] -- ^ an action to read the list of documents to score
                -> IO ()
 scoreStreaming queryFile paramsFile facIndexPath resultCount background outputRoot docSource readDocLocs = do
     docs <- readDocLocs
@@ -481,7 +484,7 @@ instance Monoid DocumentFrequency where
 testDocuments :: DocumentSource
 testDocuments dsrcs =
     mapM_ (\src -> do
-                xs <- lift $ P.T.toLazyM $ void $ P.T.E.decodeUtf8 $ dataSource src
+                xs <- lift $ P.T.toLazyM $ void $ P.T.E.decodeUtf8 $ runDataSource src
                 let archive = "hi"
                     docs = map (\x -> let (name, content) = T.L.span (/= ':') x
                                           docName = DocName $ Utf8.fromText $ T.L.toStrict name
@@ -494,11 +497,11 @@ robustDocuments :: DocumentSource
 robustDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
-                let toDoc d = ( ( getFilePath $ dsrcLocation src
+                let toDoc d = ( ( T.pack $ dataSourceFileName src
                                 , DocName $ Utf8.fromText $ Robust.docNo d)
                               , Robust.docBody d
                               )
-                Robust.trecDocuments' (P.T.E.decodeUtf8 $ dataSource src) >-> P.P.map toDoc
+                Robust.trecDocuments' (P.T.E.decodeUtf8 $ runDataSource src) >-> P.P.map toDoc
           ) dsrcs
 
 kbaDocuments :: DocumentSource
@@ -506,7 +509,7 @@ kbaDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
                 bs <- lift $ readKbaFile src
-                mapM_ (yield . (getFilePath $ dsrcLocation src,))
+                mapM_ (yield . (T.pack $ dataSourceFileName src,))
                       (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable

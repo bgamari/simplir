@@ -22,7 +22,7 @@ main = do
     (dumpContents, fnames) <- execParser $ info (helper <*> args) mempty
     forM_ fnames $ \fname -> do
         putStrLn fname
-        Just dsrc <- return $ parseDataSource $ T.pack fname
+        Just dsrc <- return $ parseDataSource localFile $ T.pack fname
         items <- readItems . BSL.toStrict <$> runSafeT (readKbaFile dsrc)
         let dump
               | dumpContents = show

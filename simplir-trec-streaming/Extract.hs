@@ -41,9 +41,9 @@ main = do
               <*> some (argument str (metavar "RANKING" <> help "ranking file"))
     (k, threads, fnames) <- execParser $ info (helper <*> args) mempty
 
-    let getDocs :: ScoredDocument -> M.Map DataSource (S.Set DocumentName)
+    let getDocs :: ScoredDocument -> M.Map (DataSource (SafeT IO)) (S.Set DocumentName)
         getDocs (ScoredDocument{scoredDocumentInfo=DocInfo{..}})
-          | Just dsrc <- parseDataSource docArchive =
+          | Just dsrc <- parseDataSource localFile docArchive =
                 M.singleton dsrc (S.singleton docName)
           | otherwise = mempty
 
@@ -57,11 +57,11 @@ main = do
     setNumCapabilities threads
     void $ mapConcurrentlyL threads (uncurry dumpDocuments) $ M.assocs neededDocs
 
-dumpDocuments :: DataSource -> S.Set DocumentName -> IO ()
+dumpDocuments :: DataSource (SafeT IO) -> S.Set DocumentName -> IO ()
 dumpDocuments dsrc docs = do
     putStrLn $ "Dumping "++show dsrc
     takenDocs <- takeDocuments docs . BS.L.toStrict <$> runSafeT (readKbaFile dsrc)
-    let outPath = dropExtensions (T.unpack $ getFileName $ dsrcLocation dsrc) <.> "sc.extracted"
+    let outPath = dataSourceFileName dsrc <.> "sc.extracted"
     BS.writeFile outPath
         $ Pinch.runBuilder
         $ foldMap (Pinch.serializeValue Pinch.binaryProtocol) takenDocs

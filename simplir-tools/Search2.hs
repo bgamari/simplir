@@ -63,19 +63,22 @@ import qualified SimplIR.HTML.Clean as HTML.Clean
 type QueryId = T.Text
 type StatsFile = FilePath
 
-inputFiles :: Parser (IO [DataSource])
+inputFiles :: Parser (IO [DataSource (SafeT IO)])
 inputFiles =
     concatThem <$> some (argument (parse <$> str) (metavar "FILE" <> help "TREC input file"))
   where
-    concatThem :: [IO [DataSource]] -> IO [DataSource]
+    concatThem :: [IO [DataSource (SafeT IO)]] -> IO [DataSource (SafeT IO)]
     concatThem = fmap concat . sequence
 
-    parse :: String -> IO [DataSource]
+    parse :: String -> IO [DataSource (SafeT IO)]
     parse ('@':rest) = map parse' . lines <$> readFile rest
     parse fname      = return [parse' fname]
-    parse'           = fromMaybe (error "unknown input file type") . parseDataSource . T.pack
+    parse'           = fromMaybe (error "unknown input file type") . parseDataSource dsrcs . T.pack
 
-type DocumentSource = [DataSource] -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
+    dsrcs = localFile
+
+type DocumentSource = [DataSource (SafeT IO)]
+                    -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 
 optDocumentSource :: Parser DocumentSource
 optDocumentSource =
@@ -103,7 +106,7 @@ main = do
     mode
 
 
-buildIndex :: DocumentSource -> IO [DataSource] -> IO ()
+buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     let --foldCorpusStats = Foldl.generalize documentTermStats
@@ -118,23 +121,23 @@ buildIndex docSource readDocLocs = do
 
 type ArchiveName = T.Text
 
-trecSource :: [DataSource]
+trecSource :: [DataSource (SafeT IO)]
            -> Producer ((ArchiveName, DocumentName), Trec.Document) (SafeT IO) ()
 trecSource dsrcs =
-    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ dataSource dsrc)
-                    >-> P.P.map (\d -> ( ( getFileName $ dsrcLocation dsrc
+    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ runDataSource dsrc)
+                    >-> P.P.map (\d -> ( ( T.pack $ dataSourceFileName dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , d))
                     >-> P.P.chain (liftIO . print . fst)
           ) dsrcs
 
 
-trecDocuments :: [DataSource]
+trecDocuments :: [DataSource (SafeT IO)]
               -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecDocuments dsrcs =
     trecSource dsrcs >-> P.P.map (second Trec.docBody)
 
-trecHtmlDocuments :: [DataSource]
+trecHtmlDocuments :: [DataSource (SafeT IO)]
                   -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 trecHtmlDocuments dsrcs =
     trecSource dsrcs
@@ -151,13 +154,13 @@ trecHtmlDocuments dsrcs =
         in "<html" `T.isInfixOf` beginning
            || "<!doctype" `T.isInfixOf` beginning
 
-kbaDocuments :: [DataSource]
+kbaDocuments :: [DataSource (SafeT IO)]
              -> Producer ((ArchiveName, DocumentName), T.Text) (SafeT IO) ()
 kbaDocuments dsrcs =
     mapM_ (\src -> do
                 liftIO $ hPutStrLn stderr $ show src
-                bs <- P.BS.toLazyM (dataSource src)
-                mapM_ (yield . (getFilePath $ dsrcLocation src,)) (Kba.readItems $ BS.L.toStrict bs)
+                bs <- lift $ P.BS.toLazyM (runDataSource src)
+                mapM_ (yield . (T.pack $ dataSourceFileName src,)) (Kba.readItems $ BS.L.toStrict bs)
           ) dsrcs
     >-> P.P.mapFoldable
               (\(archive, d) -> do
