@@ -165,10 +165,12 @@ newtype TermFrequency = TermFreq Int
 getTermFrequency :: Real a => TermFrequency -> a
 getTermFrequency (TermFreq x) = fromIntegral x
 
+instance Semigroup TermFrequency where
+    TermFreq a <> TermFreq b = TermFreq (a + b)
+
 instance Monoid TermFrequency where
     mempty = TermFreq 0
-    TermFreq a `mappend` TermFreq b = TermFreq (a + b)
-
+    mappend = (<>)
 
 -- | A difference between two 'DocumentId's
 newtype DocIdDelta = DocIdDelta SmallNat
@@ -182,9 +184,11 @@ toDocIdDelta n
   where n' = fromIntegral n :: SmallNat
 {-# INLINE toDocIdDelta #-}
 
+instance Semigroup DocIdDelta where
+    DocIdDelta a <> DocIdDelta b = DocIdDelta (a + b)
 instance Monoid DocIdDelta where
     mempty = DocIdDelta 0
-    DocIdDelta a `mappend` DocIdDelta b = DocIdDelta (a + b)
+    mappend = (<>)
 
 -- | Take the difference between two 'DocumentId's
 docIdDelta :: HasCallStack => DocumentId -> DocumentId -> DocIdDelta
