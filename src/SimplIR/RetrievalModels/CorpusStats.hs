@@ -19,6 +19,7 @@ module SimplIR.RetrievalModels.CorpusStats
     ) where
 
 import Control.DeepSeq
+import Data.Foldable
 import Data.Hashable
 import Data.Semigroup
 import Data.Profunctor
@@ -67,6 +68,10 @@ corpusTermFrequency cs t =
       Nothing -> 0
       Just ts -> realToFrac (termFrequency ts) / realToFrac (corpusTokenCount cs)
 {-# INLINEABLE corpusTermFrequency #-}
+
+instance (Eq term, Hashable term) => Semigroup (CorpusStats term) where
+    (<>) = addCorpusStats
+    sconcat = addManyCorpusStats . toList
 
 -- | Assumes sets cover non-overlapping sets of documents.
 instance (Eq term, Hashable term) => Monoid (CorpusStats term) where
