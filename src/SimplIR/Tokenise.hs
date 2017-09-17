@@ -5,7 +5,8 @@ module SimplIR.Tokenise where
 import Data.List (unfoldr)
 import Data.Foldable
 import qualified Data.DList as DList
-import Data.Monoid
+import Data.Monoid (Monoid(..))
+import Data.Semigroup
 import Data.Profunctor
 import Data.Foldable (foldl')
 import Data.Char (isSpace)
@@ -90,9 +91,11 @@ foldTokens (Fold step initial extract) =
 
 data Pair a b = Pair !a !b
 
+instance (Semigroup a, Semigroup b) => Semigroup (Pair a b) where
+    Pair a b <> Pair x y = Pair (a <> x) (b <> y)
 instance (Monoid a, Monoid b) => Monoid (Pair a b) where
     mempty = Pair mempty mempty
-    Pair a b `mappend` Pair x y = Pair (a <> x) (b <> y)
+    Pair a b `mappend` Pair x y = Pair (a `mappend` x) (b `mappend` y)
 
 accumPositions :: Fold Position (VU.Vector Position)
 accumPositions =
