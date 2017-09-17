@@ -11,14 +11,15 @@ module SimplIR.Utils.Compact
 
 import Control.DeepSeq
 #ifdef USE_COMPACT
-import GHC.Compact
+import System.IO.Unsafe
+import qualified GHC.Compact as Compact
 #endif
 
 inCompactM :: NFData a => IO a -> IO a
 inCompact :: NFData a => a -> a
 #ifdef USE_COMPACT
-inCompactM action = action >>= fmap getCompact . compact
-inCompact         = unsafePerformIO . fmap getCompact . compact
+inCompactM action = action >>= fmap Compact.getCompact . Compact.compact
+inCompact         = unsafePerformIO . fmap Compact.getCompact . Compact.compact
 #else
 inCompactM = id
 inCompact  = id
