@@ -66,10 +66,12 @@ library
       SimplIR.Term
       SimplIR.WarcDocSource
 
+  if impl(ghc >= 8.2)
+      build-depends: ghc-compact
+
   build-depends:
       base >=4.8 && <4.11,
       template-haskell,
-      ghc-compact,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
