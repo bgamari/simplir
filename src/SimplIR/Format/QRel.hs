@@ -14,10 +14,9 @@ module SimplIR.Format.QRel
       -- * Writing
     , writeQRel
       -- * Relevance
-    , RelevanceScale
-    , gradedRelevance
-    , binaryRelevance
+    , RelevanceScale(..)
     , IsRelevant(..)
+    , GradedRelevance(..)
     ) where
 
 import Data.List
@@ -40,38 +39,37 @@ data Entry rel = Entry { queryId      :: !QueryId
                        , relevance    :: !rel
                        }
 
-data RelevanceScale rel = RelevanceScale { parseRel :: T.Text -> rel
-                                         , formatRel :: rel -> T.Text
-                                         }
+class RelevanceScale rel where
+    parseRelevance :: T.Text -> rel
+    formatRelevance :: rel -> T.Text
 
-binaryRelevance :: RelevanceScale IsRelevant
-binaryRelevance = RelevanceScale {..}
-  where
-    parseRel "0" = NotRelevant
-    parseRel "1" = Relevant
-    parseRel s   = error $ "binaryRelevance: unknown relevance: "++show s
+instance RelevanceScale IsRelevant where
+    parseRelevance "0" = NotRelevant
+    parseRelevance "1" = Relevant
+    parseRelevance s   = error $ "binaryRelevance: unknown relevance: "++show s
 
-    formatRel NotRelevant = "0"
-    formatRel Relevant    = "1"
+    formatRelevance NotRelevant = "0"
+    formatRelevance Relevant    = "1"
 
-gradedRelevance :: RelevanceScale Int
-gradedRelevance = RelevanceScale {..}
-  where
-    parseRel s =
+newtype GradedRelevance = GradedRelevance Int
+                        deriving (Eq, Ord, Show)
+
+instance RelevanceScale GradedRelevance where
+    parseRelevance s =
         case TR.signed TR.decimal s of
-            Right (n, _) -> n
+            Right (n, _) -> GradedRelevance n
             Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
-    formatRel = T.pack . show
+    formatRelevance = T.pack . show
 
-readQRel :: forall rel. RelevanceScale rel -> FilePath -> IO [Entry rel]
-readQRel rscale fname =
+readQRel :: forall rel. RelevanceScale rel => FilePath -> IO [Entry rel]
+readQRel fname =
     mapMaybe parseLine . T.lines <$> T.readFile fname
   where
     parseLine :: T.Text -> Maybe (Entry rel)
     parseLine line =
       case T.words line of
         [queryId, _dump, documentName, rel] ->
-          let relevance = parseRel rscale rel
+          let relevance = parseRelevance rel
           in Just $ Entry{..}
 
         _ -> Nothing
@@ -83,8 +81,8 @@ mapQRels entries =
       | entry <- entries
       ]
 
-writeQRel :: RelevanceScale rel -> FilePath -> [Entry rel] -> IO ()
-writeQRel rscale fname entries =
+writeQRel :: RelevanceScale rel => FilePath -> [Entry rel] -> IO ()
+writeQRel fname entries =
     TL.writeFile fname $ TB.toLazyText $ mconcat $ intersperse "\n"
     $ map toEntryLine entries
   where
@@ -94,5 +92,5 @@ writeQRel rscale fname entries =
         [ TB.fromText queryId
         , "0"
         , TB.fromText documentName
-        , TB.fromText (formatRel rscale relevance)
+        , TB.fromText (formatRelevance relevance)
         ]
