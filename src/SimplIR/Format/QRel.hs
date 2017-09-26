@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | A simple parser for the common @qrel@ query relevance format.
 module SimplIR.Format.QRel
@@ -21,6 +22,7 @@ module SimplIR.Format.QRel
 
 import Data.List
 import Data.Maybe
+import Data.Hashable
 import qualified Data.Text as T
 import qualified Data.Text.Read as TR
 import qualified Data.Text.IO as T
@@ -51,8 +53,8 @@ instance RelevanceScale IsRelevant where
     formatRelevance NotRelevant = "0"
     formatRelevance Relevant    = "1"
 
-newtype GradedRelevance = GradedRelevance Int
-                        deriving (Eq, Ord, Show)
+newtype GradedRelevance = GradedRelevance {unGradedRelevance:: Int}
+                        deriving (Eq, Ord, Show, Hashable)
 
 instance RelevanceScale GradedRelevance where
     parseRelevance s =
