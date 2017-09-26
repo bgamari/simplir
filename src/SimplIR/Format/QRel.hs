@@ -59,7 +59,7 @@ instance RelevanceScale GradedRelevance where
         case TR.signed TR.decimal s of
             Right (n, _) -> GradedRelevance n
             Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
-    formatRelevance = T.pack . show
+    formatRelevance (GradedRelevance rel) = T.pack $ show rel
 
 readQRel :: forall rel. RelevanceScale rel => FilePath -> IO [Entry rel]
 readQRel fname =
