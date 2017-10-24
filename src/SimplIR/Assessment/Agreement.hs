@@ -4,8 +4,10 @@
 -- | Measures of inter-annotator agreement.
 module SimplIR.Assessment.Agreement where
 
+import Data.Maybe
 import Data.Hashable
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as HS
 
 -- | Compute Cohen's κ measure.
 cohenKappa :: forall subj cat. (Eq cat, Hashable cat, Eq subj, Hashable subj)
@@ -20,7 +22,43 @@ cohenKappa a b =
                              , ka == kb
                              ]
     !po = realToFrac agreementCount / realToFrac allCount
-    !pe = realToFrac (sum $ HM.intersectionWith (*) na nb) / realToFrac allCount^(2::Int)
+    !pe = realToFrac (sum $ HM.intersectionWith (*) na nb) / realToFrac (squared allCount)
+
+    -- how many times a and b predict class k
+    na, nb :: HM.HashMap cat Int
+    !na = HM.fromListWith (+) [ (k, 1) | (_, (k, _)) <- HM.toList inter ]
+    !nb = HM.fromListWith (+) [ (k, 1) | (_, (_, k)) <- HM.toList inter ]
+
+    inter :: HM.HashMap subj (cat,cat)
+    !inter = HM.intersectionWith (,) a b
+    !allCount = HM.size inter
+
+-- | Compute Cohen's kappa measure, allowing for arbitrary agreement classes.
+cohenKappa' :: forall subj cat. (Eq cat, Hashable cat, Eq subj, Hashable subj)
+            => [HS.HashSet cat]
+            -> HM.HashMap subj cat -- ^ assessments of assessor A
+            -> HM.HashMap subj cat -- ^ assessments of assessor B
+            -> Double -- ^ κ
+cohenKappa' equivs a b =
+    1 - (1 - po) / (1 - pe)
+  where
+    po = realToFrac $ length
+         [ ()
+         | (x,y) <- HM.elems inter
+         , any (\s -> x `HS.member` s && y `HS.member` s) equivs
+         ]
+
+    pe = sum [ realToFrac cntA * realToFrac cntB
+             | (k1,k2) <- HS.toList $ HS.fromList
+                          [ (x,y)
+                          | agreementClass <- equivs
+                          , x <- HS.toList agreementClass
+                          , y <- HS.toList agreementClass
+                          ]
+             , let cntA = fromMaybe 0 $ HM.lookup k1 na
+             , let cntB = fromMaybe 0 $ HM.lookup k2 nb
+             ] / realToFrac (squared allCount)
+
     -- how many times a and b predict class k
     na, nb :: HM.HashMap cat Int
     !na = HM.fromListWith (+) [ (k, 1) | (_, (k, _)) <- HM.toList inter ]
@@ -69,7 +107,7 @@ fleissKappa assessments' =
            [ (inner / realToFrac ni / realToFrac (ni - 1)) - 1 / realToFrac (ni - 1)
            | (x, njs) <- HM.toList nij
            , let Just ni = x `HM.lookup` numAssessments
-           , let inner = sum [ (realToFrac v)^(2::Int)
+           , let inner = sum [ realToFrac $ squared v
                              | v <- HM.elems njs
                              ]
            ]
@@ -88,3 +126,6 @@ onlyOverlappingAssessments assessments =
                                          , x <- HM.keys a ]
     overlaps x _ = n > 1
       where Just n = x `HM.lookup` numAssessments
+
+squared :: Num a => a -> a
+squared x = x*x
