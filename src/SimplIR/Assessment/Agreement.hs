@@ -42,11 +42,10 @@ cohenKappa' :: forall subj cat. (Eq cat, Hashable cat, Eq subj, Hashable subj)
 cohenKappa' equivs a b =
     1 - (1 - po) / (1 - pe)
   where
-    po = realToFrac $ length
-         [ ()
-         | (x,y) <- HM.elems inter
-         , any (\s -> x `HS.member` s && y `HS.member` s) equivs
-         ]
+    po = realToFrac (length [ ()
+                            | (x,y) <- HM.elems inter
+                            , any (\s -> x `HS.member` s && y `HS.member` s) equivs
+                            ]) / realToFrac allCount
 
     pe = sum [ realToFrac cntA * realToFrac cntB
              | (k1,k2) <- HS.toList $ HS.fromList
