@@ -125,6 +125,7 @@ library
       warc >=1.0 && <1.1,
       simplir-html-clean,
       serialise,
+      cborg >= 0.2,
 
       QuickCheck >=2.8 && <2.11,
       tasty,

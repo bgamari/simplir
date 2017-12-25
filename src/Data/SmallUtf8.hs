@@ -33,6 +33,10 @@ import qualified Data.ByteString.Short as BS.S
 import qualified Data.ByteString.Short.Internal as BS.S.I
 import qualified Data.ByteString.Builder as BS.B
 import qualified Codec.Serialise as CBOR
+import qualified Codec.Serialise.Decoding as CBOR
+import qualified Codec.Serialise.Encoding as CBOR
+import qualified Codec.CBOR.ByteArray as CBOR.BA
+import qualified Codec.CBOR.ByteArray.Sliced as CBOR.BA.Sliced
 import qualified Data.Text as T
 import qualified Data.Text.Array as T.A
 import qualified Data.Text.Lazy.Builder as T.B
@@ -62,7 +66,7 @@ fromString = fromText . T.pack
 toString :: SmallUtf8 -> String
 toString = T.unpack . toText
 
--- TODO: fix
+-- TODO: Verify that it's ASCII
 fromAscii :: BS.ByteString -> SmallUtf8
 fromAscii = SmallUtf8 . BS.S.toShort
 
@@ -126,5 +130,12 @@ instance Aeson.FromJSONKey SmallUtf8 where
 
 -- TODO: Serialise directly from SmallByteString
 instance CBOR.Serialise SmallUtf8 where
-    decode = unsafeFromByteString <$> CBOR.decode
-    encode = CBOR.encode . toByteString
+    decode = do
+        ty <- CBOR.peekTokenType
+        case ty of
+          CBOR.TypeBytes       -> unsafeFromByteString <$> CBOR.decodeBytes
+          CBOR.TypeBytesIndef  -> unsafeFromByteString <$> CBOR.decodeBytes
+          CBOR.TypeString      -> SmallUtf8 . CBOR.BA.toShortByteString <$> CBOR.decodeUtf8ByteArray
+          CBOR.TypeStringIndef -> SmallUtf8 . CBOR.BA.toShortByteString <$> CBOR.decodeUtf8ByteArray
+          other                -> fail $ "Serialise(SmallUtf8): Unknown token type "++show other
+    encode (SmallUtf8 sbs) = CBOR.encodeUtf8ByteArray $ CBOR.BA.Sliced.fromShortByteString sbs
