@@ -8,7 +8,7 @@ module SimplIR.DiskIndex.Build
 
 import Control.Monad.IO.Class
 import Data.Profunctor
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 import System.IO.Temp
 
 import qualified Data.Map.Strict as M
@@ -25,39 +25,40 @@ buildIndex :: forall term m doc p. (MonadSafe m, Binary term, Ord term, Binary d
            -> FilePath  -- ^ Final index path
            -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.OnDiskIndex term doc p)
 buildIndex chunkSize outputPath =
-    postmapM' (mergeChunks outputPath)
-    $ foldChunksOf chunkSize (Foldl.generalize collectIndex) mergeIndexes
+    postmapM' (mergeIndexChunks outputPath)
+    $ foldChunksOf chunkSize (Foldl.generalize collectIndex) writeIndexChunks
 {-# INLINEABLE buildIndex #-}
 
 -- | Perform the final merge of a set of index chunks.
-mergeChunks :: (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
+mergeIndexChunks :: (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
             => FilePath
             -> [(DiskIdx.OnDiskIndex term doc p, ReleaseKey)]
             -> m (DiskIdx.OnDiskIndex term doc p)
-mergeChunks outputPath chunks = do
+mergeIndexChunks outputPath chunks = do
     let (chunkFiles, chunkKeys) = unzip chunks
     idxs <- liftIO $ mapM DiskIdx.openOnDiskIndex chunkFiles
     liftIO $ DiskIdx.merge outputPath idxs
     mapM_ release chunkKeys
     return (DiskIdx.OnDiskIndex outputPath)
-{-# INLINEABLE mergeChunks #-}
+{-# INLINEABLE mergeIndexChunks #-}
 
 -- | Write a set of index chunks.
-mergeIndexes :: forall term doc p m. (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
+writeIndexChunks :: forall term doc p m. (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
              => Foldl.FoldM m ([(DocumentId, doc)], M.Map term [Posting p])
                               [(DiskIdx.OnDiskIndex term doc p, ReleaseKey)]
-mergeIndexes =
+writeIndexChunks =
     premapM' chunkToIndex
     $ Foldl.generalize Foldl.list
   where
     chunkToIndex :: ([(DocumentId, doc)], M.Map term [Posting p])
                  -> m (DiskIdx.OnDiskIndex term doc p, ReleaseKey)
     chunkToIndex (docIdx, postingIdx) = do
-        path <- liftIO $ createTempDirectory "." "part.index"
+        liftIO $ createDirectoryIfMissing True ".build-index"
+        path <- liftIO $ createTempDirectory ".build-index" "part.index"
         key <- register $ liftIO $ removeDirectoryRecursive path
         liftIO $ DiskIdx.fromDocuments path docIdx postingIdx
         return (DiskIdx.OnDiskIndex path, key)
-{-# INLINEABLE mergeIndexes #-}
+{-# INLINEABLE writeIndexChunks #-}
 
 -- | Build an index chunk in memory.
 collectIndex :: forall term p doc. (Ord term)
