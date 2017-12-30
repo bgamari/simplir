@@ -53,6 +53,7 @@ data Index term doc posting
              , corpusStats   :: CorpusStats term
              }
 
+-- x
 
 postingsPath :: OnDiskIndex term doc posting -> FilePath
 postingsPath (OnDiskIndex f) = f <.> "postings"
