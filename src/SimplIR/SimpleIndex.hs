@@ -54,12 +54,13 @@ data Index term doc posting
              }
 
 -- x
+-- Todo Ressurect directory checks
 
 postingsPath :: OnDiskIndex term doc posting -> FilePath
-postingsPath (OnDiskIndex f) = f <.> "postings"
+postingsPath (OnDiskIndex f) = f </> "postings"
 
 statsPath :: OnDiskIndex term doc posting -> FilePath
-statsPath (OnDiskIndex f) = f <.> "stats"
+statsPath (OnDiskIndex f) = f </> "stats"
 
 -- | Open an index.
 open :: (Hashable term, Eq term, S.Serialise term)
