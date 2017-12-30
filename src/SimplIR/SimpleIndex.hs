@@ -33,6 +33,7 @@ import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
 import qualified Codec.Serialise as S
 import System.FilePath
+import System.Directory (createDirectoryIfMissing)
 import Numeric.Log
 
 import SimplIR.Types (DocumentId, DocumentLength(..), Posting(..))
@@ -53,11 +54,8 @@ data Index term doc posting
              , corpusStats   :: CorpusStats term
              }
 
--- x
--- Todo Ressurect directory checks
-
-postingsPath :: OnDiskIndex term doc posting -> FilePath
-postingsPath (OnDiskIndex f) = f </> "postings"
+simpleIndexPath :: OnDiskIndex term doc posting -> FilePath
+simpleIndexPath (OnDiskIndex f) = f </> "index"
 
 statsPath :: OnDiskIndex term doc posting -> FilePath
 statsPath (OnDiskIndex f) = f </> "stats"
@@ -67,7 +65,7 @@ open :: (Hashable term, Eq term, S.Serialise term)
      => OnDiskIndex term doc posting
      -> IO (Index term doc posting)
 open path = do
-    postings <- DiskIndex.open (postingsPath path)
+    postings <- DiskIndex.open (simpleIndexPath path)
     stats <- inCompactM (S.deserialise <$> BSL.readFile (statsPath path))
     return (Index postings stats)
 
@@ -77,6 +75,7 @@ buildTermFreq :: forall doc term. (Ord term, Hashable term, Binary term, S.Seria
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
 buildTermFreq path docs = do
+    createDirectoryIfMissing True path
     (stats, _idx) <-
         runSafeT $ Foldl.foldM ((,) <$> Foldl.generalize buildStats
                                     <*> buildPostings)
@@ -97,7 +96,7 @@ buildTermFreq path docs = do
 
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
                                  (DiskIndex.OnDiskIndex term (DocumentLength, doc) Int)
-    buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (postingsPath path'))
+    buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (simpleIndexPath path'))
 {-# INLINEABLE buildTermFreq #-}
 
 termPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
