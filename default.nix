@@ -34,7 +34,9 @@ let
         pipes-zlib = doJailbreak super.pipes-zlib;
         optparse-applicative = self.callHackage "optparse-applicative" "0.14.0.0" {};
         cborg = self.callCabal2nix "cborg" (cborgSrc + /cborg) {};
+        cborg-json = self.callCabal2nix "cborg-json" (cborgSrc + /cborg-json) {};
         serialise = self.callCabal2nix "serialise" (cborgSrc + /serialise) {};
+        binary-serialise-cbor = self.callCabal2nix "binary-serialise-cbor" (cborgSrc + /binary-serialise-cbor) {};
       };
     in localPkgs // { localPkgs = localPkgs; };
 
