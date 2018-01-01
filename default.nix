@@ -16,7 +16,7 @@ let
 
   haskellOverrides = self: super:
     let
-      localPkgs = {
+      simplirPackages = {
         simplir              = self.callCabal2nix "simplir" (localDir ./.) {};
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
@@ -38,11 +38,11 @@ let
         serialise = self.callCabal2nix "serialise" (cborgSrc + /serialise) {};
         binary-serialise-cbor = self.callCabal2nix "binary-serialise-cbor" (cborgSrc + /binary-serialise-cbor) {};
       };
-    in localPkgs // { localPkgs = localPkgs; };
+    in simplirPackages // { simplirPackages = simplirPackages; };
 
   haskellPackages = nixpkgs.haskell.packages.ghc821.override {overrides = haskellOverrides;};
 in {
   inherit haskellPackages haskellOverrides;
-  inherit (haskellPackages) localPkgs;
-  env = haskellPackages.ghcWithHoogle (pkgs: builtins.attrValues haskellPackages.localPkgs);
+  inherit (haskellPackages) simplirPackages;
+  env = haskellPackages.ghcWithHoogle (pkgs: builtins.attrValues haskellPackages.simplirPackages);
 }
