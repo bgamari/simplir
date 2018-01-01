@@ -28,7 +28,7 @@ main = do
 
 modes :: Parser (IO ())
 modes = subparser $
-        command "learn" (info predictMode mempty)
+        command "learn" (info learnMode mempty)
      <> command "predict" (info predictMode mempty)
 
 type FeatureFiles = [(FeatureName, FilePath)]
