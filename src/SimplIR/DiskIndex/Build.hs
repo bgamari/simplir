@@ -18,6 +18,7 @@ import Pipes.Safe
 
 import qualified SimplIR.DiskIndex as DiskIdx
 import SimplIR.Types
+import Control.Foldl.Map
 import SimplIR.Utils
 
 buildIndex :: forall term m doc p. (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
@@ -68,15 +69,15 @@ collectIndex =
     zipFold (DocId 0) succ
     ((,) <$> docIdx <*> termIdx)
   where
-    docIdx :: Foldl.Fold (DocumentId, (doc, M.Map term p)) ([(DocumentId, doc)])
+    docIdx :: Foldl.Fold (DocumentId, (doc, M.Map term p)) [(DocumentId, doc)]
     docIdx =
         lmap (\(docId, (meta, _)) -> (docId, meta)) Foldl.list
 
     termIdx :: Foldl.Fold (DocumentId, (doc, M.Map term p)) (M.Map term [Posting p])
     termIdx =
-        lmap (\(docId, (_, terms)) -> foldMap (toPosting docId) $ M.toList terms) Foldl.mconcat
+        lmap (\(docId, (_, terms)) -> foldMap (toPosting docId) $ M.toList terms) mconcatMaps
 
     toPosting :: DocumentId -> (term, p) -> M.Map term [Posting p]
-    toPosting docId (term, p) = M.singleton term $ [Posting docId p]
+    toPosting docId (term, p) = M.singleton term [Posting docId p]
 {-# INLINEABLE collectIndex #-}
 
