@@ -181,13 +181,13 @@ indexPostings getTermFreq =
       <*> lmap fst foldCorpusStats
   where
     docMeta :: Fold (DocumentInfo, M.Map EntityId p) (M.Map DocumentName (DocumentInfo, M.Map EntityId p))
-    docMeta  = lmap (\(docInfo, terms) -> M.singleton (docName docInfo) (docInfo, terms)) Foldl.mconcat
+    docMeta  = lmap (\(docInfo, terms) -> (docName docInfo, (docInfo, terms))) Foldl.map
 
     termFreqs :: Fold (M.Map EntityId p) (M.Map EntityId TermStats)
     termFreqs = lmap M.assocs
                 $ Foldl.handles traverse
-                $ lmap (\(term, ps) -> M.singleton term $ TermStats (getTermFreq ps) (DocumentFrequency 1))
-                $ mconcatMaps
+                $ lmap (\(term, ps) -> (term, TermStats (getTermFreq ps) (DocumentFrequency 1)))
+                $ Foldl.map
 
 foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
 foldCorpusStats =

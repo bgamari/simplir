@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 module AccumPostings
     ( TermPostings
     , toPostings
@@ -26,4 +24,3 @@ toPostings docId terms =
 
 foldPostings :: Foldl.Fold (TermPostings p) (M.Map Term (DList (Posting p)))
 foldPostings = Foldl.handles traverse $ lmap (fmap DList.singleton) $ multiFold Foldl.mconcat
-

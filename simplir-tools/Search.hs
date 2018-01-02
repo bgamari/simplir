@@ -406,7 +406,7 @@ indexPostings getTermFreq =
       <*> lmap snd termFreqs
       <*> lmap (snd . fst) foldCorpusStats
   where
-    docMeta  = lmap (\(docId, docInfo) -> M.singleton docId docInfo) Foldl.mconcat
+    docMeta  = Foldl.map
     postings = fmap (M.map $ V.G.modify sort . fromFoldable) foldPostings
 
     termFreqs :: Fold [(Term, Posting p)] (M.Map Term (TermFrequency, DocumentFrequency))

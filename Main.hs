@@ -102,8 +102,8 @@ consumePostings =
                       <*> lmap snd postings)
   where
     docMeta  = Foldl.generalize
-               $ lmap (\((docId, docName), postings) -> M.singleton docId (docName, DocLength $ sum $ fmap length postings))
-                      Foldl.mconcat
+               $ lmap (\((docId, docName), postings) -> (docId, (docName, DocLength $ sum $ fmap length postings)))
+                      Foldl.map
     postings = Foldl.generalize $ fmap (fmap toList) foldPostings
 
 cleanHtml :: T.Text -> T.Text
