@@ -19,9 +19,7 @@ import qualified Control.Foldl as Foldl
 import System.FilePath
 
 import Control.Concurrent (setNumCapabilities)
-import Control.Concurrent.Async
-import Control.Concurrent.STM
-import Control.Concurrent.STM.TSem
+import Control.Concurrent.Map
 
 import Control.Foldl.Map
 import qualified Data.SmallUtf8 as Utf8
@@ -81,14 +79,3 @@ takeDocuments docs = go
 readRanking :: FilePath -> IO Results
 readRanking fname =
     BS.L.readFile fname >>= either fail return . Aeson.eitherDecode
-
--- | Map concurrently with a limit to the number of concurrent workers.
-mapConcurrentlyL :: Traversable f => Int -> (a -> IO b) -> f a -> IO (f b)
-mapConcurrentlyL n f xs = do
-    sem <- atomically $ newTSem n
-    let withSem :: IO a -> IO a
-        withSem g =
-            bracket (atomically $ waitTSem sem)
-                    (\_ -> atomically $ signalTSem sem)
-                    (\_ -> g)
-    mapConcurrently (withSem . f) xs
