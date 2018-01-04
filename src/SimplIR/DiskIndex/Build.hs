@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE BangPatterns #-}
 
 -- | Build disk indexes in a memory-friendly manner.
@@ -7,9 +8,9 @@ module SimplIR.DiskIndex.Build
     ( buildIndex
     ) where
 
-import Control.Monad.Trans.Control
 import Control.Concurrent
 import Control.Concurrent.Map
+import Control.Concurrent.Async.Lifted
 import Control.Monad.IO.Class
 import Data.Profunctor
 import System.Directory
@@ -26,7 +27,10 @@ import SimplIR.Types
 import Control.Foldl.Map
 import SimplIR.Utils
 
-buildIndex :: forall term m doc p. (MonadBaseControl IO m, MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
+-- Using m ~ SafeT IO until we are certain that other monads won't be needed.
+
+buildIndex :: forall term m doc p.
+              (m ~ SafeT IO, Binary term, Ord term, Binary doc, Binary p)
            => Int       -- ^ How many documents to include in an index chunk?
            -> FilePath  -- ^ Final index path
            -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.OnDiskIndex term doc p)
@@ -43,17 +47,28 @@ buildIndex chunkSize outputPath =
         return (DiskIdx.OnDiskIndex outputPath)
 {-# INLINEABLE buildIndex #-}
 
-treeReduce :: (MonadBaseControl IO m, MonadSafe m)
+treeReduce :: forall m a. (m ~ SafeT IO)
            => Int   -- ^ maximum reduction width
            -> ([a] -> m a)
            -> [a]
            -> m a
-treeReduce _ _ [x] = return x
-treeReduce width f xs  = do
-    let reductions = chunksOf width xs
-    caps <- liftIO getNumCapabilities
-    reduced <- mapConcurrentlyL caps f reductions
-    treeReduce width f reduced
+treeReduce width f xs0 = do
+    n <- liftIO getNumCapabilities
+    withLimit <- concurrencyLimited n
+    xs0Async <- mapM (async . return) xs0
+    go withLimit xs0Async
+  where
+    go :: (m a -> m a) -> [Async a] -> m a
+    go _withLimit [xAsync] = wait xAsync
+    go withLimit xsAsync  = do
+        let run :: [Async a] -> m (Async a)
+            run ysAsync = async $ do
+                ys' <- mapM wait ysAsync
+                withLimit $ f ys'
+
+        let reductions = chunksOf width xsAsync
+        reducedAsyncs <- mapM run reductions
+        go withLimit reducedAsyncs
 {-# INLINEABLE treeReduce #-}
 
 -- | Perform the final merge of a set of index chunks.
