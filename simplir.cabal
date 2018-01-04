@@ -196,33 +196,6 @@ executable simplir-merge-runs
   default-language:    Haskell2010
   ghc-options:         -rtsopts -Wall
 
-executable score-query
-  main-is:             ScoreTest.hs
-  build-depends:
-      base,
-      pipes-bytestring >=2.1 && <2.2,
-      pipes,
-      bytestring >=0.10 && <0.11,
-      transformers,
-      filepath,
-      mtl,
-      binary,
-      foldl,
-      vector,
-      profunctors,
-      text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
-      optparse-applicative >= 0.12,
-      log-domain,
-      pipes-text,
-      warc,
-      b-tree,
-      simplir,
-      simplir-html-clean,
-      simplir-trec
-  default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall
-
 test-suite tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
