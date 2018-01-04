@@ -40,6 +40,7 @@ executable simplir
       warc,
       b-tree,
       simplir,
+      simplir-disk-index,
       simplir-trec-streaming,
       simplir-trec
   default-language:    Haskell2010
@@ -72,6 +73,7 @@ executable simplir2
       warc,
       b-tree,
       simplir,
+      simplir-disk-index,
       simplir-html-clean,
       simplir-data-source,
       simplir-trec-streaming,

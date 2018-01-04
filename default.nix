@@ -25,6 +25,7 @@ let
         simplir-tools        = self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {};
         simplir-word-embedding = self.callCabal2nix "simplir-word-embedding" (localDir ./simplir-word-embedding) {};
         simplir-trec-streaming = self.callCabal2nix "simplir-trec-streaming" (localDir ./simplir-trec-streaming) {};
+        simplir-disk-index   = self.callCabal2nix "simplir-disk-index" (localDir ./simplir-disk-index) {};
         http-parsers         = self.callCabal2nix "http-parsers" ./vendor/http-parsers {};
         indexed-vector       = self.callCabal2nix "indexed-vector" ./vendor/indexed-vector {};
         fork-map             = self.callCabal2nix "fork-map" ./vendor/fork-map {};

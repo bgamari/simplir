@@ -3,11 +3,9 @@
 import Data.Monoid
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.Text as T
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BS.L
 import Data.Aeson as Aeson
-import Control.Exception (bracket)
 import Options.Applicative
 import Pipes
 import Pipes.Safe hiding (bracket)

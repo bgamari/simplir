@@ -19,8 +19,6 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   other-modules:
-      SimplIR.DiskIndex.Posting.Merge
-      SimplIR.DiskIndex.Posting.Types
       SimplIR.ReadStopWords
       Data.SmallNat
       Control.Foldl.Vector
@@ -36,17 +34,6 @@ library
       SimplIR.Assessment.Agreement
       SimplIR.Bag
       SimplIR.BinaryFile
-      SimplIR.DiskIndex
-      SimplIR.DiskIndex.Build
-      SimplIR.DiskIndex.Posting
-      SimplIR.DiskIndex.Posting.Internal
-      SimplIR.DiskIndex.Posting.Collect
-      SimplIR.DiskIndex.Document
-      SimplIR.DiskIndex.Posting.Tests
-      SimplIR.DiskIndex.Tests
-      SimplIR.SimpleIndex
-      SimplIR.SimpleIndex.Models.QueryLikelihood
-      SimplIR.SimpleIndex.Models.BM25
       SimplIR.Format.TrecRunFile
       SimplIR.Format.QRel
       SimplIR.RetrievalModels.CorpusStats
@@ -138,30 +125,6 @@ library
   hs-source-dirs:      src
   build-tools:         hsc2hs
   default-language:    Haskell2010
-
-executable dump-postings
-  main-is:             DumpPostings.hs
-  build-depends:
-      base,
-      pipes-bytestring >=2.1 && <2.2,
-      pipes,
-      bytestring >=0.10 && <0.11,
-      transformers,
-      mtl,
-      binary,
-      errors,
-      foldl,
-      vector,
-      optparse-applicative,
-      profunctors,
-      exceptions >= 0.8,
-      text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
-      warc,
-      b-tree,
-      simplir
-  default-language:    Haskell2010
-  ghc-options:         -rtsopts -Wall
 
 executable simplir-learn2rank
   main-is:             Learn2Rank.hs
