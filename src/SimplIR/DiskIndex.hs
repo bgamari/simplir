@@ -43,8 +43,10 @@ data DiskIndex term doc p
 open :: FilePath -> IO (DiskIndex term doc p)
 open path = do
     doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
-    Right tf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
-    return $ DiskIndex tf doc
+    mtf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
+    case mtf of
+      Right tf -> return $ DiskIndex tf doc
+      Left err -> fail $ "SimplIR.DiskIndex.open: Failed to open index " ++ path ++ ": " ++ show err
 
 -- | Build an on-disk index from a set of documents and their postings.
 fromDocuments :: (Binary doc, Binary p, Binary term)
