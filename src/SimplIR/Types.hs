@@ -30,6 +30,8 @@ module SimplIR.Types
     , toDocIdDelta
     , docIdDelta
     , applyDocIdDelta
+      -- * Scores
+    , Scored(..)
     ) where
 
 import Data.Foldable (toList)
@@ -216,3 +218,7 @@ instance ToJSON a => ToJSON (TokenOrPhrase a) where
     toEncoding (Token x)  = toEncoding x
     toEncoding (Phrase x) = toEncoding x
     {-# INLINE toEncoding #-}
+
+-- | An item and its score.
+data Scored score a = Scored !score !a
+                    deriving (Ord, Eq, Show, Functor)
