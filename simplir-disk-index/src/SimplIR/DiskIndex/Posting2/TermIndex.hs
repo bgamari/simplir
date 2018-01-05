@@ -4,7 +4,7 @@ import qualified Data.HashMap.Strict as HM
 import Data.Hashable (Hashable)
 
 import Codec.Serialise (Serialise)
-import qualified SimplIR.DiskIndex.Posting2 as PIdx
+import qualified SimplIR.DiskIndex.Posting2.Internal as PIdx
 import qualified SimplIR.DiskIndex.Posting2.CborList as CL
 import SimplIR.Types
 

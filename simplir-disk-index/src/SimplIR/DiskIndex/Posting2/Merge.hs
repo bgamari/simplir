@@ -11,7 +11,7 @@ import qualified Data.Heap as H
 import Codec.Serialise (Serialise)
 import SimplIR.Types
 import qualified SimplIR.EncodedList.Cbor as ELC
-import qualified SimplIR.DiskIndex.Posting2 as PIdx
+import qualified SimplIR.DiskIndex.Posting2.Internal as PIdx
 import SimplIR.DiskIndex.Posting2.PostingList
 
 merge :: (Ord term, Serialise term, Serialise p)

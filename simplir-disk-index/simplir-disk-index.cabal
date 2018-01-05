@@ -28,13 +28,15 @@ library
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
       SimplIR.DiskIndex.Posting.Collect
+      SimplIR.DiskIndex.Posting.Tests
+
       SimplIR.DiskIndex.Posting2
+      SimplIR.DiskIndex.Posting2.Internal
       SimplIR.DiskIndex.Posting2.PostingList
       SimplIR.DiskIndex.Posting2.CborList
       SimplIR.DiskIndex.Posting2.Merge
       SimplIR.DiskIndex.Posting2.TermIndex
       SimplIR.DiskIndex.Document
-      SimplIR.DiskIndex.Posting.Tests
       SimplIR.DiskIndex.Tests
       SimplIR.SimpleIndex
       SimplIR.SimpleIndex.Models.QueryLikelihood
