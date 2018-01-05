@@ -35,10 +35,10 @@ apDocId = postingDocId . apPosting
 {-# INLINEABLE apDocId #-}
 
 instance Eq (ActivePosting m term p) where
-    (==) = (==) `on` (postingDocId . apPosting)
+    (==) = (==) `on` apDocId
 
 instance Ord (ActivePosting m term p) where
-    compare = compare `on` (postingDocId . apPosting)
+    compare = compare `on` apDocId
 
 -- | Given a set of terms and their sorted postings, collect the postings for
 -- all documents.

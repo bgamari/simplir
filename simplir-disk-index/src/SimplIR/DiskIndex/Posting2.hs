@@ -5,6 +5,7 @@ module SimplIR.DiskIndex.Posting2
     , open
     , fromTermPostings
     , decodeTermPostings
+    , toPostingsLists
     ) where
 
 import SimplIR.DiskIndex.Posting2.Internal

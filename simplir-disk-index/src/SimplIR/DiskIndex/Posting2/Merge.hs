@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module SimplIR.DiskIndex.Posting2.Merge where
 
@@ -7,10 +8,13 @@ import Data.Foldable (foldl', toList)
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Heap as H
+import qualified Data.Vector as V
 
 import Codec.Serialise (Serialise)
 import SimplIR.Types
+import SimplIR.Term
 import qualified SimplIR.EncodedList.Cbor as ELC
+import qualified SimplIR.Encoded.Cbor as E
 import qualified SimplIR.DiskIndex.Posting2.Internal as PIdx
 import SimplIR.DiskIndex.Posting2.PostingList
 
@@ -72,3 +76,27 @@ takeMins h
     in Just (x :| toList a, b)
   | otherwise = Nothing
 
+-- TODO: Write proper property
+test :: [(DocIdDelta, [PIdx.TermPostings Term ()])]
+test =
+    [ (DocIdDelta 0,
+       [ term "cat"    [chunk [0,4],   chunk [11, 15, 19]]
+       , term "turtle" [chunk [0,1,4], chunk [10, 15, 18]]
+       ])
+    , (DocIdDelta 100,
+       [ term "dog"    [chunk [0,4],   chunk [11, 18, 19]]
+       , term "turtle" [chunk [0,1,4], chunk [10, 15, 18]]
+       ])
+    ]
+  where
+    term :: Term -> [PostingsChunk ()] -> PIdx.TermPostings Term ()
+    term t chunks =
+        PIdx.TermPostings t (ELC.fromList chunks)
+
+    chunk :: [Int] -> PostingsChunk ()
+    chunk docIds' =
+        Chunk docId0
+              (E.encode $ V.fromList $ map (\x->(docId0 `docIdDelta` x, ())) docIds)
+      where
+        docId0 = head docIds
+        docIds = map DocId docIds'

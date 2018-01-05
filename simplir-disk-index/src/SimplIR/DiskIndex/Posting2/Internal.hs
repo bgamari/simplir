@@ -8,9 +8,9 @@ module SimplIR.DiskIndex.Posting2.Internal
     , open
     , fromTermPostings
     , decodeTermPostings
+    , toPostingsLists
       -- * Internal
     , fromChunks
-    , toPostingsList
     , postingIndex
     , TermPostings(..)
     ) where
@@ -89,15 +89,11 @@ walkTermPostings :: (Serialise term, Serialise p)
 walkTermPostings = CL.walk . CL.CborListPath . postingListPath
 {-# INLINEABLE walkTermPostings #-}
 
-toPostingsList :: (Serialise term, Serialise p)
-               => PostingIndex term p
-               -> [(term, Posting p)]
-toPostingsList pidx =
-    [ (term, posting)
-    | TermPostings term chunks <- CL.toList (postingIndex pidx)
-    , chunk <- ELC.toList chunks
-    , posting <- decodeChunk chunk
-    ]
+toPostingsLists :: (Serialise term, Serialise p)
+                => PostingIndex term p
+                -> [(term, [Posting p])]
+toPostingsLists pidx =
+    decodeTermPostings <$> CL.toList (postingIndex pidx)
 
 open :: PostingIndexPath term p
      -> IO (PostingIndex term p)
@@ -106,8 +102,8 @@ open path = do
     meta <- readFileDeserialise (metadataPath path)
     return $ PostingIndex meta termPostings
 
-test :: M.Map String [Posting Int]
-test = M.fromList
+_test :: M.Map String [Posting Int]
+_test = M.fromList
     [ ("hello", p [(0, 1), (1, 3), (3, 1)])
     , ("world", p [(1, 1), (2, 3), (3, 1)])
     ]
