@@ -196,7 +196,7 @@ instance Monoid DocIdDelta where
 -- | Take the difference between two 'DocumentId's
 docIdDelta :: HasCallStack => DocumentId -> DocumentId -> DocIdDelta
 docIdDelta (DocId a) (DocId b)
-  | delta < 0  = error "negative DocIdDelta"
+  | delta < 0  = error $ "negative DocIdDelta: " ++ show (a,b)
   | otherwise  = DocIdDelta $ fromIntegral delta
   where delta = b - a
 {-# INLINE docIdDelta #-}
