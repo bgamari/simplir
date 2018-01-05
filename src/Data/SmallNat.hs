@@ -5,11 +5,12 @@ module Data.SmallNat where
 
 import Data.Bits
 import Data.Binary
+import qualified Codec.Serialise as S
 import Test.QuickCheck hiding ((.&.))
 
 -- | Efficiently encode natural numbers from 0 to 2^62 - 1
 newtype SmallNat = SmallNat Word
-                 deriving (Eq, Ord, Show, Read, Integral, Num, Real)
+                 deriving (Eq, Ord, Show, Read, Integral, Num, Real, S.Serialise)
 
 instance Bounded SmallNat where
     minBound = SmallNat 0

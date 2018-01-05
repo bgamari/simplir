@@ -28,6 +28,11 @@ library
       SimplIR.DiskIndex.Posting
       SimplIR.DiskIndex.Posting.Internal
       SimplIR.DiskIndex.Posting.Collect
+      SimplIR.DiskIndex.Posting2
+      SimplIR.DiskIndex.Posting2.PostingList
+      SimplIR.DiskIndex.Posting2.CborList
+      SimplIR.DiskIndex.Posting2.Merge
+      SimplIR.DiskIndex.Posting2.TermIndex
       SimplIR.DiskIndex.Document
       SimplIR.DiskIndex.Posting.Tests
       SimplIR.DiskIndex.Tests
@@ -53,6 +58,7 @@ library
       profunctors >= 5.1,
       foldl >= 1.1,
       vector >= 0.11,
+      mmap,
 
       monad-control,
       lifted-async,
@@ -61,7 +67,9 @@ library
       simplir,
       heaps,
       vector-binary-instances >= 0.2,
+
       serialise,
+      cborg,
 
       QuickCheck >=2.8 && <2.11,
       tasty,

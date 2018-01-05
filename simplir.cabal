@@ -44,7 +44,9 @@ library
       SimplIR.StopWords
       AccumPostings
       SimplIR.Encoded
+      SimplIR.Encoded.Cbor
       SimplIR.EncodedList
+      SimplIR.EncodedList.Cbor
       SimplIR.LearningToRank
       Progress
       SimplIR.Tokenise

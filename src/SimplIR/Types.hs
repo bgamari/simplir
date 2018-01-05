@@ -37,6 +37,7 @@ module SimplIR.Types
 import Data.Foldable (toList)
 import Data.String (IsString)
 import Data.Binary
+import Codec.Serialise
 import Data.Semigroup
 import Data.Hashable (Hashable)
 import GHC.Generics
@@ -51,7 +52,7 @@ import Data.SmallNat
 import GHC.Stack (HasCallStack)
 
 newtype DocumentId = DocId Int
-                   deriving (Show, Eq, Ord, Enum, Binary)
+                   deriving (Show, Eq, Ord, Enum, Binary, Serialise)
 
 instance Arbitrary DocumentId where
     arbitrary = DocId . getPositive <$> arbitrary
@@ -176,7 +177,7 @@ instance Monoid TermFrequency where
 
 -- | A difference between two 'DocumentId's
 newtype DocIdDelta = DocIdDelta SmallNat
-                   deriving (Show, Binary, Enum, Bounded, Ord, Eq)
+                   deriving (Show, Binary, Serialise, Enum, Bounded, Ord, Eq)
 
 -- | Lift an 'Int' into a 'DocIdDelta'
 toDocIdDelta :: HasCallStack => Int -> DocIdDelta
