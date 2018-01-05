@@ -3,6 +3,7 @@
 
 module SimplIR.DiskIndex
     ( DiskIndex(..)
+    , DiskIndexPath(..)
       -- * Creation
     , open
     , fromDocuments
@@ -13,54 +14,63 @@ module SimplIR.DiskIndex
     , lookupPostings'
     , termPostings
     , documents
-      -- * Typed wrapper
-    , OnDiskIndex(..)
-    , openOnDiskIndex
     ) where
 
 import System.FilePath
 import System.Directory
-import Data.Binary
+import Data.Binary (Binary)
+import Codec.Serialise (Serialise)
 import qualified Data.Map as M
 import Pipes (Producer)
 
 import           SimplIR.Types
-import qualified SimplIR.DiskIndex.Posting as PostingIdx
-import qualified SimplIR.DiskIndex.Posting.Types as PostingIdx
-import qualified SimplIR.DiskIndex.Posting.Merge as PostingIdx.Merge
+import qualified SimplIR.DiskIndex.Posting2 as PostingIdx
+import qualified SimplIR.DiskIndex.Posting2.TermIndex as TermIdx
+import qualified SimplIR.DiskIndex.Posting2.Merge as PostingIdx.Merge
 import qualified SimplIR.DiskIndex.Document as Doc
+
+data DiskIndexPath term doc p = DiskIndexPath { getDiskIndexPath :: FilePath }
+
+docIndexPath :: DiskIndexPath term doc p -> Doc.DocIndexPath doc
+docIndexPath (DiskIndexPath p) = Doc.DocIndexPath $ p </> "documents"
+
+postingIndexPath :: DiskIndexPath term doc p -> PostingIdx.PostingIndexPath term p
+postingIndexPath (DiskIndexPath p) = PostingIdx.PostingIndexPath $ p </> "postings"
 
 -- | @DiskIndex term doc p@ is an on-disk index with document metadata @doc@
 -- and posting-type @p@.
 data DiskIndex term doc p
-    = DiskIndex { tfIdx  :: PostingIdx.DiskIndex term p
-                , docIdx :: Doc.DocIndex doc
+    = DiskIndex { postingIdx :: !(PostingIdx.PostingIndex term p)
+                , termIdx :: !(TermIdx.TermIndex term p)
+                , docIdx :: !(Doc.DocIndex doc)
                 }
 
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: FilePath -> IO (DiskIndex term doc p)
+open :: forall term doc p. (Serialise p, Serialise term, Ord term)
+     => DiskIndexPath term doc p -> IO (DiskIndex term doc p)
 open path = do
-    doc <- Doc.open $ Doc.DocIndexPath $ path </> "documents"
-    mtf <- PostingIdx.open $ PostingIdx.PostingIndexPath $ path </> "postings" -- TODO: Error handling
-    case mtf of
-      Right tf -> return $ DiskIndex tf doc
-      Left err -> fail $ "SimplIR.DiskIndex.open: Failed to open index " ++ path ++ ": " ++ show err
+    doc <- Doc.open $ docIndexPath path
+    postings <- PostingIdx.open $ postingIndexPath path -- TODO: Error handling
+    let term = TermIdx.build postings
+    return $ DiskIndex postings term doc
 
 -- | Build an on-disk index from a set of documents and their postings.
-fromDocuments :: (Binary doc, Binary p, Binary term)
+fromDocuments :: (Binary doc, Serialise p, Serialise term)
               => FilePath                 -- ^ destination path
               -> [(DocumentId, doc)]  -- ^ document metadata and postings
               -> M.Map term [Posting p]
-              -> IO ()
+              -> IO (DiskIndexPath term doc p)
 fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
-    PostingIdx.fromTermPostings postingChunkSize (PostingIdx.PostingIndexPath $ dest </> "postings") postings
-    Doc.write (Doc.DocIndexPath $ dest </> "documents") (M.fromList docs)
+    let path = DiskIndexPath dest
+    _ <- PostingIdx.fromTermPostings postingChunkSize (PostingIdx.getPostingIndexPath $ postingIndexPath path) postings
+    Doc.write (docIndexPath path) (M.fromList docs)
+    return path
 {-# INLINEABLE fromDocuments #-}
 
-documents :: (Monad m, Binary term, Binary doc)
+documents :: (Monad m, Serialise term, Binary doc)
           => DiskIndex term doc p -> Producer (DocumentId, doc) m ()
 documents = Doc.documents . docIdx
 {-# INLINEABLE documents #-}
@@ -72,15 +82,15 @@ lookupDoc docId = Doc.lookupDoc docId . docIdx
 {-# INLINEABLE lookupDoc #-}
 
 -- | Lookup the 'Posting's of a term in the index.
-lookupPostings' :: (Binary p, Binary term, Ord term)
+lookupPostings' :: (Serialise p, Serialise term, Ord term)
                 => term                  -- ^ the term
                 -> DiskIndex term doc p
                 -> Maybe [Posting p]     -- ^ the postings of the term
 lookupPostings' term idx =
-    PostingIdx.lookup (tfIdx idx) term
+    TermIdx.lookup (termIdx idx) term
 {-# INLINEABLE lookupPostings' #-}
 
-lookupPostings :: (Binary p, Binary doc, Binary term, Ord term)
+lookupPostings :: (Serialise p, Binary doc, Serialise term, Ord term)
                => term                  -- ^ the term
                -> DiskIndex term doc p
                -> Maybe [(doc, p)]  -- ^ the postings of the term
@@ -95,41 +105,32 @@ lookupPostings term idx =
 {-# INLINEABLE lookupPostings #-}
 
 -- | Enumerate the postings for all terms in the index.
-termPostings :: (Binary p, Binary term)
+termPostings :: (Serialise p, Serialise term)
              => DiskIndex term doc p
              -> [(term, [Posting p])]
 termPostings idx =
-    PostingIdx.walk (tfIdx idx)
+    PostingIdx.toPostingsLists (postingIdx idx)
 {-# INLINEABLE termPostings #-}
 
 -- | How many postings per chunk?
 postingChunkSize :: Int
 postingChunkSize = 2^(14 :: Int)
 
-merge :: forall term doc p. (Binary p, Binary doc, Binary term, Ord term)
+merge :: forall term doc p. (Serialise p, Binary doc, Serialise term, Ord term)
       => FilePath               -- ^ destination path
-      -> [DiskIndex term doc p] -- ^ indices to merge
-      -> IO ()
+      -> [DiskIndexPath term doc p] -- ^ indices to merge
+      -> IO (DiskIndexPath term doc p)
 merge dest idxs = do
+    let path = DiskIndexPath dest
     createDirectoryIfMissing True dest
     -- First merge the document ids
-    let docDest = Doc.DocIndexPath $ dest </> "documents"
-    docIds0 <- Doc.merge docDest (map docIdx idxs)
+    docIdxs <- mapM (Doc.open . docIndexPath) idxs
+    docIds0 <- Doc.merge (docIndexPath path) docIdxs
 
     -- then merge the postings themselves
-    let allPostings :: [[(term, [PostingIdx.PostingsChunk p])]]
-        allPostings = map (PostingIdx.walkChunks . tfIdx) idxs
-
-    let mergedSize = sum $ map (PostingIdx.termCount . tfIdx) idxs
-    PostingIdx.Merge.merge postingChunkSize
-                           (PostingIdx.PostingIndexPath $ dest </> "postings") mergedSize
-                           (zip docIds0 allPostings)
+    _ <- PostingIdx.Merge.merge (PostingIdx.getPostingIndexPath $ postingIndexPath path)
+        [ (docId0, postingIndexPath idxPath)
+        | (docId0, idxPath) <- zip docIds0 idxs
+        ]
+    return path
 {-# INLINEABLE merge #-}
-
--- | A typed newtype wrapper
-newtype OnDiskIndex term doc p = OnDiskIndex { onDiskIndexPath :: FilePath }
-
-openOnDiskIndex :: (Binary doc)
-                => OnDiskIndex term doc p
-                -> IO (DiskIndex term doc p)
-openOnDiskIndex = open . onDiskIndexPath

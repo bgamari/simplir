@@ -6,6 +6,11 @@ module SimplIR.DiskIndex.Posting2
     , fromTermPostings
     , decodeTermPostings
     , toPostingsLists
+    , termPostingsChunks'
+      -- * Chunked
+    , PostingsChunk
+    , toPostingsChunks
     ) where
 
 import SimplIR.DiskIndex.Posting2.Internal
+import SimplIR.DiskIndex.Posting2.PostingList

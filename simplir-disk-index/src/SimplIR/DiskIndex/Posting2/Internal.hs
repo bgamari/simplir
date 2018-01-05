@@ -9,6 +9,7 @@ module SimplIR.DiskIndex.Posting2.Internal
     , fromTermPostings
     , decodeTermPostings
     , toPostingsLists
+    , toPostingsChunks
       -- * Internal
     , fromChunks
     , postingIndex
@@ -44,7 +45,9 @@ data PostingIndex term p = PostingIndex { _metadata :: !Metadata
                                         , postingIndex :: !(CL.CborList (TermPostings term p))
                                         }
 
-data TermPostings term p = TermPostings term (ELC.EncodedList (PostingsChunk p))
+data TermPostings term p = TermPostings { termPostingsTerm    :: ! term
+                                        , termPostingsChunks' :: !(ELC.EncodedList (PostingsChunk p))
+                                        }
                          deriving (Show)
 
 instance (Serialise term, Serialise p) => Serialise (TermPostings term p) where
@@ -54,7 +57,6 @@ instance (Serialise term, Serialise p) => Serialise (TermPostings term p) where
 decodeTermPostings :: Serialise p => TermPostings term p -> (term, [Posting p])
 decodeTermPostings (TermPostings t ps) =
     (t, foldMap decodeChunk $ ELC.toList ps)
-
 
 -- | Build an inverted index from a set of postings.
 fromTermPostings :: forall term p. (Serialise term, Serialise p)
@@ -88,6 +90,12 @@ walkTermPostings :: (Serialise term, Serialise p)
                  -> IO [TermPostings term p]
 walkTermPostings = CL.walk . CL.CborListPath . postingListPath
 {-# INLINEABLE walkTermPostings #-}
+
+toPostingsChunks :: (Serialise term, Serialise p)
+                 => PostingIndex term p
+                 -> [(term, [PostingsChunk p])]
+toPostingsChunks =
+    fmap (\(TermPostings t cs) -> (t, ELC.toList cs)) . CL.toList . postingIndex
 
 toPostingsLists :: (Serialise term, Serialise p)
                 => PostingIndex term p

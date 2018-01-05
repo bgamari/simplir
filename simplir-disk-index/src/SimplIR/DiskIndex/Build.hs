@@ -19,7 +19,8 @@ import Data.List.Split
 
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
-import Data.Binary
+import Data.Binary (Binary)
+import Codec.Serialise (Serialise)
 import Pipes.Safe
 
 import qualified SimplIR.DiskIndex as DiskIdx
@@ -30,21 +31,21 @@ import SimplIR.Utils
 -- Using m ~ SafeT IO until we are certain that other monads won't be needed.
 
 buildIndex :: forall term m doc p.
-              (m ~ SafeT IO, Binary term, Ord term, Binary doc, Binary p)
+              (m ~ SafeT IO, Serialise term, Ord term, Binary doc, Serialise p)
            => Int       -- ^ How many documents to include in an index chunk?
            -> FilePath  -- ^ Final index path
-           -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.OnDiskIndex term doc p)
+           -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.DiskIndexPath term doc p)
 buildIndex chunkSize outputPath =
     postmapM' moveResult
     $ postmapM' (treeReduce 256 mergeIndexChunks)
     $ foldChunksOf chunkSize (Foldl.generalize collectIndex) writeIndexChunks
   where
-    moveResult :: (DiskIdx.OnDiskIndex term doc p, ReleaseKey)
-               -> m (DiskIdx.OnDiskIndex term doc p)
-    moveResult (DiskIdx.OnDiskIndex path, key) = do
+    moveResult :: (DiskIdx.DiskIndexPath term doc p, ReleaseKey)
+               -> m (DiskIdx.DiskIndexPath term doc p)
+    moveResult (DiskIdx.DiskIndexPath path, key) = do
         liftIO $ renameDirectory path outputPath
         release key  -- will fail
-        return (DiskIdx.OnDiskIndex outputPath)
+        return (DiskIdx.DiskIndexPath outputPath)
 {-# INLINEABLE buildIndex #-}
 
 treeReduce :: forall m a. (m ~ SafeT IO)
@@ -72,16 +73,15 @@ treeReduce width f xs0 = do
 {-# INLINEABLE treeReduce #-}
 
 -- | Perform the final merge of a set of index chunks.
-mergeIndexChunks :: (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
-            => [(DiskIdx.OnDiskIndex term doc p, ReleaseKey)]
-            -> m (DiskIdx.OnDiskIndex term doc p, ReleaseKey)
+mergeIndexChunks :: (MonadSafe m, Serialise term, Ord term, Binary doc, Serialise p)
+            => [(DiskIdx.DiskIndexPath term doc p, ReleaseKey)]
+            -> m (DiskIdx.DiskIndexPath term doc p, ReleaseKey)
 mergeIndexChunks chunks = do
     let (chunkFiles, chunkKeys) = unzip chunks
-    idxs <- liftIO $ mapM DiskIdx.openOnDiskIndex chunkFiles
     (path, key) <- newTempDir
-    liftIO $ DiskIdx.merge path idxs
+    result <- liftIO $ DiskIdx.merge path chunkFiles
     mapM_ release chunkKeys
-    return (DiskIdx.OnDiskIndex path, key)
+    return (result, key)
 {-# INLINEABLE mergeIndexChunks #-}
 
 newTempDir :: (MonadSafe m)
@@ -93,19 +93,20 @@ newTempDir = do
     return (path, key)
 
 -- | Write a set of index chunks.
-writeIndexChunks :: forall term doc p m. (MonadSafe m, Binary term, Ord term, Binary doc, Binary p)
-             => Foldl.FoldM m ([(DocumentId, doc)], M.Map term [Posting p])
-                              [(DiskIdx.OnDiskIndex term doc p, ReleaseKey)]
+writeIndexChunks :: forall term doc p m.
+                    (MonadSafe m, Serialise term, Ord term, Binary doc, Serialise p)
+                 => Foldl.FoldM m ([(DocumentId, doc)], M.Map term [Posting p])
+                                  [(DiskIdx.DiskIndexPath term doc p, ReleaseKey)]
 writeIndexChunks =
     premapM' chunkToIndex
     $ Foldl.generalize Foldl.list
   where
     chunkToIndex :: ([(DocumentId, doc)], M.Map term [Posting p])
-                 -> m (DiskIdx.OnDiskIndex term doc p, ReleaseKey)
+                 -> m (DiskIdx.DiskIndexPath term doc p, ReleaseKey)
     chunkToIndex (docIdx, postingIdx) = do
         (path, key) <- newTempDir
-        liftIO $ DiskIdx.fromDocuments path docIdx postingIdx
-        return (DiskIdx.OnDiskIndex path, key)
+        result <- liftIO $ DiskIdx.fromDocuments path docIdx postingIdx
+        return (result, key)
 {-# INLINEABLE writeIndexChunks #-}
 
 -- | Build an index chunk in memory.

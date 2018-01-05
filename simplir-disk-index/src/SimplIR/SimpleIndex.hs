@@ -31,6 +31,7 @@ import Data.Ord
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
+import Codec.Serialise (Serialise)
 import qualified Codec.Serialise as S
 import System.FilePath
 import System.Directory (createDirectoryIfMissing)
@@ -54,14 +55,15 @@ data Index term doc posting
              , corpusStats   :: CorpusStats term
              }
 
-simpleIndexPath :: OnDiskIndex term doc posting -> FilePath
-simpleIndexPath (OnDiskIndex f) = f </> "index"
+simpleIndexPath :: OnDiskIndex term doc posting
+                -> DiskIndex.DiskIndexPath term (DocumentLength, doc) posting
+simpleIndexPath (OnDiskIndex f) = DiskIndex.DiskIndexPath $ f </> "index"
 
 statsPath :: OnDiskIndex term doc posting -> FilePath
 statsPath (OnDiskIndex f) = f </> "stats"
 
 -- | Open an index.
-open :: (Hashable term, Eq term, S.Serialise term)
+open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting)
      => OnDiskIndex term doc posting
      -> IO (Index term doc posting)
 open path = do
@@ -70,7 +72,7 @@ open path = do
     return (Index postings stats)
 
 -- | Build an index with term-frequency postings.
-buildTermFreq :: forall doc term. (Ord term, Hashable term, Binary term, S.Serialise term, Binary doc)
+buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Serialise term, Binary doc)
               => FilePath              -- ^ output path
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
@@ -95,11 +97,14 @@ buildTermFreq path docs = do
         in ((docLength, doc), termFreqs)
 
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
-                                 (DiskIndex.OnDiskIndex term (DocumentLength, doc) Int)
-    buildPostings = Foldl.premapM buildTfPostings (buildIndex 1024 (simpleIndexPath path'))
+                                 (DiskIndex.DiskIndexPath term (DocumentLength, doc) Int)
+    buildPostings =
+        Foldl.premapM buildTfPostings
+        $ buildIndex 1024 destPath
+      where destPath = DiskIndex.getDiskIndexPath $ simpleIndexPath path'
 {-# INLINEABLE buildTermFreq #-}
 
-termPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
+termPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Binary doc)
              => Index term doc posting
              -> [(term, [(doc, posting)])]
 termPostings idx = map (second $ map toPair) $ DiskIndex.termPostings (postingsIndex idx)
@@ -107,7 +112,7 @@ termPostings idx = map (second $ map toPair) $ DiskIndex.termPostings (postingsI
           where Just (_docLen, doc) = DiskIndex.lookupDoc docId (postingsIndex idx)
 {-# INLINEABLE termPostings #-}
 
-lookupPostings :: forall term doc posting. (Ord term, Binary term, Binary posting, Binary doc)
+lookupPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Binary doc)
                => Index term doc posting
                -> term
                -> [(doc, posting)]
@@ -118,7 +123,7 @@ lookupPostings index term =
 {-# INLINEABLE lookupPostings #-}
 
 -- | Query an index, returning un-sorted results.
-score :: forall term doc posting. (Hashable term, Ord term, Binary term, Binary doc, Binary posting, Ord posting)
+score :: forall term doc posting. (Hashable term, Ord term, Serialise term, Binary doc, Serialise posting, Ord posting)
       => Index term doc posting               -- ^ index
       -> RetrievalModel term doc posting      -- ^ retrieval model
       -> [term]                               -- ^ query terms
