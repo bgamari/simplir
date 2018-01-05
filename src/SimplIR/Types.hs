@@ -63,7 +63,7 @@ derivingUnbox "DocumentId"
   [| DocId |]
 
 newtype DocumentName = DocName { getDocName :: Utf8.SmallUtf8 }
-                     deriving (Show, Eq, Ord, Binary, IsString,
+                     deriving (Show, Eq, Ord, Binary, Serialise, IsString,
                                Aeson.ToJSON, Aeson.FromJSON)
 
 instance Arbitrary DocumentName where
@@ -76,6 +76,7 @@ data Span = Span { begin, end :: !Int }
           deriving (Eq, Ord, Show, Generic)
 
 instance Binary Span
+instance Serialise Span
 instance Semigroup Span where
     Span beginX endX <> Span beginY endY = Span (min beginX beginY) (max endX endY)
 instance Aeson.ToJSON Span where
@@ -99,6 +100,7 @@ data Position = Position { charOffset :: !Span
 instance Semigroup Position where
     Position a b <> Position x y = Position (a <> x) (min b y)
 instance Binary Position
+instance Serialise Position
 instance NFData Position where
     rnf (Position {}) = ()
 instance Aeson.ToJSON Position where
@@ -120,6 +122,7 @@ data Positioned a = Positioned { unPositioned :: a
                                }
                   deriving (Eq, Ord, Show, Generic)
 instance Binary a => Binary (Positioned a)
+instance Serialise a => Serialise (Positioned a)
 instance NFData a => NFData (Positioned a) where
     rnf (Positioned x _) = rnf x
 
