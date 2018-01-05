@@ -45,9 +45,8 @@ mergeContainsAll chunks' = monadicIO $ do
         DiskIndex.fromDocuments indexDir (map swap $ M.assocs docMap) postings
 
     -- merge indexes
-    indexes <- liftIO $ mapM (DiskIndex.open @Term @DocumentName @Int) indexDirs
-    let mergedPath = tempDir </> "merged"
-    merged <- liftIO $ DiskIndex.merge @Term @DocumentName @Int mergedPath indexDirs
+    _indexes <- liftIO $ mapM (DiskIndex.open @Term @DocumentName @Int) indexDirs
+    mergedPath <- liftIO $ DiskIndex.merge @Term @DocumentName @Int (tempDir </> "merged") indexDirs
     liftIO $ mapM_ (removeDirectoryRecursive . DiskIndex.getDiskIndexPath) indexDirs
 
     -- check merged index
@@ -58,7 +57,7 @@ mergeContainsAll chunks' = monadicIO $ do
                , (docName, terms) <- M.assocs chunk
                , (term, Positive n) <- M.assocs terms
                ]
-    merged <- liftIO $ DiskIndex.open merged
+    merged <- liftIO $ DiskIndex.open mergedPath
     let test :: M.Map Term (M.Map DocumentName Int)
         test = M.unionsWith mappend
                [ M.singleton term (M.singleton docName n)

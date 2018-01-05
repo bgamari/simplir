@@ -4,21 +4,23 @@
 import Control.Monad
 import Data.Monoid
 import qualified SimplIR.DiskIndex as DiskIndex
-import qualified SimplIR.DiskIndex.Posting as PostingIdx
+import qualified SimplIR.DiskIndex.Posting2 as PostingIdx
 import qualified SimplIR.Term as Term
 import           SimplIR.Types
 import Options.Applicative
 
-args :: Parser (FilePath, [String])
+args :: Parser ( DiskIndex.DiskIndexPath Term.Term (DocumentName, DocumentLength) [Position]
+               , [String]
+               )
 args =
     (,)
-      <$> option str (long "index" <> short 'i' <> help "index directory")
+      <$> option (DiskIndex.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
       <*> many (option str (long "term" <> short 't' <> help "term"))
 
 main :: IO ()
 main = do
     (index, terms) <- execParser $ info (helper <*> args) mempty
-    idx <- DiskIndex.open index :: IO (DiskIndex.DiskIndex Term.Term (DocumentName, DocumentLength) [Position])
+    idx <- DiskIndex.open index
 
     let toDocName :: DocumentId -> String
         toDocName = maybe "none" show . flip DiskIndex.lookupDoc idx
@@ -30,7 +32,7 @@ main = do
                        ]
     if null terms
       then
-        forM_ (PostingIdx.walk $ DiskIndex.tfIdx idx) $ \(term, postings) ->
+        forM_ (PostingIdx.toPostingsLists $ DiskIndex.postingIdx idx) $ \(term, postings) ->
           putStrLn $ showTermPostings term postings
       else
         forM_ terms $ \term ->

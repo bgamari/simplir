@@ -14,6 +14,8 @@ module SimplIR.DiskIndex
     , lookupPostings'
     , termPostings
     , documents
+      -- * Internal
+    , postingIndexPath
     ) where
 
 import System.FilePath
