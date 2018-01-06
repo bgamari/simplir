@@ -16,6 +16,7 @@ import Data.Profunctor
 import System.Directory
 import System.IO.Temp
 import Data.List.Split
+import qualified Data.DList as DList
 
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
@@ -123,9 +124,10 @@ collectIndex =
 
     termIdx :: Foldl.Fold (DocumentId, (doc, M.Map term p)) (M.Map term [Posting p])
     termIdx =
-        lmap (\(docId, (_, terms)) -> foldMap (toPosting docId) $ M.toList terms) mconcatMaps
+        fmap (fmap DList.toList)
+        $ lmap (\(docId, (_, terms)) -> foldMap (toPosting docId) $ M.toList terms) mconcatMaps
 
-    toPosting :: DocumentId -> (term, p) -> M.Map term [Posting p]
-    toPosting docId (term, p) = M.singleton term [Posting docId p]
+    toPosting :: DocumentId -> (term, p) -> M.Map term (DList.DList (Posting p))
+    toPosting docId (term, p) = M.singleton term (DList.singleton $ Posting docId p)
 {-# INLINEABLE collectIndex #-}
 
