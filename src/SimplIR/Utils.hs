@@ -46,6 +46,7 @@ foldChunks chunkSize (Foldl.FoldM step initial extract) = start
               acc' <- lift $ step acc x
               go (n-1 :: Int) acc' prod'
           Left () -> lift (extract acc) >>= yield
+{-# INLINEABLE foldChunks #-}
 
 -- | Zip the elements coming down a 'Pipe' with elements of a list. Fails if the
 -- list runs out of elements.
@@ -106,6 +107,7 @@ foldChunksOf n
       | otherwise = do
         sIn' <- stepIn sIn x
         return (m+1, sIn', sOut)
+{-# INLINEABLE foldChunksOf #-}
 
 statusEvery :: MonadIO m => Int -> (Int -> String) -> Pipe a a m r
 statusEvery period msg = go 0 period
