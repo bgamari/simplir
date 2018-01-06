@@ -11,29 +11,19 @@
 
 import Control.Monad.State.Strict hiding ((>=>))
 import Data.Bifunctor
-import Data.Foldable (fold, toList)
 import Data.Maybe
 import Data.Monoid
-import Data.Profunctor
 import Data.Char
 import GHC.Generics
 import System.IO
-import System.FilePath
-import System.Directory (createDirectoryIfMissing)
 import Control.DeepSeq
 
 import Codec.Serialise
-import qualified Data.Aeson as Aeson
-import Data.Aeson ((.=))
-import Numeric.Log hiding (sum)
 import qualified Data.ByteString.Lazy.Char8 as BS.L
 import qualified Data.Map.Strict as M
 import qualified Data.HashSet as HS
-import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import qualified Control.Foldl as Foldl
-import qualified Data.Vector as V
 
 import           Pipes
 import           Pipes.Safe
@@ -45,19 +35,13 @@ import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
-import AccumPostings
-import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
-import qualified BTree.File as BTree
 import qualified SimplIR.DiskIndex.Build as BuildIdx
-import qualified SimplIR.DiskIndex.Document as DocIdx
-import SimplIR.TopK
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
-import SimplIR.RetrievalModels.QueryLikelihood
 import qualified SimplIR.HTML.Clean as HTML.Clean
 
 inputFiles :: Parser (IO [DataSource (SafeT IO)])
