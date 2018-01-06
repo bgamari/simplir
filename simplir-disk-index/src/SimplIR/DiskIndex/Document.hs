@@ -14,8 +14,10 @@ module SimplIR.DiskIndex.Document
       -- * On-disk
     , DocIndexPath(..)
     , merge
+    , DocIndexDeserialiseFailure(..)
     ) where
 
+import Control.Exception
 import Codec.Serialise
 import Control.DeepSeq
 import Data.List
@@ -33,13 +35,18 @@ newtype DocIndex meta = DocIndex (M.Map DocumentId meta)
 
 write :: (Serialise meta) => FilePath -> M.Map DocumentId meta -> IO (DocIndexPath meta)
 write outFile docs = do
-    writeFileSerialise outFile $ M.toAscList docs
+    writeFileSerialise outFile docs
     return $ DocIndexPath outFile
 {-# INLINEABLE write #-}
 
+data DocIndexDeserialiseFailure = DocIndexDeserialiseFailure FilePath DeserialiseFailure
+                                deriving (Show)
+instance Exception DocIndexDeserialiseFailure
+
 open :: (Serialise meta, NFData meta) => DocIndexPath meta -> IO (DocIndex meta)
 open (DocIndexPath file) =
-    DocIndex . inCompact <$> readFileDeserialise file
+    handle (throw . DocIndexDeserialiseFailure file)
+    $ DocIndex . inCompact <$> readFileDeserialise file
 
 lookupDoc :: Serialise meta => DocumentId -> DocIndex meta -> Maybe meta
 lookupDoc docId (DocIndex idx) = M.lookup docId idx
