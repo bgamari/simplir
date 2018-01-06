@@ -96,11 +96,12 @@ buildTermFreq path docs = do
             docLength = DocLength $ Prelude.sum termFreqs
         in ((docLength, doc), termFreqs)
 
+    chunkSize = 64000 -- TODO: make configurable
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
                                  (DiskIndex.DiskIndexPath term (DocumentLength, doc) Int)
     buildPostings =
         Foldl.premapM buildTfPostings
-        $ buildIndex 1024 destPath
+        $ buildIndex chunkSize destPath
       where destPath = DiskIndex.getDiskIndexPath $ simpleIndexPath path'
 {-# INLINEABLE buildTermFreq #-}
 
