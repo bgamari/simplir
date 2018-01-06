@@ -14,7 +14,7 @@ import SimplIR.Types
 -- Posting list representation
 
 data PostingsChunk p = Chunk { startDocId :: !DocumentId
-                             , postings   :: !(E.Encoded (V.Vector (DocIdDelta, p)))
+                             , postings   :: (E.Encoded (V.Vector (DocIdDelta, p)))
                              }
                      deriving (Show, Generic)
 
@@ -44,4 +44,6 @@ chunkPostings n = go
                 toDelta :: Posting p -> (DocIdDelta, p)
                 toDelta (Posting docId p) = (firstDocId `docIdDelta` docId, p)
 
-            in (Chunk firstDocId $ E.encode $ V.fromListN n $ map toDelta ys) : go rest
+                encodedPostings = E.encode $ V.fromListN n $ map toDelta ys
+
+            in (Chunk firstDocId encodedPostings : go rest)
