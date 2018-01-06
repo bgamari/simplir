@@ -8,6 +8,7 @@ module SimplIR.DiskIndex.Build
     ( buildIndex
     ) where
 
+import Control.DeepSeq
 import Control.Concurrent
 import Control.Concurrent.Map
 import Control.Concurrent.Async.Lifted
@@ -20,7 +21,6 @@ import qualified Data.DList as DList
 
 import qualified Data.Map.Strict as M
 import qualified Control.Foldl as Foldl
-import Data.Binary (Binary)
 import Codec.Serialise (Serialise)
 import Pipes.Safe
 
@@ -32,7 +32,7 @@ import SimplIR.Utils
 -- Using m ~ SafeT IO until we are certain that other monads won't be needed.
 
 buildIndex :: forall term m doc p.
-              (m ~ SafeT IO, Serialise term, Ord term, Binary doc, Serialise p)
+              (m ~ SafeT IO, Serialise term, Ord term, Serialise doc, Serialise p, NFData doc)
            => Int       -- ^ How many documents to include in an index chunk?
            -> FilePath  -- ^ Final index path
            -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.DiskIndexPath term doc p)
@@ -74,7 +74,7 @@ treeReduce width f xs0 = do
 {-# INLINEABLE treeReduce #-}
 
 -- | Perform the final merge of a set of index chunks.
-mergeIndexChunks :: (MonadSafe m, Serialise term, Ord term, Binary doc, Serialise p)
+mergeIndexChunks :: (MonadSafe m, Serialise term, Ord term, Serialise doc, Serialise p, NFData doc)
             => [(DiskIdx.DiskIndexPath term doc p, ReleaseKey)]
             -> m (DiskIdx.DiskIndexPath term doc p, ReleaseKey)
 mergeIndexChunks chunks = do
@@ -95,7 +95,7 @@ newTempDir = do
 
 -- | Write a set of index chunks.
 writeIndexChunks :: forall term doc p m.
-                    (MonadSafe m, Serialise term, Ord term, Binary doc, Serialise p)
+                    (MonadSafe m, Serialise term, Ord term, Serialise p, Serialise doc)
                  => Foldl.FoldM m ([(DocumentId, doc)], M.Map term [Posting p])
                                   [(DiskIdx.DiskIndexPath term doc p, ReleaseKey)]
 writeIndexChunks =

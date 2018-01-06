@@ -16,69 +16,54 @@ module SimplIR.DiskIndex.Document
     , merge
     ) where
 
-import Control.Monad
-import Data.Binary
+import Codec.Serialise
+import Control.DeepSeq
 import Data.List
 import Data.Monoid
 import qualified Data.Map as M
-import System.Directory
-import System.FilePath
-import qualified BTree
-import qualified Pipes as P
-import qualified Pipes.Prelude as PP
+import Control.Monad
 
 import SimplIR.Types
+import SimplIR.Utils.Compact
+
+newtype DocIndexPath meta = DocIndexPath { getDocIndexPath :: FilePath }
 
 -- | TODO
-newtype DocIndex meta = DocIndex (BTree.LookupTree DocumentId meta)
+newtype DocIndex meta = DocIndex (M.Map DocumentId meta)
 
-treeOrder :: BTree.Order
-treeOrder = 64
-
-write :: Binary meta => DocIndexPath meta -> M.Map DocumentId meta -> IO ()
-write (DocIndexPath outFile) docs = do
-    createDirectoryIfMissing True (takeDirectory outFile)
-    BTree.fromOrderedToFile treeOrder (fromIntegral $ M.size docs) outFile
-        (P.each $ map (uncurry BTree.BLeaf) $ M.assocs docs)
+write :: (Serialise meta) => FilePath -> M.Map DocumentId meta -> IO (DocIndexPath meta)
+write outFile docs = do
+    writeFileSerialise outFile $ M.toAscList docs
+    return $ DocIndexPath outFile
 {-# INLINEABLE write #-}
 
-open :: DocIndexPath meta -> IO (DocIndex meta)
+open :: (Serialise meta, NFData meta) => DocIndexPath meta -> IO (DocIndex meta)
 open (DocIndexPath file) =
-    either uhOh (pure . DocIndex) =<< BTree.open file
-  where
-    uhOh e = fail $ "Failed to open document index "++show file++": "++e
+    DocIndex . inCompact <$> readFileDeserialise file
 
-lookupDoc :: Binary meta => DocumentId -> DocIndex meta -> Maybe meta
-lookupDoc docId (DocIndex idx) = BTree.lookup idx docId
+lookupDoc :: Serialise meta => DocumentId -> DocIndex meta -> Maybe meta
+lookupDoc docId (DocIndex idx) = M.lookup docId idx
 {-# INLINEABLE lookupDoc #-}
 
 size :: DocIndex meta -> Int
-size (DocIndex idx) = fromIntegral $ BTree.size idx
+size (DocIndex idx) = M.size idx
 
-documents :: (Monad m, Binary meta) => DocIndex meta -> P.Producer (DocumentId, meta) m ()
-documents (DocIndex idx) =
-    void (BTree.walkLeaves idx) P.>-> PP.map toTuple
-  where
-    toTuple (BTree.BLeaf a b) = (a,b)
+documents :: (Serialise meta) => DocIndex meta -> [(DocumentId, meta)]
+documents (DocIndex idx) = M.toAscList idx
 {-# INLINEABLE documents #-}
 
-newtype DocIndexPath meta = DocIndexPath FilePath
-
-merge :: forall meta. Binary meta
+merge :: forall meta. Serialise meta
       => DocIndexPath meta -> [DocIndex meta] -> IO [DocIdDelta]
 merge (DocIndexPath dest) idxs = do
     -- First merge the document ids
     let docIds0 :: [DocIdDelta]
         (_, docIds0) = mapAccumL (\docId0 idx -> (docId0 <> toDocIdDelta (size idx), docId0))
                                  (DocIdDelta 0) idxs
-    let total = fromIntegral $ sum $ map size idxs
 
     -- then write the document index
-    let toBLeaf delta (docId, meta) =
-            BTree.BLeaf (docId `applyDocIdDelta` delta) meta
-    BTree.fromOrderedToFile treeOrder total dest $ sequence
-        [ documents idx P.>-> PP.map (toBLeaf delta)
-        | (delta, idx) <- zip docIds0 idxs
+    void $ write dest $ M.unions
+        [ M.mapKeys (`applyDocIdDelta` delta) idx
+        | (delta, DocIndex idx) <- zip docIds0 idxs
         ]
     return docIds0
 {-# INLINEABLE merge #-}

@@ -20,8 +20,9 @@ import GHC.Generics
 import System.IO
 import System.FilePath
 import System.Directory (createDirectoryIfMissing)
+import Control.DeepSeq
 
-import Data.Binary
+import Codec.Serialise
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
 import Numeric.Log hiding (sum)
@@ -57,11 +58,7 @@ import SimplIR.TopK
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import SimplIR.RetrievalModels.QueryLikelihood
-import SimplIR.RetrievalModels.CorpusStats
 import qualified SimplIR.HTML.Clean as HTML.Clean
-
-type QueryId = T.Text
-type StatsFile = FilePath
 
 inputFiles :: Parser (IO [DataSource (SafeT IO)])
 inputFiles =
@@ -175,7 +172,8 @@ data DocumentInfo = DocInfo { docArchive :: ArchiveName
                             , docLength  :: DocumentLength
                             }
                   deriving (Generic, Eq, Ord, Show)
-instance Binary DocumentInfo
+instance Serialise DocumentInfo
+instance NFData DocumentInfo
 
 normalizationPipeline
     :: MonadIO m

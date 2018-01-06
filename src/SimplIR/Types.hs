@@ -52,7 +52,7 @@ import Data.SmallNat
 import GHC.Stack (HasCallStack)
 
 newtype DocumentId = DocId Int
-                   deriving (Show, Eq, Ord, Enum, Binary, Serialise)
+                   deriving (Show, Eq, Ord, Enum, Binary, Serialise, NFData)
 
 instance Arbitrary DocumentId where
     arbitrary = DocId . getPositive <$> arbitrary
@@ -63,7 +63,7 @@ derivingUnbox "DocumentId"
   [| DocId |]
 
 newtype DocumentName = DocName { getDocName :: Utf8.SmallUtf8 }
-                     deriving (Show, Eq, Ord, Binary, Serialise, IsString,
+                     deriving (Show, Eq, Ord, Binary, Serialise, IsString, NFData,
                                Aeson.ToJSON, Aeson.FromJSON)
 
 instance Arbitrary DocumentName where
@@ -159,7 +159,8 @@ derivingUnbox "Posting"
 
 -- | The length of a document in tokens.
 newtype DocumentLength = DocLength Int
-                       deriving (Eq, Ord, Show, Enum, Binary, Aeson.ToJSON, Aeson.FromJSON)
+                       deriving (Eq, Ord, Show, Enum, Binary, Aeson.ToJSON, Aeson.FromJSON,
+                                 Serialise, NFData)
 
 getDocumentLength :: Real a => DocumentLength -> a
 getDocumentLength (DocLength n) = fromIntegral n

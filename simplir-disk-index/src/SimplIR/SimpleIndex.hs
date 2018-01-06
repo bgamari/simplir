@@ -20,13 +20,13 @@ module SimplIR.SimpleIndex
 
 import Data.Maybe
 import Data.Bifunctor
+import Control.DeepSeq
 
 import Pipes
 import qualified Pipes.Prelude as PP
 import Pipes.Safe
 import Data.Hashable
 import qualified Data.HashSet as HS
-import Data.Binary (Binary)
 import Data.Ord
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Map.Strict as M
@@ -63,7 +63,7 @@ statsPath :: OnDiskIndex term doc posting -> FilePath
 statsPath (OnDiskIndex f) = f </> "stats"
 
 -- | Open an index.
-open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting)
+open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting, Serialise doc, NFData doc)
      => OnDiskIndex term doc posting
      -> IO (Index term doc posting)
 open path = do
@@ -72,7 +72,7 @@ open path = do
     return (Index postings stats)
 
 -- | Build an index with term-frequency postings.
-buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Serialise term, Binary doc)
+buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Serialise term, Serialise doc, NFData doc)
               => FilePath              -- ^ output path
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
@@ -105,7 +105,7 @@ buildTermFreq path docs = do
       where destPath = DiskIndex.getDiskIndexPath $ simpleIndexPath path'
 {-# INLINEABLE buildTermFreq #-}
 
-termPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Binary doc)
+termPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Serialise doc)
              => Index term doc posting
              -> [(term, [(doc, posting)])]
 termPostings idx = map (second $ map toPair) $ DiskIndex.termPostings (postingsIndex idx)
@@ -113,7 +113,7 @@ termPostings idx = map (second $ map toPair) $ DiskIndex.termPostings (postingsI
           where Just (_docLen, doc) = DiskIndex.lookupDoc docId (postingsIndex idx)
 {-# INLINEABLE termPostings #-}
 
-lookupPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Binary doc)
+lookupPostings :: forall term doc posting. (Ord term, Serialise term, Serialise posting, Serialise doc)
                => Index term doc posting
                -> term
                -> [(doc, posting)]
@@ -124,7 +124,7 @@ lookupPostings index term =
 {-# INLINEABLE lookupPostings #-}
 
 -- | Query an index, returning un-sorted results.
-score :: forall term doc posting. (Hashable term, Ord term, Serialise term, Binary doc, Serialise posting, Ord posting)
+score :: forall term doc posting. (Hashable term, Ord term, Serialise term, Serialise doc, Serialise posting, Ord posting)
       => Index term doc posting               -- ^ index
       -> RetrievalModel term doc posting      -- ^ retrieval model
       -> [term]                               -- ^ query terms

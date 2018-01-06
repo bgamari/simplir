@@ -18,12 +18,11 @@ module SimplIR.DiskIndex
     , postingIndexPath
     ) where
 
+import Control.DeepSeq
 import System.FilePath
 import System.Directory
-import Data.Binary (Binary)
 import Codec.Serialise (Serialise)
 import qualified Data.Map as M
-import Pipes (Producer)
 
 import           SimplIR.Types
 import qualified SimplIR.DiskIndex.Posting2 as PostingIdx
@@ -50,7 +49,7 @@ data DiskIndex term doc p
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: forall term doc p. (Serialise p, Serialise term, Ord term)
+open :: forall term doc p. (Serialise doc, Serialise p, Serialise term, Ord term, NFData doc)
      => DiskIndexPath term doc p -> IO (DiskIndex term doc p)
 open path = do
     doc <- Doc.open $ docIndexPath path
@@ -59,7 +58,7 @@ open path = do
     return $ DiskIndex postings term doc
 
 -- | Build an on-disk index from a set of documents and their postings.
-fromDocuments :: (Binary doc, Serialise p, Serialise term)
+fromDocuments :: (Serialise doc, Serialise p, Serialise term)
               => FilePath                 -- ^ destination path
               -> [(DocumentId, doc)]  -- ^ document metadata and postings
               -> M.Map term [Posting p]
@@ -68,17 +67,17 @@ fromDocuments dest docs postings = do
     createDirectoryIfMissing True dest
     let path = DiskIndexPath dest
     _ <- PostingIdx.fromTermPostings postingChunkSize (PostingIdx.getPostingIndexPath $ postingIndexPath path) postings
-    Doc.write (docIndexPath path) (M.fromList docs)
+    _ <- Doc.write (Doc.getDocIndexPath $ docIndexPath path) (M.fromList docs)
     return path
 {-# INLINEABLE fromDocuments #-}
 
-documents :: (Monad m, Serialise term, Binary doc)
-          => DiskIndex term doc p -> Producer (DocumentId, doc) m ()
+documents :: (Serialise term, Serialise doc)
+          => DiskIndex term doc p -> [(DocumentId, doc)]
 documents = Doc.documents . docIdx
 {-# INLINEABLE documents #-}
 
 -- | Lookup the metadata of a document.
-lookupDoc :: (Binary doc)
+lookupDoc :: (Serialise doc)
           => DocumentId -> DiskIndex term doc p -> Maybe doc
 lookupDoc docId = Doc.lookupDoc docId . docIdx
 {-# INLINEABLE lookupDoc #-}
@@ -92,7 +91,7 @@ lookupPostings' term idx =
     TermIdx.lookup (termIdx idx) term
 {-# INLINEABLE lookupPostings' #-}
 
-lookupPostings :: (Serialise p, Binary doc, Serialise term, Ord term)
+lookupPostings :: (Serialise p, Serialise doc, Serialise term, Ord term)
                => term                  -- ^ the term
                -> DiskIndex term doc p
                -> Maybe [(doc, p)]  -- ^ the postings of the term
@@ -118,7 +117,8 @@ termPostings idx =
 postingChunkSize :: Int
 postingChunkSize = 2^(14 :: Int)
 
-merge :: forall term doc p. (Serialise p, Binary doc, Serialise term, Ord term)
+merge :: forall term doc p.
+         (Serialise p, Serialise doc, Serialise term, Ord term, NFData doc)
       => FilePath               -- ^ destination path
       -> [DiskIndexPath term doc p] -- ^ indices to merge
       -> IO (DiskIndexPath term doc p)

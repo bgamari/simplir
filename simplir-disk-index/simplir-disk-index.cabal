@@ -51,6 +51,7 @@ library
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
+      deepseq,
       split,
       dlist,
       binary >= 0.7 && < 0.10,
