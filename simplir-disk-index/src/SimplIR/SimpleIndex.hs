@@ -34,7 +34,7 @@ import qualified Control.Foldl as Foldl
 import Codec.Serialise (Serialise)
 import qualified Codec.Serialise as S
 import System.FilePath
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectory)
 import Numeric.Log
 
 import SimplIR.Types (DocumentId, DocumentLength(..), Posting(..))
@@ -77,7 +77,7 @@ buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Seri
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
 buildTermFreq path docs = do
-    createDirectoryIfMissing True path
+    createDirectory path
     (stats, _idx) <-
         runSafeT $ Foldl.foldM ((,) <$> Foldl.generalize buildStats
                                     <*> buildPostings)
