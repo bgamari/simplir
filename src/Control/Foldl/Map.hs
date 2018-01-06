@@ -2,7 +2,7 @@ module Control.Foldl.Map where
 
 import Data.Maybe
 import qualified Control.Foldl as Foldl
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 
 multiFold :: (Ord k) => Foldl.Fold a b -> Foldl.Fold (k,a) (M.Map k b)
 multiFold (Foldl.Fold step initial extract) = Foldl.Fold step' M.empty (fmap extract)
