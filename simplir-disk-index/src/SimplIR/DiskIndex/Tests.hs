@@ -51,7 +51,7 @@ mergeContainsAll chunks' = monadicIO $ do
 
     -- check merged index
     let gold :: M.Map Term (M.Map DocumentName Int)
-        gold = M.unionsWith mappend
+        gold = M.unionsWith (M.unionWith (+))
                [ M.singleton term (M.singleton docName n)
                | chunk <- chunks
                , (docName, terms) <- M.assocs chunk
@@ -59,7 +59,7 @@ mergeContainsAll chunks' = monadicIO $ do
                ]
     merged <- liftIO $ DiskIndex.open mergedPath
     let test :: M.Map Term (M.Map DocumentName Int)
-        test = M.unionsWith mappend
+        test = M.unionsWith (M.unionWith (+))
                [ M.singleton term (M.singleton docName n)
                | (term, postings) <- DiskIndex.termPostings merged
                , Posting docId n <- postings
