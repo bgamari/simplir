@@ -63,7 +63,7 @@ statsPath :: OnDiskIndex term doc posting -> FilePath
 statsPath (OnDiskIndex f) = f </> "stats"
 
 -- | Open an index.
-open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting, Serialise doc, NFData doc)
+open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting, Serialise doc, NFData doc, NFData term)
      => OnDiskIndex term doc posting
      -> IO (Index term doc posting)
 open path = do

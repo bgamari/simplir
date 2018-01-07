@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE BangPatterns #-}
 
 module SimplIR.DiskIndex.Posting2.CborList
@@ -30,6 +31,7 @@ import Pipes.Safe
 import qualified Control.Foldl as Foldl
 import Control.Exception (Exception, throw)
 import Data.Foldable hiding (toList)
+import Control.DeepSeq
 import qualified Codec.Serialise as CBOR
 import qualified Codec.CBOR.Read as CBOR
 import qualified Codec.CBOR.Write as CBOR
@@ -40,6 +42,7 @@ import System.IO
 import Prelude hiding (lookup)
 
 newtype Offset a = Offset Int
+                 deriving (Show, NFData)
 
 data CborList a = CborList BS.ByteString String
 

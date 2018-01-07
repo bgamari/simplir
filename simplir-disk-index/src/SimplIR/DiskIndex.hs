@@ -49,7 +49,8 @@ data DiskIndex term doc p
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: forall term doc p. (Serialise doc, Serialise p, Serialise term, Ord term, NFData doc)
+open :: forall term doc p.
+        (Serialise doc, Serialise p, Serialise term, Ord term, NFData doc, NFData term)
      => DiskIndexPath term doc p -> IO (DiskIndex term doc p)
 open path = do
     doc <- Doc.open $ docIndexPath path
