@@ -68,8 +68,9 @@ open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting, Se
      -> IO (Index term doc posting)
 open path = do
     postings <- DiskIndex.open (simpleIndexPath path)
-    stats <- inCompactM (S.deserialise <$> BSL.readFile (statsPath path))
+    stats <- inCompactM (either uhOh id . S.deserialiseOrFail <$> BSL.readFile (statsPath path))
     return (Index postings stats)
+  where uhOh err = error $ "SimpleIndex: Failed to deserialise statistics: "++show err
 
 -- | Build an index with term-frequency postings.
 buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Serialise term, Serialise doc, NFData doc)
