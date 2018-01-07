@@ -34,7 +34,7 @@ import qualified Control.Foldl as Foldl
 import Codec.Serialise (Serialise)
 import qualified Codec.Serialise as S
 import System.FilePath
-import System.Directory (createDirectoryIfMissing)
+import System.Directory (createDirectory)
 import Numeric.Log
 
 import SimplIR.Types (DocumentId, DocumentLength(..), Posting(..))
@@ -68,8 +68,9 @@ open :: (Ord term, Hashable term, Eq term, Serialise term, Serialise posting, Se
      -> IO (Index term doc posting)
 open path = do
     postings <- DiskIndex.open (simpleIndexPath path)
-    stats <- inCompactM (S.deserialise <$> BSL.readFile (statsPath path))
+    stats <- inCompactM (either uhOh id . S.deserialiseOrFail <$> BSL.readFile (statsPath path))
     return (Index postings stats)
+  where uhOh err = error $ "SimpleIndex: Failed to deserialise statistics: "++show err
 
 -- | Build an index with term-frequency postings.
 buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Serialise term, Serialise doc, NFData doc)
@@ -77,7 +78,7 @@ buildTermFreq :: forall doc term. (Ord term, Hashable term, Serialise term, Seri
               -> [(doc, [term])]       -- ^ documents and their contents
               -> IO (OnDiskIndex term doc Int)
 buildTermFreq path docs = do
-    createDirectoryIfMissing True path
+    createDirectory path
     (stats, _idx) <-
         runSafeT $ Foldl.foldM ((,) <$> Foldl.generalize buildStats
                                     <*> buildPostings)
