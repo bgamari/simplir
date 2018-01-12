@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 
 module Main where
 
@@ -56,19 +57,34 @@ data Model = Model { modelWeights :: M.Map FeatureName Double
 instance ToJSON Model
 instance FromJSON Model
 
-toDocFeatures :: S.Set FeatureName
+runToDocFeatures :: M.Map FeatureName [Run.RankingEntry]
+                 -> M.Map (Run.QueryId, QRel.DocumentName) (M.Map FeatureName Double)
+runToDocFeatures runFiles = M.fromListWith M.union
+            [ ( (Run.queryId entry, Run.documentName entry)
+              , M.singleton featureName (Run.documentScore entry) )
+            | (featureName, ranking) <- M.toList runFiles
+            , entry <- ranking
+            ]
+
+
+-- LD: I don't like the assumption that the order in this set is stable.runToDocFeatures
+-- The code goes between a list of feature names and a set back and forth, so this isn't even efficient
+-- toDocFeatures :: S.Set FeatureName
+--               -> M.Map FeatureName [Run.RankingEntry]
+--               -> M.Map (Run.QueryId, QRel.DocumentName) Features
+-- toDocFeatures allFeatures runFiles =
+--     fmap (toFeatures allFeatures) (runToDocFeatures runFiles)
+
+
+toDocFeatures' :: [FeatureName]
               -> M.Map FeatureName [Run.RankingEntry]
               -> M.Map (Run.QueryId, QRel.DocumentName) Features
-toDocFeatures allFeatures runFiles =
-    fmap (toFeatures allFeatures) docFeatures
-  where
-    docFeatures :: M.Map (Run.QueryId, QRel.DocumentName) (M.Map FeatureName Double)
-    docFeatures = M.fromListWith M.union
-                [ ( (Run.queryId entry, Run.documentName entry)
-                  , M.singleton featureName (Run.documentScore entry) )
-                | (featureName, ranking) <- M.toList runFiles
-                , entry <- ranking
-                ]
+toDocFeatures' allFeatures runFiles =
+    fmap (toFeatures' allFeatures) (runToDocFeatures runFiles)
+
+
+
+
 
 learnMode :: Parser (IO ())
 learnMode =
@@ -81,10 +97,12 @@ learnMode =
         runFiles <- traverse Run.readRunFile $ M.fromListWith (error "Duplicate feature") featureFiles
         qrel <- QRel.readQRel qrelFile
         gen0 <- newStdGen
-        let relevance :: M.Map (Run.QueryId, QRel.DocumentName) IsRelevant
+        let featureNames = M.keys runFiles
+            relevance :: M.Map (Run.QueryId, QRel.DocumentName) IsRelevant
             relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]
 
-            docFeatures = toDocFeatures (M.keysSet runFiles) runFiles
+            docFeatures = toDocFeatures' featureNames runFiles
+
 
             franking :: M.Map Run.QueryId [(QRel.DocumentName, Features, IsRelevant)]
             franking = M.fromListWith (++)
@@ -92,25 +110,42 @@ learnMode =
                        | ((qid, doc), features) <- M.assocs docFeatures
                        , let rel = M.findWithDefault NotRelevant (qid, doc) relevance
                        ]
-            totalRel = M.fromListWith (+) [ (qid, n)
-                                          | QRel.Entry qid _ rel <- qrel
-                                          , let n = case rel of Relevant -> 1
-                                                                NotRelevant -> 0 ]
-            metric :: ScoringMetric IsRelevant Run.QueryId QRel.DocumentName
-            metric = meanAvgPrec (totalRel M.!) Relevant
-            weights0 :: Features
-            weights0 = Features $ VU.replicate (M.size runFiles) 1
-            iters = coordAscent gen0 metric weights0 franking
-            hasConverged (a,_) (b,_) = abs (a-b) < 1e-7
-            (evalScore, Features weights) = last $ untilConverged hasConverged iters
-            modelWeights = M.fromList $ zip (M.keys runFiles) (VU.toList weights)
 
+            (model, evalScore) = learnToRank franking featureNames qrel gen0
         print evalScore
-        BSL.writeFile modelFile $ Aeson.encode $ Model {..}
+        BSL.writeFile modelFile $ Aeson.encode $ model
 
-toFeatures :: S.Set FeatureName -> M.Map FeatureName Double -> Features
-toFeatures allFeatures features =
-    Features $ VU.fromList [ features M.! f | f <- S.toList allFeatures ]
+
+
+
+learnToRank :: M.Map Run.QueryId [(QRel.DocumentName, Features, IsRelevant)]
+             -> [FeatureName]
+             -> [QRel.Entry IsRelevant]
+             -> StdGen
+             -> (Model, Double)
+learnToRank franking featureNames qrel gen0 =
+    let totalRel = M.fromListWith (+) [ (qid, n)
+                                      | QRel.Entry qid _ rel <- qrel
+                                      , let n = case rel of Relevant -> 1
+                                                            NotRelevant -> 0 ]
+        metric :: ScoringMetric IsRelevant Run.QueryId QRel.DocumentName
+        metric = meanAvgPrec (totalRel M.!) Relevant
+        weights0 :: Features
+        weights0 = Features $ VU.replicate (length featureNames) 1
+        iters = coordAscent gen0 metric weights0 franking
+        hasConverged (a,_) (b,_) = abs (a-b) < 1e-7
+        (evalScore, Features weights) = last $ untilConverged hasConverged iters
+        modelWeights_ = M.fromList $ zip featureNames (VU.toList weights)
+    in (Model {modelWeights = modelWeights_}, evalScore)
+
+
+-- toFeatures :: S.Set FeatureName -> M.Map FeatureName Double -> Features
+-- toFeatures allFeatures features =
+--     Features $ VU.fromList [ features M.! f | f <- S.toList allFeatures ]
+--
+toFeatures' :: [FeatureName] -> M.Map FeatureName Double -> Features
+toFeatures' allFeatures features =
+    Features $ VU.fromList [ features M.! f | f <- allFeatures ]
 
 toWeights :: Model -> Features
 toWeights (Model weights) =
@@ -130,7 +165,7 @@ predictMode =
         Just model <- Aeson.decode <$> BSL.readFile modelFile
         when (not $ S.null $ M.keysSet (modelWeights model) `S.difference` M.keysSet runFiles) $
             fail "bad features"
-        let features = toDocFeatures (M.keysSet $ modelWeights model) runFiles
+        let features = toDocFeatures' (M.keys $ modelWeights model) runFiles
             queries :: M.Map Run.QueryId [(QRel.DocumentName, Features)]
             queries = M.fromListWith (<>)
                       [ (queryId, [(doc, fs)])
