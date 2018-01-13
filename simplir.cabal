@@ -48,6 +48,7 @@ library
       SimplIR.EncodedList
       SimplIR.EncodedList.Cbor
       SimplIR.LearningToRank
+      SimplIR.LearningToRankWrapper
       Progress
       SimplIR.Tokenise
       SimplIR.TopK

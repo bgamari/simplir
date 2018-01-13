@@ -36,10 +36,10 @@ import SimplIR.LearningToRank
 type QueryId = T.Text
 type DocumentName = T.Text
 
-data Entry rel = Entry { queryId      :: !QueryId
-                       , documentName :: !DocumentName
-                       , relevance    :: !rel
-                       }
+data Entry query doc rel = Entry { queryId      :: !query
+                                 , documentName :: !doc
+                                 , relevance    :: !rel
+                                 }
 
 class RelevanceScale rel where
     parseRelevance :: T.Text -> rel
@@ -63,11 +63,11 @@ instance RelevanceScale GradedRelevance where
             Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
     formatRelevance (GradedRelevance rel) = T.pack $ show rel
 
-readQRel :: forall rel. RelevanceScale rel => FilePath -> IO [Entry rel]
+readQRel :: forall rel. RelevanceScale rel => FilePath -> IO [Entry QueryId DocumentName rel]
 readQRel fname =
     mapMaybe parseLine . T.lines <$> T.readFile fname
   where
-    parseLine :: T.Text -> Maybe (Entry rel)
+    parseLine :: T.Text -> Maybe (Entry QueryId DocumentName rel)
     parseLine line =
       case T.words line of
         [queryId, _dump, documentName, rel] ->
@@ -76,14 +76,15 @@ readQRel fname =
 
         _ -> Nothing
 
-mapQRels :: [Entry rel] -> HM.Lazy.HashMap QueryId [Entry rel]
+mapQRels :: (Ord query, Hashable query)
+         => [Entry query doc rel] -> HM.Lazy.HashMap query [Entry query doc rel]
 mapQRels entries =
     HM.fromListWith (flip (++))
       [ (queryId entry, [entry])
       | entry <- entries
       ]
 
-writeQRel :: RelevanceScale rel => FilePath -> [Entry rel] -> IO ()
+writeQRel :: RelevanceScale rel => FilePath -> [Entry QueryId  DocumentName rel] -> IO ()
 writeQRel fname entries =
     TL.writeFile fname $ TB.toLazyText $ mconcat $ intersperse "\n"
     $ map toEntryLine entries
