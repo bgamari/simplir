@@ -17,12 +17,14 @@ import System.Random
 import SimplIR.LearningToRank
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
+import Debug.Trace
 
 data Model = Model { modelWeights :: M.Map FeatureName Double
                    }
            deriving (Show, Generic)
 instance ToJSON Model
 instance FromJSON Model
+
 
 newtype FeatureName = FeatureName T.Text
                     deriving (Ord, Eq, Show, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
@@ -111,7 +113,9 @@ learnToRank franking featureNames metric gen0 =
     let weights0 :: Features
         weights0 = Features $ VU.replicate (length featureNames) 1
         iters = coordAscent gen0 metric weights0 franking
-        hasConverged (a,_) (b,_) = abs (a-b) < 1e-7
+        hasConverged (a,_) (b,_)
+           | isNaN b = error $ "Metric score is NaN. initial weights " ++ (show weights0) ++ ". Size training data "++ (show $ M.size (franking))++ "."
+           | otherwise = abs (a-b) < 1e-7
         (evalScore, Features weights) = last $ untilConverged hasConverged iters
         modelWeights_ = M.fromList $ zip featureNames (VU.toList weights)
     in (Model {modelWeights = modelWeights_}, evalScore)
