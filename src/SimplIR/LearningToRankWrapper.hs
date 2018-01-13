@@ -17,7 +17,6 @@ import System.Random
 import SimplIR.LearningToRank
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
-import Debug.Trace
 
 data Model = Model { modelWeights :: M.Map FeatureName Double
                    }
