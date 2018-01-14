@@ -20,6 +20,7 @@ import GHC.Generics
 import Data.Semigroup
 import Codec.Serialise
 import System.FilePath
+import Control.Parallel.Strategies
 
 import qualified Data.Map as M
 
@@ -68,6 +69,7 @@ fromTermPostings :: forall term p. (Serialise term, Serialise p)
 fromTermPostings chunkSize path termPostings = do
     let chunks :: [TermPostings term p]
         chunks =
+            withStrategy (parBuffer 128 rseq)
             [ TermPostings term $ ELC.fromList $ chunkPostings chunkSize ps
             | (term, ps) <- M.toAscList termPostings
             ]
