@@ -112,10 +112,14 @@ learnToRank franking featureNames metric gen0 =
     let weights0 :: Features
         weights0 = Features $ VU.replicate (length featureNames) 1
         iters = coordAscent gen0 metric weights0 franking
+        errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
         hasConverged (a,_) (b,_)
-           | isNaN b = error $ "Metric score is NaN. initial weights " ++ (show weights0) ++ ". Size training data "++ (show $ M.size (franking))++ "."
+           | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
            | otherwise = abs (a-b) < 1e-7
-        (evalScore, Features weights) = last $ untilConverged hasConverged iters
+        convergence = untilConverged hasConverged
+        (evalScore, Features weights) = case convergence iters of
+           []          -> error $ "learning converged immediately. "++errorDiag
+           itersResult -> last itersResult
         modelWeights_ = M.fromList $ zip featureNames (VU.toList weights)
     in (Model {modelWeights = modelWeights_}, evalScore)
 
@@ -132,7 +136,10 @@ toWeights :: Model -> Features
 toWeights (Model weights) =
     Features $ VU.fromList $ M.elems weights
 
-untilConverged :: (a -> a -> Bool) ->  [a] -> [a]
-untilConverged eq xs = map snd $ takeWhile (\(a,b) -> not $ a `eq` b) $ zip xs (tail xs)
-
-
+untilConverged :: (a -> a -> Bool) -> [a] -> [a]
+untilConverged eq xs0 = go xs0
+  where
+    go (x:y:_)
+      | x `eq` y  = x : y : []
+    go (x:rest)   = x : go rest
+    go []         = []

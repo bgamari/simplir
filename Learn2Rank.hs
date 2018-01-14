@@ -63,20 +63,10 @@ learnMode =
         qrel <- QRel.readQRel qrelFile
         gen0 <- newStdGen
         let featureNames = M.keys runFiles
-
-
             docFeatures = toDocFeatures' featureNames runFiles
-            franking =  augmentWithQrels qrel docFeatures
---             relevance :: M.Map (Run.QueryId, QRel.DocumentName) IsRelevant
---             relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]
---
---             franking :: M.Map Run.QueryId [(QRel.DocumentName, Features, IsRelevant)]
---             franking = M.fromListWith (++)
---                        [ (qid, [(doc, features, rel)])
---                        | ((qid, doc), features) <- M.assocs docFeatures
---                        , let rel = M.findWithDefault NotRelevant (qid, doc) relevance
---                        ]
-            metric = avgMetric qrel
+            franking =  augmentWithQrels qrel docFeatures Relevant
+
+            metric = avgMetricQrel qrel
             (model, evalScore) = learnToRank franking featureNames metric gen0
         print evalScore
         BSL.writeFile modelFile $ Aeson.encode $ model
