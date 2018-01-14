@@ -57,6 +57,7 @@ library
       SimplIR.Types
       SimplIR.Term
       SimplIR.WarcDocSource
+      SimplIR.FeatureSpace
 
   if impl(ghc >= 8.2)
       build-depends: ghc-compact
@@ -120,6 +121,7 @@ library
       simplir-html-clean,
       serialise,
       cborg >= 0.2,
+      indexed-vector,
 
       QuickCheck >=2.8 && <2.11,
       tasty,
