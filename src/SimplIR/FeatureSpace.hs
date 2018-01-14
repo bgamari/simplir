@@ -3,9 +3,11 @@
 
 module SimplIR.FeatureSpace where
 
+import Control.Monad
 import Data.List
 import Data.Maybe
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
 
@@ -29,10 +31,21 @@ featureNames :: FeatureSpace f -> [f]
 featureNames (Space v _) = V.toList v
 featureNames (ConcatSpace x x') = map Left (featureNames x) ++ map Right (featureNames x')
 
-mkFeatureSpace :: Ord f => [f] -> FeatureSpace f
-mkFeatureSpace xs = Space v m
+mkFeatureSpace :: (Ord f, Show f)
+               => [f] -> FeatureSpace f
+mkFeatureSpace xs
+  | not $ null duplicates =
+     error $ "SimplIR.FeatureSpace.mkFeatureSpace: Duplicate features: "++show duplicates
+  | otherwise  = Space v m
   where
-    m = M.fromList $ zip (sort xs) (map FeatureIndex [0..])
+    duplicates = go sorted
+      where go (x:y:xs)
+              | x == y = x : go xs
+            go (_:xs)  = go xs
+            go []      = []
+
+    sorted = sort xs
+    m = M.fromAscList $ zip sorted (map FeatureIndex [0..])
     v = V.fromList $ map fst $ M.toAscList m
 
 concatSpace :: (Ord f, Ord f') => FeatureSpace f -> FeatureSpace f' -> FeatureSpace (Either f f')
@@ -56,12 +69,41 @@ lookupIndex2Name (ConcatSpace f f') (FeatureIndex i)
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
 
-fromList :: (VU.Unbox a, Ord f)
+repeat :: VU.Unbox a => FeatureSpace f -> a -> FeatureVec f a
+repeat space value =
+    FeatureVec $ VU.replicate (featureDimension space) value
+
+fromList :: (Show f, Ord f, VU.Unbox a)
+         => FeatureSpace f -> [(f,a)] -> FeatureVec f a
+fromList space xs = FeatureVec $ VU.create $ do
+    flags <- VUM.replicate dim False
+    acc <- VUM.unsafeNew dim
+    forM_ xs $ \(f,x) -> do
+          let FeatureIndex i = lookupName2Index space f
+          alreadySet <- VUM.read flags i
+          when alreadySet
+            $ fail' $ "Feature already set: "++show f
+          VUM.write flags i True
+          VUM.write acc i x
+
+    flags' <- VU.unsafeFreeze flags
+    unless (VU.all id flags') $
+        let missing =
+              [ lookupIndex2Name space (FeatureIndex i)
+              | i <- VU.toList $ VU.map fst $ VU.filter snd $ VU.indexed flags'
+              ]
+        in fail' $ "Missing features: "++show missing
+    return acc
+  where
+    dim = featureDimension space
+    fail' err = fail $ "SimplIR.FeatureSpace.fromList: " ++ err
+
+modify :: (VU.Unbox a, Ord f)
          =>  FeatureSpace f
          -> FeatureVec f a -- ^ default value
          -> [(f, a)]
          -> FeatureVec f a
-fromList space (FeatureVec def) xs =
+modify space (FeatureVec def) xs =
     FeatureVec $ VU.accum (const id) def
     [ (i,x)
     | (f,x) <- xs
