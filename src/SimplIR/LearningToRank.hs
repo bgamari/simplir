@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module SimplIR.LearningToRank
     ( -- * Basic types
@@ -184,16 +185,30 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
     scoreTerm dim off = (off + w' VU.! dim) * (f' VU.! dim)
     !score0 = w `dot` f
 
-coordAscent :: forall a qid relevance gen. (Random.RandomGen gen)
+coordAscent :: forall a qid relevance gen. (Random.RandomGen gen, Show Features, Show qid, Show a)
             => gen
             -> ScoringMetric relevance qid a
             -> Features -- ^ initial weights
             -> M.Map qid (FRanking relevance a)
             -> [(Score, Weight)]
-coordAscent gen0 scoreRanking w0 fRankings = go gen0 (score0, w0)
+coordAscent gen0 scoreRanking w0 fRankings
+  | Just msg <- badMsg       = error msg
+  | otherwise = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
     dim = featureDim w0
+
+    -- lightweight checking of inputs
+    badMsg | any (any $ \(_, fv, _) -> featureDim fv /= dim) fRankings -- check that features have same dimension as dim
+             =  Just $ "Based on initial weights, Feature dimension expected to be "++show dim++ ", but feature vectors contain other dimensions. Examples "++
+                         (intercalate "\n" $ take 10
+                                           $ [ "("++show key ++", "++ show doc ++ ", featureDim = " ++ show (featureDim fv) ++ ") :" ++  show fv
+                                             | (key, list) <-  M.toList fRankings
+                                             , elem@(doc, fv, _) <- list
+                                             , featureDim fv /= dim
+                                             ])
+           | otherwise = Nothing
+
     deltas = [ f x
              | x <- [0.001 * 2^n | n <- [1..25::Int]]
              , f <- [id, negate]

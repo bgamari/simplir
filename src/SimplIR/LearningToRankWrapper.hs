@@ -102,7 +102,7 @@ augmentWithQrels qrel docFeatures rel=
                    ]
     in franking
 
-learnToRank :: Ord query
+learnToRank :: (Ord query, Show query, Show docId)
             => M.Map query [(docId, Features, IsRelevant)]
             -> [FeatureName]
             -> ScoringMetric IsRelevant query docId
