@@ -20,23 +20,19 @@ data FeatureSpace f where
     Space :: V.Vector f
           -> M.Map f (FeatureIndex f)
           -> FeatureSpace f
-    -- | Space as concatenation of feature vectors
-    ConcatSpace :: (Ord f, Ord f') => FeatureSpace f -> FeatureSpace f' -> FeatureSpace (Either f f')
 
 featureDimension :: FeatureSpace f -> Int
 featureDimension (Space v _) = V.length v
-featureDimension (ConcatSpace x x') = featureDimension x + featureDimension x'
 
 featureNames :: FeatureSpace f -> [f]
 featureNames (Space v _) = V.toList v
-featureNames (ConcatSpace x x') = map Left (featureNames x) ++ map Right (featureNames x')
 
 mkFeatureSpace :: (Ord f, Show f)
                => [f] -> FeatureSpace f
 mkFeatureSpace xs
   | not $ null duplicates =
      error $ "SimplIR.FeatureSpace.mkFeatureSpace: Duplicate features: "++show duplicates
-  | otherwise  = Space v m
+  | otherwise  = unsafeFeatureSpaceFromSorted sorted
   where
     duplicates = go sorted
       where go (x:y:xs)
@@ -45,26 +41,22 @@ mkFeatureSpace xs
             go []      = []
 
     sorted = sort xs
+
+
+unsafeFeatureSpaceFromSorted :: (Ord f) => [f] -> FeatureSpace f
+unsafeFeatureSpaceFromSorted sorted = Space v m
+  where
     m = M.fromAscList $ zip sorted (map FeatureIndex [0..])
     v = V.fromList $ map fst $ M.toAscList m
 
 concatSpace :: (Ord f, Ord f') => FeatureSpace f -> FeatureSpace f' -> FeatureSpace (Either f f')
-concatSpace fs1 fs2 = ConcatSpace fs1 fs2
+concatSpace fs1 fs2 = unsafeFeatureSpaceFromSorted $ map Left (featureNames fs1) ++ map Right (featureNames fs2)
 
 lookupName2Index :: Ord f => FeatureSpace f -> f -> FeatureIndex f
-lookupName2Index (Space _ m)        x         = fromJust (error "feature not found") $ M.lookup x m
-lookupName2Index (ConcatSpace f _) (Left x)   =
-    case lookupName2Index f x of FeatureIndex i -> FeatureIndex i
-lookupName2Index (ConcatSpace f' f) (Right x) =
-    case lookupName2Index f x of FeatureIndex i -> FeatureIndex (featureDimension f' + i)
-
+lookupName2Index (Space _ m) x = fromJust (error "feature not found") $ M.lookup x m
 
 lookupIndex2Name :: FeatureSpace f -> FeatureIndex f -> f
 lookupIndex2Name (Space v _) (FeatureIndex i) = v V.! i
-lookupIndex2Name (ConcatSpace f f') (FeatureIndex i)
-    | i < featureDimension f = Left $ lookupIndex2Name f (FeatureIndex i)
-    | otherwise              = Right $ lookupIndex2Name f' (FeatureIndex (i - featureDimension f))
-
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
