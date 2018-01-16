@@ -1,33 +1,46 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
 
-module SimplIR.FeatureSpace where
+module SimplIR.FeatureSpace
+    (
+    -- * Feature Spaces
+      FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
+    -- * Feature Vectors
+    , FeatureVec, concatFeatureVec, repeat, fromList, modify, toList
+    -- * Unpacking to plain vector
+    , toVector
+    ) where
 
 import Control.Monad
-import Data.List
+import Data.List hiding (repeat)
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
+import GHC.Stack
+import Prelude hiding (repeat)
+
 
 newtype FeatureVec f a = FeatureVec (VU.Vector a)
 
 newtype FeatureIndex f = FeatureIndex Int
+                       deriving (Show)
 
 data FeatureSpace f where
     -- | Space to create low level feature vectors
-    Space :: V.Vector f
+    Space :: CallStack
+          -> V.Vector f
           -> M.Map f (FeatureIndex f)
           -> FeatureSpace f
 
 featureDimension :: FeatureSpace f -> Int
-featureDimension (Space v _) = V.length v
+featureDimension (Space _ v _) = V.length v
 
 featureNames :: FeatureSpace f -> [f]
-featureNames (Space v _) = V.toList v
+featureNames (Space _ v _) = V.toList v
 
-mkFeatureSpace :: (Ord f, Show f)
+mkFeatureSpace :: (Ord f, Show f, HasCallStack)
                => [f] -> FeatureSpace f
 mkFeatureSpace xs
   | not $ null duplicates =
@@ -44,19 +57,28 @@ mkFeatureSpace xs
 
 
 unsafeFeatureSpaceFromSorted :: (Ord f) => [f] -> FeatureSpace f
-unsafeFeatureSpaceFromSorted sorted = Space v m
+unsafeFeatureSpaceFromSorted sorted = Space callStack v m
   where
     m = M.fromAscList $ zip sorted (map FeatureIndex [0..])
     v = V.fromList $ map fst $ M.toAscList m
 
-concatSpace :: (Ord f, Ord f') => FeatureSpace f -> FeatureSpace f' -> FeatureSpace (Either f f')
-concatSpace fs1 fs2 = unsafeFeatureSpaceFromSorted $ map Left (featureNames fs1) ++ map Right (featureNames fs2)
+concatSpace :: (Ord f, Ord f')
+            => FeatureSpace f -> FeatureSpace f' -> FeatureSpace (Either f f')
+concatSpace fs1 fs2 =
+    unsafeFeatureSpaceFromSorted
+    $ map Left (featureNames fs1) ++ map Right (featureNames fs2)
 
-lookupName2Index :: Ord f => FeatureSpace f -> f -> FeatureIndex f
-lookupName2Index (Space _ m) x = fromJust (error "feature not found") $ M.lookup x m
+lookupName2Index :: (Ord f, Show f, HasCallStack) => FeatureSpace f -> f -> FeatureIndex f
+lookupName2Index (Space stack _ m) x =
+    fromMaybe (error err) $ M.lookup x m
+  where err = unlines $ ["lookupName2Index: feature not found "++ show x
+                        ,"Known features: " ]
+                     ++ [show (fname, fname == x)  | (fname, fidx) <- M.toList m]
+                     ++ [show (M.lookup x m)]
+                     ++ ["CallStack: "++show stack ]
 
 lookupIndex2Name :: FeatureSpace f -> FeatureIndex f -> f
-lookupIndex2Name (Space v _) (FeatureIndex i) = v V.! i
+lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
@@ -65,7 +87,7 @@ repeat :: VU.Unbox a => FeatureSpace f -> a -> FeatureVec f a
 repeat space value =
     FeatureVec $ VU.replicate (featureDimension space) value
 
-fromList :: (Show f, Ord f, VU.Unbox a)
+fromList :: (Show f, Ord f, VU.Unbox a, HasCallStack)
          => FeatureSpace f -> [(f,a)] -> FeatureVec f a
 fromList space xs = FeatureVec $ VU.create $ do
     flags <- VUM.replicate dim False
@@ -90,7 +112,7 @@ fromList space xs = FeatureVec $ VU.create $ do
     dim = featureDimension space
     fail' err = fail $ "SimplIR.FeatureSpace.fromList: " ++ err
 
-modify :: (VU.Unbox a, Ord f)
+modify :: (VU.Unbox a, Ord f, Show f)
          =>  FeatureSpace f
          -> FeatureVec f a -- ^ default value
          -> [(f, a)]
@@ -106,11 +128,14 @@ toList :: VU.Unbox a => FeatureSpace f -> FeatureVec f a -> [(f, a)]
 toList feats (FeatureVec vals) =
     zip (featureNames feats) (VU.toList vals)
 
+toVector :: FeatureVec f a -> VU.Vector a
+toVector (FeatureVec v) = v
 
-data EntityFeatures = EntBM25 | EntDegree | EntQL
-data EdgeFeatures = EdgeBM25 | EdgeCount
-data EntityEdgeFeatures = TextSimBetweenEntityAndEdgeDoc
-type CombinedFeatures = (EntityFeatures, EdgeFeatures, EntityEdgeFeatures)
+
+-- data EntityFeatures = EntBM25 | EntDegree | EntQL
+-- data EdgeFeatures = EdgeBM25 | EdgeCount
+-- data EntityEdgeFeatures = TextSimBetweenEntityAndEdgeDoc
+-- type CombinedFeatures = (EntityFeatures, EdgeFeatures, EntityEdgeFeatures)
 
 --
 -- main = do
