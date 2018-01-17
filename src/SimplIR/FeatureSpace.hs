@@ -7,6 +7,7 @@ module SimplIR.FeatureSpace
       FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
     -- * Feature Vectors
     , FeatureVec, concatFeatureVec, repeat, fromList, modify, toList
+    , aggregateWith
     -- * Unpacking to plain vector
     , toVector
     ) where
@@ -123,6 +124,16 @@ modify space (FeatureVec def) xs =
     | (f,x) <- xs
     , let FeatureIndex i = lookupName2Index space f
     ]
+
+aggregateWith :: (VU.Unbox a)
+              =>  (a -> a -> a)
+              -> [FeatureVec f a]
+              -> FeatureVec f a
+aggregateWith aggregator vecs =
+    FeatureVec                          -- rewrao
+    $ foldl1' (VU.zipWith aggregator)   -- magic!
+    $ fmap (\(FeatureVec v) -> v) vecs  -- unwrap
+
 
 toList :: VU.Unbox a => FeatureSpace f -> FeatureVec f a -> [(f, a)]
 toList feats (FeatureVec vals) =
