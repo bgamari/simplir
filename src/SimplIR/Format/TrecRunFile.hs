@@ -31,10 +31,10 @@ data RankingEntry = RankingEntry { queryId       :: !QueryId
                   deriving (Show)
 
 parseRunFile :: Parser [RankingEntry]
-parseRunFile = catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly)
+parseRunFile = runUnlined (catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly))
   where whitespaceOnly = spaces >> newline >> pure Nothing
 
-parseLine :: Parser RankingEntry
+parseLine :: Unlined Parser RankingEntry
 parseLine = do
     void $ many newline
     let textField = fmap T.pack $ some $ noneOf " \t\n"
