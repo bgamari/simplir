@@ -132,6 +132,19 @@ rerankRankings model featureData  =
 
 
 
+-- type Rankings rel qid doc = M.Map qid (Ranking (doc, rel))
+  -- Ranking a  -> Ranking (doc, rel)
+
+rerankRankings' :: Model
+         -> M.Map q [(docId, Features, rel)]
+         -> M.Map q (Ranking (docId, rel))
+rerankRankings' model featureData  =
+    fmap (rerank (toWeights model))
+    $ fmap rearrangeTuples featureData
+  where rearrangeTuples = (fmap (\(d,f,r)-> ((d,r),f)))
+
+
+
 toWeights :: Model -> Features
 toWeights (Model weights) =
     Features $ VU.fromList $ M.elems weights
