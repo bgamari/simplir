@@ -10,6 +10,7 @@ module SimplIR.LearningToRank
     , Ranking
     , TotalRel
     , Rankings
+    , Ranking(..)
       -- * Features
     , Features(..)
     , NormFeatures
