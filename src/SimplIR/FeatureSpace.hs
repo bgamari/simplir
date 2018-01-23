@@ -34,6 +34,7 @@ data FeatureSpace f where
           -> V.Vector f
           -> M.Map f (FeatureIndex f)
           -> FeatureSpace f
+    deriving (Show)
 
 featureDimension :: FeatureSpace f -> Int
 featureDimension (Space _ v _) = V.length v
@@ -91,11 +92,11 @@ repeat space value =
 fromList :: (Show f, Ord f, VU.Unbox a, HasCallStack)
          => FeatureSpace f -> [(f,a)] -> FeatureVec f a
 fromList space xs = FeatureVec $ VU.create $ do
-    flags <- VUM.replicate dim False
+    flags <-  VUM.replicate dim False
     acc <- VUM.unsafeNew dim
     forM_ xs $ \(f,x) -> do
           let FeatureIndex i = lookupName2Index space f
-          alreadySet <- VUM.read flags i
+          alreadySet <-  VUM.read flags i
           when alreadySet
             $ fail' $ "Feature already set: "++show f
           VUM.write flags i True
@@ -105,7 +106,7 @@ fromList space xs = FeatureVec $ VU.create $ do
     unless (VU.all id flags') $
         let missing =
               [ lookupIndex2Name space (FeatureIndex i)
-              | i <- VU.toList $ VU.map fst $ VU.filter snd $ VU.indexed flags'
+              | i <- VU.toList $ VU.map fst $ VU.filter (not . snd) $ VU.indexed flags'
               ]
         in fail' $ "Missing features: "++show missing
     return acc
