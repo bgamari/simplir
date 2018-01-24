@@ -115,7 +115,7 @@ learnToRank franking featureNames metric gen0 =
         errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
         hasConverged (a,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
-           | otherwise = abs (a-b) < 1e-7
+           | otherwise = (abs (a-b))/(abs b) < 1e-4
         convergence = untilConverged hasConverged
         (evalScore, Features weights) = case convergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
