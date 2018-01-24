@@ -211,7 +211,7 @@ coordAscent gen0 scoreRanking w0 fRankings
            | otherwise = Nothing
 
     deltas = [ f x
-             | x <- [0.001 * 2^n | n <- [1..25::Int]]
+             | x <- [0.0001 * 2^n | n <- [1..25::Int]]
              , f <- [id, negate]
              ] ++ [0]
 
