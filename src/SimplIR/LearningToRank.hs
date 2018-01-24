@@ -141,12 +141,16 @@ data Normalization = Normalization { normFeatures   :: Features -> NormFeatures
 zNormalizer :: [Features] -> Normalization
 zNormalizer feats =
     Normalization
-      { normFeatures   = \(Features xs) -> Features $ (xs ^-^ mean) ^/^ std
-      , denormFeatures = \(Features xs) -> Features $ (xs ^*^ std)  ^+^ mean
-      , denormWeights  = \(Features xs) -> Features $ (xs ^/^ std)
+      { normFeatures   = \(Features xs) -> Features $ (xs ^-^ mean) ^/^ std'
+      , denormFeatures = \(Features xs) -> Features $ (xs ^*^ std')  ^+^ mean
+      , denormWeights  = \(Features xs) -> Features $ (xs ^/^ std')
       }
   where
     (mean, std) = featureMeanDev feats
+    -- Ignore uniform features
+    std' = VU.map f std
+      where f 0 = 1
+            f x = x
 
 featureMeanDev :: [Features] -> (VU.Vector Double, VU.Vector Double)
 featureMeanDev []    = error "featureMeanDev: no features"
