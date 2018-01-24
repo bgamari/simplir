@@ -149,7 +149,7 @@ zNormalizer feats =
     (mean, std) = featureMeanDev feats
 
 featureMeanDev :: [Features] -> (VU.Vector Double, VU.Vector Double)
-featureMeanDev []    = error "zNormalizer: no features"
+featureMeanDev []    = error "featureMeanDev: no features"
 featureMeanDev feats = (mean, std)
   where
     feats' = V.fromList $ map (\(Features xs) -> xs) feats
