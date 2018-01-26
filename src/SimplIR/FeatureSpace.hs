@@ -7,7 +7,7 @@ module SimplIR.FeatureSpace
       FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
     -- * Feature Vectors
     , FeatureVec, concatFeatureVec, repeat, fromList, modify, toList
-    , aggregateWith
+    , aggregateWith, scaleFeatureVec
     -- * Unpacking to plain vector
     , toVector
     ) where
@@ -84,6 +84,9 @@ lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
+
+scaleFeatureVec :: (Num a, VU.Unbox a) => a -> FeatureVec f a -> FeatureVec f a
+scaleFeatureVec s (FeatureVec v) = FeatureVec (VU.map (s*) v)
 
 repeat :: VU.Unbox a => FeatureSpace f -> a -> FeatureVec f a
 repeat space value =
