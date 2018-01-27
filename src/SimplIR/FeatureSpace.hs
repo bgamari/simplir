@@ -6,10 +6,12 @@ module SimplIR.FeatureSpace
     -- * Feature Spaces
       FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
     -- * Feature Vectors
-    , FeatureVec, concatFeatureVec, repeat, fromList, modify, toList
+    , FeatureVec, getFeatureVec, concatFeatureVec, repeat, fromList, modify, toList
     , aggregateWith, scaleFeatureVec, dotFeatureVecs
     -- * Unpacking to plain vector
     , toVector
+    -- * Unsafe construction
+    , unsafeFeatureVecFromVector
     ) where
 
 import Control.Monad
@@ -23,7 +25,13 @@ import GHC.Stack
 import Prelude hiding (repeat)
 
 
-newtype FeatureVec f a = FeatureVec (VU.Vector a)
+-- Should be opaque
+newtype FeatureVec f a = FeatureVec { getFeatureVec :: VU.Vector a }
+
+-- | It is the responsibility of the caller to guarantee that the indices
+-- correspond to the feature space.
+unsafeFeatureVecFromVector :: VU.Vector a -> FeatureVec f a
+unsafeFeatureVecFromVector = FeatureVec
 
 newtype FeatureIndex f = FeatureIndex Int
                        deriving (Show)
