@@ -25,7 +25,7 @@ instance ToJSON Model
 instance FromJSON Model
 
 
-newtype FeatureName = FeatureName T.Text
+newtype FeatureName = FeatureName { getFeatureName :: T.Text }
                     deriving (Ord, Eq, Show, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
 
 
