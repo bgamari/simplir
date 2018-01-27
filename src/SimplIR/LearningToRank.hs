@@ -90,7 +90,7 @@ avgPrec relThresh totalRel ranking
     in Just $ sum precAtRelevantRanks / realToFrac totalRel
 
 
-newtype Features = Features (VU.Vector Double)
+newtype Features = Features { getFeatures :: VU.Vector Double }
                  deriving (Show, Eq)
 type Weight = Features
 
