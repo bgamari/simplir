@@ -55,6 +55,7 @@ library
       SimplIR.Utils
       SimplIR.Utils.Compact
       SimplIR.Types
+      SimplIR.Ranking
       SimplIR.Term
       SimplIR.WarcDocSource
       SimplIR.FeatureSpace
