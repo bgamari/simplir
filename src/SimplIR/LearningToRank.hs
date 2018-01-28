@@ -229,7 +229,7 @@ coordAscent gen0 scoreRanking w0 fRankings
     updateDim :: (Score, Weight) -> Int -> (Score, Weight)
     updateDim (_, w) dim =
         maximumBy (comparing fst)
-        [ (scoreStep step, l2Normalize $ stepFeature step w)
+        [ (scoreStep step, l2Normalize $ stepFeature step w)  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
         | delta <- deltas
         , let step = Step dim delta
         ]
