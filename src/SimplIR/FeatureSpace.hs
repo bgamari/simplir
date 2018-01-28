@@ -27,6 +27,7 @@ import Prelude hiding (repeat)
 
 -- Should be opaque
 newtype FeatureVec f a = FeatureVec { getFeatureVec :: VU.Vector a }
+  deriving (Show)
 
 -- | It is the responsibility of the caller to guarantee that the indices
 -- correspond to the feature space.
