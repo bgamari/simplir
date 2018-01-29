@@ -96,5 +96,3 @@ histogram binning = Foldl.FoldM step begin end
 binCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Word)]
 binCounts (Histogram binning v) =
     map (first $ fromIndex binning) $ VI.assocs v
-  where
-    binCount = natVal (Proxy @n)
