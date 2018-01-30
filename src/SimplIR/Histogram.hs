@@ -11,6 +11,7 @@
 
 module SimplIR.Histogram
     ( Histogram
+    , Count
     , histogram
     , histogramFoldable
     , binCounts
@@ -37,7 +38,9 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Indexed as VI
 import qualified Data.Vector.Indexed.Mutable as VIM
 
-data Histogram n bin a = Histogram !(Binning n a bin) !(VI.Vector VU.Vector (BinIdx n) Word)
+data Histogram n bin a = Histogram !(Binning n a bin) !(VI.Vector VU.Vector (BinIdx n) Count)
+
+type Count = Word
 
 newtype BinIdx (n :: Nat) = BinIdx Int
                           deriving (Show, Eq, Ord, Enum, Ix)
@@ -122,6 +125,6 @@ histogramFoldable :: forall n a bin f. (KnownNat n, Foldable f)
                   -> Histogram n bin a
 histogramFoldable binning xs = runST $ Foldl.foldM (histogram binning) xs
 
-binCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Word)]
+binCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Count)]
 binCounts (Histogram binning v) =
     map (first $ fromIndex binning) $ VI.assocs v
