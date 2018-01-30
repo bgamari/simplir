@@ -31,6 +31,7 @@ library
       Control.Concurrent.Map
       Control.Foldl.Map
       Control.Foldl.HashMap
+      SimplIR.Statistics
       SimplIR.Assessment.Agreement
       SimplIR.Bag
       SimplIR.BinaryFile
