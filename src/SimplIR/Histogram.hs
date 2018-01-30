@@ -20,6 +20,8 @@ module SimplIR.Histogram
     , Binning
       -- ** Bounded
     , BoundedBin(..), bounded
+      -- ** Integral
+    , integralBinning
       -- ** Linear
     , linearBinning
       -- ** Logarithmic
@@ -105,6 +107,22 @@ logBinning (l,u) = dimap log f $ linearBinning (l', u')
     f (a,b) = (exp a, exp b)
     l' = log l
     u' = log u
+
+integralBinning :: forall n a. (KnownNat n, Integral a)
+                => a -> Binning n a a
+integralBinning l = -- TODO: check for overflow
+    Binning { toBin = \x -> if | x < l     -> Nothing
+                               | x > u     -> Nothing
+                               | otherwise -> Just $ BinIdx $ fromIntegral $ x - l
+            , fromIndex = \(BinIdx n) -> fromIntegral n + l
+            }
+  where
+    binCount = natVal (Proxy @n)
+    u = l + fromIntegral binCount
+{-# INLINEABLE integralBinning #-}
+
+--categoricalBinning :: forall n a bin. (KnownNat n, Hashable a, Eq a)
+--                   => HM.HashMap a bin -> Binning n a bin
 
 histogram :: forall n a bin s. (KnownNat n)
           => Binning n a bin
