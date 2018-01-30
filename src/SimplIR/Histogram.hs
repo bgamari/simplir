@@ -15,6 +15,7 @@ module SimplIR.Histogram
     , histogram
     , histogramFoldable
     , binCounts
+    , nonEmptyBinCounts
       -- * Binning strategies
     , Binning
       -- ** Bounded
@@ -128,3 +129,6 @@ histogramFoldable binning xs = runST $ Foldl.foldM (histogram binning) xs
 binCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Count)]
 binCounts (Histogram binning v) =
     map (first $ fromIndex binning) $ VI.assocs v
+
+nonEmptyBinCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Count)]
+nonEmptyBinCounts = filter ((/= 0) . snd) . binCounts
