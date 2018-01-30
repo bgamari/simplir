@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -30,6 +31,8 @@ import Data.Bifunctor
 import Data.Ix
 import Data.Proxy
 import GHC.TypeNats
+import GHC.Generics
+import Codec.Serialise
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Indexed as VI
 import qualified Data.Vector.Indexed.Mutable as VIM
@@ -37,7 +40,7 @@ import qualified Data.Vector.Indexed.Mutable as VIM
 data Histogram n bin a = Histogram !(Binning n a bin) !(VI.Vector VU.Vector (BinIdx n) Word)
 
 newtype BinIdx (n :: Nat) = BinIdx Int
-                 deriving (Show, Eq, Ord, Enum, Ix)
+                          deriving (Show, Eq, Ord, Enum, Ix)
 
 instance KnownNat n => Bounded (BinIdx n) where
     minBound = BinIdx 0
@@ -55,6 +58,8 @@ instance Profunctor (Binning n) where
 data BoundedBin a = TooLow
                   | InBin a
                   | TooHigh
+                  deriving (Show, Eq, Ord, Generic)
+instance Serialise a => Serialise (BoundedBin a)
 
 bounded :: forall n a bin. (KnownNat n, Ord a)
         => (a, a)
