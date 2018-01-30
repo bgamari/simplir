@@ -39,9 +39,6 @@ instance KnownNat n => Bounded (BinIdx n) where
     minBound = BinIdx 0
     maxBound = BinIdx $ fromIntegral $ natVal (Proxy @n) - 1
 
-toIndex :: BinIdx n -> Int
-toIndex (BinIdx n) = n
-
 data Binning n bin a = Binning { toBin :: a -> Maybe (BinIdx n)
                                , fromIndex :: BinIdx n -> bin
                                }
