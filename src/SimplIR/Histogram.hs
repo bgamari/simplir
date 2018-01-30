@@ -8,7 +8,9 @@
 {-# LANGUAGE DataKinds #-}
 
 module SimplIR.Histogram
-    ( histogram
+    ( Histogram
+    , histogram
+    , histogramFoldable
     , binCounts
       -- * Binning strategies
     , Binning
@@ -29,8 +31,10 @@ import qualified Data.Vector.Indexed as VI
 import qualified Data.Vector.Indexed.Mutable as VIM
 
 data Histogram n bin a = Histogram (Binning n bin a) (VI.Vector VU.Vector (BinIdx n) Word)
+
 newtype BinIdx (n :: Nat) = BinIdx Int
                  deriving (Show, Eq, Ord, Enum, Ix)
+
 instance KnownNat n => Bounded (BinIdx n) where
     minBound = BinIdx 0
     maxBound = BinIdx $ fromIntegral $ natVal (Proxy @n) - 1
@@ -92,6 +96,12 @@ histogram binning = Foldl.FoldM step begin end
                    Just n  -> do VIM.modify acc (+1) n
                                  return acc
                    Nothing -> return acc
+
+histogramFoldable :: forall n a bin f. (KnownNat n, Foldable f)
+                  => Binning n bin a
+                  -> f a
+                  -> Histogram n bin a
+histogramFoldable binning xs = runST $ Foldl.foldM (histogram binning) xs
 
 binCounts :: forall n bin a. (KnownNat n) => Histogram n bin a -> [(bin, Word)]
 binCounts (Histogram binning v) =
