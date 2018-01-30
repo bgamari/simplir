@@ -34,7 +34,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector.Indexed as VI
 import qualified Data.Vector.Indexed.Mutable as VIM
 
-data Histogram n bin a = Histogram (Binning n a bin) (VI.Vector VU.Vector (BinIdx n) Word)
+data Histogram n bin a = Histogram !(Binning n a bin) !(VI.Vector VU.Vector (BinIdx n) Word)
 
 newtype BinIdx (n :: Nat) = BinIdx Int
                  deriving (Show, Eq, Ord, Enum, Ix)
