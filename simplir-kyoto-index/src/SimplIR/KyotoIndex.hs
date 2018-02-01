@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -171,12 +172,14 @@ addDocuments
     :: forall doc p term termInfo.
        (S.Serialise doc, S.Serialise p, S.Serialise term, Ord term, S.Serialise termInfo, Semigroup termInfo)
     => DiskIndex 'ReadWriteMode term termInfo doc p
-    -> Foldl.FoldM IO (V.Vector (doc, M.Map term (termInfo, p))) ()
+    -> Foldl.FoldM IO (V.Vector (doc, M.Map term (termInfo, p))) Int
+       -- ^ returns number of added documents
 addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
   where
     treeOpts = K.defaultTreeOptions
-    step :: () -> (V.Vector (doc, M.Map term (termInfo, p))) -> IO ()
-    step _ docs = do
+    step :: Int -> V.Vector (doc, M.Map term (termInfo, p)) -> IO Int
+    step count docs = do
+        let !count' = count + V.length docs
         docId0 <- atomically $ do
             DocId docId <- readTVar nextDocId
             writeTVar nextDocId $ DocId $ docId + fromIntegral (V.length docs)
@@ -211,8 +214,10 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
                                 in K.replace postingIndex key $ BSL.toStrict $ S.serialise $ termInfo0' <> termInfo
               Nothing        -> K.set postingIndex key $ BSL.toStrict $ S.serialise termInfo
 
-    initial = return ()
-    finish _ = return ()
+        return count'
+
+    initial = return 0
+    finish count = return count
 
 -- | Lookup postings for a term.
 lookupPostings
