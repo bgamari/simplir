@@ -173,16 +173,17 @@ withTermLock DiskIndex{..} = bracket takeLock putLock . const
     putLock _ = atomically $ putTMVar termLock ()
 
 addDocuments
-    :: forall doc p term termInfo.
-       (S.Serialise doc, S.Serialise p, S.Serialise term, Ord term, S.Serialise termInfo, Semigroup termInfo)
+    :: forall doc p term termInfo m.
+       (S.Serialise doc, S.Serialise p, S.Serialise term, Ord term,
+        S.Serialise termInfo, Semigroup termInfo, MonadIO m)
     => DiskIndex 'ReadWriteMode term termInfo doc p
-    -> Foldl.FoldM IO (V.Vector (doc, M.Map term (termInfo, p))) Int
+    -> Foldl.FoldM m (V.Vector (doc, M.Map term (termInfo, p))) Int
        -- ^ returns number of added documents
 addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
   where
     treeOpts = K.defaultTreeOptions
-    step :: Int -> V.Vector (doc, M.Map term (termInfo, p)) -> IO Int
-    step count docs = do
+    step :: Int -> V.Vector (doc, M.Map term (termInfo, p)) -> m Int
+    step count docs = liftIO $ do
         let !count' = count + V.length docs
         docId0 <- atomically $ do
             DocId docId <- readTVar nextDocId
