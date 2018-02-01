@@ -18,12 +18,15 @@ module SimplIR.KyotoIndex
     , withIndex
     , Mode(..)
       -- * Queries
+    , lookupPostings
+    , Posting(..)
     , lookupPostings'
     , lookupDocument
     ) where
 
 import Control.Concurrent.STM
-import Control.Exception
+import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Foldable
 import Data.Semigroup
 import Data.Word
@@ -112,10 +115,11 @@ open indexPath = do
     termLock <- newTMVarIO ()
     return $ DiskIndex {..}
 
-withIndex :: DiskIndexPath term termInfo doc p
-          -> (DiskIndex mode term termInfo doc p -> IO a)
-          -> IO a
-withIndex indexPath = bracket (open indexPath) close
+withIndex :: (MonadMask m, MonadIO m)
+          => DiskIndexPath term termInfo doc p
+          -> (DiskIndex mode term termInfo doc p -> m a)
+          -> m a
+withIndex indexPath = bracket (liftIO $ open indexPath) (liftIO . close)
 
 loggingOpts :: K.LoggingOptions
 loggingOpts = K.defaultLoggingOptions
