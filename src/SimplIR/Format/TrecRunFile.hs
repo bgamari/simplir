@@ -46,7 +46,7 @@ parseLine = do
     void space
     documentRank <- fromIntegral <$> natural
     documentScore <- either realToFrac id <$> integerOrDouble
-    methodName <- textField <|> pure ""
+    methodName <- T.pack <$> many (noneOf "\n")
     void (some newline) <|> eof
     return $ RankingEntry {..}
 

@@ -38,7 +38,7 @@ buildIndex :: forall term m doc p.
            -> Foldl.FoldM m (doc, M.Map term p) (DiskIdx.DiskIndexPath term doc p)
 buildIndex chunkSize outputPath =
     postmapM' moveResult
-    $ postmapM' (treeReduce 256 mergeIndexChunks)
+    $ postmapM' (treeReduce 64 mergeIndexChunks)
     $ foldChunksOf chunkSize (Foldl.generalize collectIndex) writeIndexChunks
   where
     moveResult :: (DiskIdx.DiskIndexPath term doc p, ReleaseKey)
@@ -65,10 +65,13 @@ treeReduce width f xs0 = do
     go withLimit xsAsync  = do
         let run :: [Async a] -> m (Async a)
             run ysAsync = async $ do
+                liftIO $ putStrLn $ "treeReduce children="++show (length ysAsync)
                 ys' <- mapM wait ysAsync
+                liftIO $ putStrLn $ "treeReduce starting children="++show (length ysAsync)
                 withLimit $ f ys'
 
         let reductions = chunksOf width xsAsync
+        liftIO $ putStrLn $ "treeReduce chunks="++show (length reductions)
         reducedAsyncs <- mapM run reductions
         go withLimit reducedAsyncs
 {-# INLINEABLE treeReduce #-}
