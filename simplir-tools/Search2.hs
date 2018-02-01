@@ -14,6 +14,7 @@ import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
 import Data.Char
+import qualified Control.Foldl as Foldl
 import GHC.Generics
 import System.IO
 import Control.DeepSeq
@@ -39,7 +40,7 @@ import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
-import qualified SimplIR.DiskIndex.Build as BuildIdx
+import qualified SimplIR.KyotoIndex as KI
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import qualified SimplIR.HTML.Clean as HTML.Clean
@@ -90,15 +91,16 @@ main = do
 buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
-    let --foldCorpusStats = Foldl.generalize documentTermStats
-        indexFold = (,) <$> BuildIdx.buildIndex 10000 "index" <*> pure ()
-        toIndexDoc ((archiveName, docName), text) =
-            ((archiveName, docName), tokenise text)
-    (idx, corpusStats) <- runSafeT $ foldProducer indexFold
-        $ docSource docs
-       >-> normalizationPipeline
-       >-> P.P.map (second M.fromList)
-    return ()
+    indexPath <- KI.create "index"
+    runSafeT $ KI.withIndex indexPath $ \idx -> do
+        let --foldCorpusStats = Foldl.generalize documentTermStats
+            indexFold = (,) <$> KI.addDocuments idx <*> pure ()
+        (idx, corpusStats) <- foldProducer indexFold
+            $ foldChunks 1000 (Foldl.generalize Foldl.vector)
+            $ docSource docs
+          >-> normalizationPipeline
+          >-> P.P.map (second $ M.fromList . map (second $ \x -> ((), x)))
+        return ()
 
 type ArchiveName = T.Text
 
