@@ -30,7 +30,7 @@ import qualified SimplIR.DiskIndex.Posting2.TermIndex as TermIdx
 import qualified SimplIR.DiskIndex.Posting2.Merge as PostingIdx.Merge
 import qualified SimplIR.DiskIndex.Document as Doc
 
-data DiskIndexPath term doc p = DiskIndexPath { getDiskIndexPath :: FilePath }
+newtype DiskIndexPath term doc p = DiskIndexPath { getDiskIndexPath :: FilePath }
 
 docIndexPath :: DiskIndexPath term doc p -> Doc.DocIndexPath doc
 docIndexPath (DiskIndexPath p) = Doc.DocIndexPath $ p </> "documents"
