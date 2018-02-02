@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 
+import GHC.Conc (getNumCapabilities)
 import Control.Monad.State.Strict hiding ((>=>))
 import Control.Concurrent.Async
 import Data.List.Split
@@ -39,6 +40,7 @@ import Options.Applicative
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
 import SimplIR.Types
+import Control.Concurrent.Map
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
@@ -94,8 +96,9 @@ buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     indexPath <- KI.create "index"
+    n <- getNumCapabilities
     KI.withIndex indexPath $ \idx ->
-        mapConcurrently_ (run idx) (chunksOf 10 docs)
+        mapConcurrentlyL_ n (run idx) (chunksOf 10 docs)
   where
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
