@@ -29,10 +29,13 @@ import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Data.Proxy
+import Data.Bits
 import Data.Foldable
+import Data.Hashable
+import Data.Proxy
 import Data.Semigroup
 import Data.Word
+import qualified Data.Array as A
 import qualified Data.Binary as B
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
@@ -77,12 +80,31 @@ instance S.Serialise p => S.Serialise (Posting p) where
         b <- EC.decode <$> S.decode
         return (Posting a b)
 
+data BucketedLock = BucketedLock { buckets :: !(A.Array Int (TMVar ()))
+                                 , bucketMask :: !Int
+                                 }
+
+newBucketedLock :: Int -> IO BucketedLock
+newBucketedLock n = do
+    let nBuckets = 1 `shiftL` n
+        bucketMask = nBuckets - 1
+    buckets <- A.listArray (0, nBuckets-1) <$> replicateM nBuckets (newTMVarIO ())
+    return BucketedLock {..}
+
+withBucketLock :: (MonadIO m, MonadMask m, Hashable a)
+               => BucketedLock -> a -> m r -> m r
+withBucketLock (BucketedLock{..}) x = bracket acquire release . const
+  where
+    !lock = buckets A.! (bucketMask .&. hash x)
+    acquire = liftIO $ atomically $ takeTMVar lock
+    release _ = liftIO $ atomically $ putTMVar lock ()
+
 data DiskIndex (mode :: Mode) term termInfo doc p
     = DiskIndex { docIndex :: !K.Tree
                 , postingIndex :: !K.Tree
-                , nextDocId :: TVar DocId
+                , nextDocId :: !(TVar DocId)
+                , termLock :: !BucketedLock
                 , indexPath :: DiskIndexPath term termInfo doc p
-                , termLock :: TMVar () -- TODO bucket locks
                 , writable :: Bool -- TODO break out a new type
                 }
 
@@ -127,8 +149,10 @@ open indexPath = do
     Just nextDocId <- K.get docIndex "next-docid"
     let Right (_, _, nextDocId') = B.decodeOrFail $ BSL.fromStrict nextDocId
     nextDocId <- newTVarIO nextDocId'
-    termLock <- newTMVarIO ()
+    termLock <- newBucketedLock 6
     return $ DiskIndex {..}
+  where
+    termLockBuckets = 128
 
 withIndex :: (MonadMask m, MonadIO m, IsWritable mode)
           => DiskIndexPath term termInfo doc p
@@ -139,6 +163,12 @@ withIndex indexPath = bracket (liftIO $ open indexPath) (liftIO . close)
 loggingOpts :: K.LoggingOptions
 loggingOpts = K.defaultLoggingOptions
 
+treeOpts :: K.TreeOptions
+treeOpts = K.defaultTreeOptions
+    { K.buckets = Just (8 * 1024 * 1024 * 1024) -- TODO: should be 10% record count
+    , K.pageCacheSize = Just (4 * 1024 * 1024 * 1024)
+    }
+
 create :: forall term termInfo doc p. ()
        => FilePath -> IO (DiskIndexPath term termInfo doc p)
 create dest = do
@@ -147,7 +177,7 @@ create dest = do
     docIndex <- K.makeTree (docIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
     postingIndex <- K.makeTree (postingIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
     nextDocId <- newTVarIO $ DocId 1
-    termLock <- newTMVarIO ()
+    termLock <- newBucketedLock 1
     let writable = True
     close $ DiskIndex {..}
     return indexPath
@@ -156,7 +186,6 @@ create dest = do
 
 close :: DiskIndex mode term termInfo doc p -> IO ()
 close DiskIndex{..} = do
-    atomically $ takeTMVar termLock
     docId <- atomically $ readTVar nextDocId
     when writable $ K.set docIndex "next-docid" (BSL.toStrict $ B.encode docId)
     K.close docIndex
@@ -183,25 +212,23 @@ postingsKeyDocId = B.runGet parse . BSL.fromStrict
 documentKey :: DocId -> BS.ByteString
 documentKey = BSL.toStrict . B.encode
 
-withTermLock :: DiskIndex 'ReadWriteMode term termInfo doc p -> IO a -> IO a
-withTermLock DiskIndex{..} = bracket takeLock putLock . const
-  where
-    takeLock = atomically $ takeTMVar termLock
-    putLock _ = atomically $ putTMVar termLock ()
+withTermLock :: Hashable term
+             => DiskIndex 'ReadWriteMode term termInfo doc p -> term -> IO a -> IO a
+withTermLock DiskIndex{..} = withBucketLock termLock
 
 addDocuments
     :: forall doc p term termInfo m.
-       (S.Serialise doc, S.Serialise p, S.Serialise term, Ord term,
+       (S.Serialise doc, S.Serialise p,
+        S.Serialise term, Ord term, Hashable term,
         S.Serialise termInfo, Semigroup termInfo, MonadIO m)
     => DiskIndex 'ReadWriteMode term termInfo doc p
     -> Foldl.FoldM m (V.Vector (doc, M.Map term (termInfo, p))) Int
        -- ^ returns number of added documents
 addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
   where
-    treeOpts = K.defaultTreeOptions
     step :: Int -> V.Vector (doc, M.Map term (termInfo, p)) -> m Int
-    step count docs = liftIO $ do
-        let !count' = count + V.length docs
+    step !count docs = liftIO $ do
+        let count' = count + V.length docs
         docId0 <- atomically $ do
             DocId docId <- readTVar nextDocId
             writeTVar nextDocId $ DocId $ docId + fromIntegral (V.length docs)
@@ -228,7 +255,7 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
             ]
             notAtomic
 
-        withTermLock idx $ forM_ (M.assocs inverted) $ \(term, (termInfo, _)) -> do
+        forM_ (M.assocs inverted) $ \(term, (termInfo, _)) -> withTermLock idx term $ do
             let key = termKey term
             mbTermInfo0 <- K.get postingIndex key
             case mbTermInfo0 of
@@ -236,7 +263,7 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
                                 in K.replace postingIndex key $ BSL.toStrict $ S.serialise $ termInfo0' <> termInfo
               Nothing        -> K.set postingIndex key $ BSL.toStrict $ S.serialise termInfo
 
-        return count'
+        return $! count'
 
     initial = return 0
     finish count = return count
