@@ -221,7 +221,7 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
                 ]
 
         K.setBulk postingIndex
-            [ ( BSL.toStrict $ S.serialise term
+            [ ( postingsKey term docId0
               , BSL.toStrict $ S.serialise $ ELC.fromList $ toList $ postings
               )
             | (term, (_, postings)) <- M.assocs inverted
