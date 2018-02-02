@@ -26,11 +26,16 @@ data Document = Document { docNo       :: Text
                          }
               deriving (Show)
 
+data TrecParseError = TrecParseError ParsingError
+                    deriving (Show)
+
+instance Exception TrecParseError
+
 -- | Parse a stream of 'Document's. May throw a 'ParsingError'.
 trecDocuments' :: forall r m. (Monad m)
                => Producer T.Text m r -> Producer Document m r
 trecDocuments' prod =
-    either (error . show . fst) id <$> P.A.parsed document prod
+    either (throw . TrecParseError . fst) id <$> P.A.parsed document prod
 
 document :: A.Parser Document
 document = do
