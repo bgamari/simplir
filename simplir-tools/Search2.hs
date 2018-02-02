@@ -10,6 +10,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 
 import Control.Monad.State.Strict hiding ((>=>))
+import Control.Concurrent.Async
+import Data.List.Split
 import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
@@ -88,12 +90,14 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-
 buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     indexPath <- KI.create "index"
-    runSafeT $ KI.withIndex indexPath $ \idx -> do
+    KI.withIndex indexPath $ \idx ->
+        mapConcurrently_ (run idx) (chunksOf 10 docs)
+  where
+    run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
             indexFold = (,) <$> KI.addDocuments idx <*> pure ()
         (idx, corpusStats) <- foldProducer indexFold
