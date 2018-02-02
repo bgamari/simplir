@@ -40,6 +40,7 @@ import SimplIR.Types
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
+import SimplIR.DataSource.Compression
 import qualified SimplIR.KyotoIndex as KI
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
@@ -107,7 +108,7 @@ type ArchiveName = T.Text
 trecSource :: [DataSource (SafeT IO)]
            -> Producer ((ArchiveName, DocumentName), Trec.Document) (SafeT IO) ()
 trecSource dsrcs =
-    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ runDataSource dsrc)
+    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ decompressed $ runDataSource dsrc)
                     >-> P.P.map (\d -> ( ( T.pack $ dataSourceFileName dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , d))
