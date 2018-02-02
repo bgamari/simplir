@@ -4,6 +4,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module SimplIR.KyotoIndex
@@ -25,8 +26,10 @@ module SimplIR.KyotoIndex
     ) where
 
 import Control.Concurrent.STM
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Data.Proxy
 import Data.Foldable
 import Data.Semigroup
 import Data.Word
@@ -43,6 +46,7 @@ import qualified Database.KyotoCabinet.DB.Tree as K
 import qualified Database.KyotoCabinet.Operations as K
 import qualified Codec.Serialise as S
 import System.FilePath
+import System.Directory
 import System.IO.Unsafe
 
 import qualified SimplIR.EncodedList.Cbor as ELC
@@ -79,6 +83,7 @@ data DiskIndex (mode :: Mode) term termInfo doc p
                 , nextDocId :: TVar DocId
                 , indexPath :: DiskIndexPath term termInfo doc p
                 , termLock :: TMVar () -- TODO bucket locks
+                , writable :: Bool -- TODO break out a new type
                 }
 
 -- $index-structure
@@ -101,21 +106,31 @@ data DiskIndex (mode :: Mode) term termInfo doc p
 --  * Multiple term postings keys are suffixed with the first document ID of the
 --    chunk. Each contains a @CborList (Posting p)@.
 
+class IsWritable (mode :: Mode) where
+    isWritable :: Proxy mode -> Bool
+
+instance IsWritable ReadWriteMode where isWritable _ = True
+instance IsWritable ReadMode where isWritable _ = False
+
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: forall term termInfo doc p mode. ()
+open :: forall term termInfo doc p mode. (IsWritable mode)
      => DiskIndexPath term termInfo doc p -> IO (DiskIndex mode term termInfo doc p)
 open indexPath = do
-    docIndex <- K.openTree (docIndexPath indexPath) loggingOpts (K.Reader [K.NoLock, K.NoRepair])
-    postingIndex <- K.openTree (postingIndexPath indexPath) loggingOpts (K.Reader [K.NoLock, K.NoRepair])
-    Just nextDocId' <- K.get docIndex "next-docid"
-    let Right (_, _, nextDocId') = B.decodeOrFail nextDocId'
-    nextDocId <- newTVarIO $ B.decode nextDocId'
+    let writable = isWritable $ Proxy @mode
+        access
+          | writable  = K.Writer [] [K.TryLock]
+          | otherwise = K.Reader [K.NoLock, K.NoRepair]
+    docIndex <- K.openTree (docIndexPath indexPath) loggingOpts access
+    postingIndex <- K.openTree (postingIndexPath indexPath) loggingOpts access
+    Just nextDocId <- K.get docIndex "next-docid"
+    let Right (_, _, nextDocId') = B.decodeOrFail $ BSL.fromStrict nextDocId
+    nextDocId <- newTVarIO nextDocId'
     termLock <- newTMVarIO ()
     return $ DiskIndex {..}
 
-withIndex :: (MonadMask m, MonadIO m)
+withIndex :: (MonadMask m, MonadIO m, IsWritable mode)
           => DiskIndexPath term termInfo doc p
           -> (DiskIndex mode term termInfo doc p -> m a)
           -> m a
@@ -128,10 +143,12 @@ create :: forall term termInfo doc p. ()
        => FilePath -> IO (DiskIndexPath term termInfo doc p)
 create dest = do
     let indexPath = DiskIndexPath dest
+    createDirectory dest
     docIndex <- K.makeTree (docIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
-    postingIndex <- K.makeTree (docIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
+    postingIndex <- K.makeTree (postingIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
     nextDocId <- newTVarIO $ DocId 1
     termLock <- newTMVarIO ()
+    let writable = True
     close $ DiskIndex {..}
     return indexPath
   where
@@ -141,7 +158,7 @@ close :: DiskIndex mode term termInfo doc p -> IO ()
 close DiskIndex{..} = do
     atomically $ takeTMVar termLock
     docId <- atomically $ readTVar nextDocId
-    K.set docIndex "next-docid" (BSL.toStrict $ B.encode docId)
+    when writable $ K.set docIndex "next-docid" (BSL.toStrict $ B.encode docId)
     K.close docIndex
     K.close postingIndex
 
