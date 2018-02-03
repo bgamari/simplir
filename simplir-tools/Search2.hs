@@ -45,6 +45,7 @@ import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
 import SimplIR.DataSource.Compression
+import SimplIR.StopWords
 import qualified SimplIR.KyotoIndex as KI
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
@@ -189,7 +190,7 @@ normalizationPipeline =
     normTerms :: [(T.Text, p)] -> [(Term, p)]
     normTerms = map (first Term.fromText) . filterTerms . caseNorm
       where
-        filterTerms = filter ((>2) . T.length . fst)
+        filterTerms = killStopwords' enInquery fst . filter ((>2) . T.length . fst)
         caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     killPunctuation c
