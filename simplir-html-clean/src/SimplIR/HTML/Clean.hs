@@ -29,8 +29,8 @@ isTagCloseName _    _                = False
 canonicalizeTags :: [Token] -> [Token]
 canonicalizeTags = map f
   where
-    f (TagOpen name attrs) = TagOpen (T.toLower name) attrs
-    f (TagClose name)      = TagClose (T.toLower name)
+    f (TagOpen name attrs) = (TagOpen $! T.toCaseFold name) $ attrs
+    f (TagClose name)      = TagClose $! T.toCaseFold name
     f other                = other
 
 -- | Take the children of the first occurrence of the given tag.
