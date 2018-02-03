@@ -228,10 +228,11 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
   where
     step :: Int -> V.Vector (doc, M.Map term (termInfo, p)) -> m Int
     step !count docs = liftIO $ do
-        let count' = count + V.length docs
+        let !nDocs = V.length docs
+            !count' = count + nDocs
         docId0 <- atomically $ do
             DocId docId <- readTVar nextDocId
-            writeTVar nextDocId $ DocId $ docId + fromIntegral (V.length docs)
+            writeTVar nextDocId $! DocId $ docId + fromIntegral nDocs
             return (DocId docId)
 
         K.setBulk docIndex
