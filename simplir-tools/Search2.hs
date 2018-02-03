@@ -116,11 +116,13 @@ type ArchiveName = T.Text
 trecSource :: [DataSource (SafeT IO)]
            -> Producer ((ArchiveName, DocumentName), Trec.Document) (SafeT IO) ()
 trecSource dsrcs =
-    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ decompressed $ runDataSource dsrc)
+    mapM_ (\dsrc -> do
+                liftIO $ print dsrc
+                Trec.trecDocuments' (P.T.decodeIso8859_1 $ decompressed $ runDataSource dsrc)
                     >-> P.P.map (\d -> ( ( T.pack $ dataSourceFileName dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , d))
-                    >-> P.P.chain (liftIO . print . fst)
+                    -- >-> P.P.chain (liftIO . print . fst)
           ) dsrcs
 
 
@@ -185,7 +187,7 @@ normalizationPipeline =
       >-> cat'                                          @( DocumentInfo, [(T.Text, Position)])
       >-> P.P.map (fmap normTerms)
       >-> cat'                                          @( DocumentInfo, [(Term, Position)])
-      >-> P.P.chain (liftIO . print . fst)
+      -- >-> P.P.chain (liftIO . print . fst)
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
     normTerms = map (first Term.fromText) . filterTerms . caseNorm
