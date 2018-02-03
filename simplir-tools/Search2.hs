@@ -104,11 +104,12 @@ buildIndex docSource readDocLocs = do
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
             indexFold = (,) <$> KI.addDocuments idx <*> pure ()
-        (idx, corpusStats) <- foldProducer indexFold
+        (idx, corpusStats) <-
+              foldProducer indexFold
             $ foldChunks 1000 (Foldl.generalize Foldl.vector)
             $ docSource docs
           >-> normalizationPipeline
-          >-> P.P.map (second $ M.fromList . map (second $ \x -> ((), x)))
+          >-> P.P.map (second $ M.map (\x->((), x)) . M.fromListWith (+) . map (\(x,_pos) -> (x, 1::Int)))
         return ()
 
 type ArchiveName = T.Text
