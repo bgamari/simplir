@@ -35,7 +35,8 @@ instance Exception TrecParseError
 trecDocuments' :: forall r m. (Monad m)
                => Producer T.Text m r -> Producer Document m r
 trecDocuments' prod =
-    either (throw . TrecParseError . fst) id <$> P.A.parsed document prod
+    either (throw . TrecParseError . fst) id
+    <$> {-# SCC "trecDocuments'" #-}P.A.parsed document prod
 
 document :: A.Parser Document
 document = do
@@ -68,32 +69,38 @@ document = do
         parseDoc $ doc { docHeadline = Just val }
 
     setDocBody doc = do
-        body <- scanUntil "</DOC>"
+        body <- scanEndDoc
         A.skipSpace
         return $ doc { docBody = body }
 
     field s = do
       void $ A.string ("<" <> s <> ">")
-      val <- scanUntil ("</" <> s <> ">")
+      val <- scanUntil ("</" <> T.unpack s <> ">")
       A.skipSpace
       return val
 
--- | Match the given string exactly.
-scanUntil' :: T.Text -> A.Parser T.Text
-scanUntil' s = A.scan 0 f
+-- | This is a very common case and we need to scan a lot of text. Consequently
+-- it's worth a special case.
+scanEndDoc :: A.Parser T.Text
+scanEndDoc = A.scan 0 f
   where
-    n = T.length s
-    f i c
-      | n == i = Nothing
-      | c == (s `T.index` i) = Just (i+1)
-      | otherwise      = Just 0
+    f :: Int -> Char -> Maybe Int
+    f 0 '<' = Just 1
+    f 1 '/' = Just 2
+    f 2 'D' = Just 3
+    f 3 'O' = Just 4
+    f 4 'C' = Just 5
+    f 5 '>' = Just 6
+    f 6 _   = Nothing
+    f _ _   = Just 0
 
--- | Match the given string exactly.
-scanUntil :: T.Text -> A.Parser T.Text
-scanUntil s =
-    T.dropEnd (T.length s) . fst <$> A.match go
+scanUntil :: String -> A.Parser T.Text
+scanUntil s = A.scan s f
   where
-    go = A.string s <|> (A.anyChar *> go)
+    f []     _    = Nothing
+    f (x:xs) c
+      | x == c    = Just xs
+      | otherwise = Just s
 
 data ParseError = ParseError { parseErrorMsg :: String
                              , parseErrorRest :: TL.Text
