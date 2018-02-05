@@ -28,26 +28,34 @@ foldProducer' :: Monad m => Foldl.FoldM m a b -> Producer a m r -> m (b, r)
 foldProducer' (Foldl.FoldM step initial extract) =
     P.P.foldM' step initial extract
 
+foldChunks :: (Monad m)
+           => Int -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
+foldChunks size = foldChunks' (const $ Sum 1) (Sum size)
+{-# INLINEABLE foldChunks #-}
+
 -- | Fold over fixed-size chunks of the output of a 'Producer' with the given
 -- 'FoldM', emitting the result from each.
-foldChunks :: Monad m => Int -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
-foldChunks chunkSize (Foldl.FoldM step initial extract) = start
+foldChunks' :: (Ord size, Monoid size, Monad m)
+            => (a -> size) -> size -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
+foldChunks' getSize chunkSize (Foldl.FoldM step initial extract) = start
   where
     start prod = do
         acc <- lift initial
-        go chunkSize acc prod
+        go mempty acc prod
 
-    go 0 acc prod = do
-        lift (extract acc) >>= yield
-        start prod
-    go n acc prod = do
-        mx <- lift $ next prod
-        case mx of
-          Right (x, prod') -> do
-              acc' <- lift $ step acc x
-              go (n-1 :: Int) acc' prod'
-          Left () -> lift (extract acc) >>= yield
-{-# INLINEABLE foldChunks #-}
+    go s acc prod
+      | s >= chunkSize = do
+            lift (extract acc) >>= yield
+            start prod
+      | otherwise  = do
+            mx <- lift $ next prod
+            case mx of
+              Right (x, prod') -> do
+                  let !s' = s <> getSize x
+                  acc' <- lift $ step acc x
+                  go s' acc' prod'
+              Left () -> lift (extract acc) >>= yield
+{-# INLINEABLE foldChunks' #-}
 
 -- | Zip the elements coming down a 'Pipe' with elements of a list. Fails if the
 -- list runs out of elements.
