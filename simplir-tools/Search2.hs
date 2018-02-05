@@ -99,17 +99,17 @@ buildIndex docSource readDocLocs = do
     indexPath <- KI.create "index"
     n <- getNumCapabilities
     KI.withIndex indexPath $ \idx ->
-        mapConcurrentlyL_ n (run idx) (chunksOf 10 docs)
+        mapConcurrentlyL_ (n + n `div` 10) (run idx) (chunksOf 10 docs)
   where
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
             indexFold = (,) <$> KI.addDocuments idx <*> pure ()
         (idx, corpusStats) <-
               foldProducer indexFold
-            $ foldChunks 1000 (Foldl.generalize Foldl.vector)
+            $ foldChunks' (Sum . M.size . snd) 200000 (Foldl.generalize Foldl.vector)
             $ docSource docs
           >-> normalizationPipeline
-          >-> P.P.map (second $ M.map (\x->((), x)) . M.fromListWith (+) . map (\(x,_pos) -> (x, 1::Int)))
+          >-> P.P.map (second $ M.fromListWith (+) . map (\(x,_pos) -> (x, 1::Int)))
         return ()
 
 type ArchiveName = T.Text
