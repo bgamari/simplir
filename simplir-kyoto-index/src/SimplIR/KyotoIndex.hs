@@ -25,6 +25,8 @@ module SimplIR.KyotoIndex
     , lookupDocument
     ) where
 
+import Control.Concurrent
+import Control.Concurrent.Async
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Catch
@@ -80,30 +82,56 @@ instance S.Serialise p => S.Serialise (Posting p) where
         b <- EC.decode <$> S.decode
         return (Posting a b)
 
-data BucketedLock = BucketedLock { buckets :: !(A.Array Int (TMVar ()))
-                                 , bucketMask :: !Int
-                                 }
+data BucketedQueue k v = BucketedQueue { buckets :: !(A.Array Int (TBQueue (k,v)))
+                                       , bucketMask :: !Int
+                                       , bucketedQueueStop :: !(TVar Bool)
+                                       , bucketWorkers :: [Async ()]
+                                       }
 
-newBucketedLock :: Int -> IO BucketedLock
-newBucketedLock n = do
+newBucketedQueue :: forall k v. (k -> v -> IO ()) -> Int -> Int -> IO (BucketedQueue k v)
+newBucketedQueue f n maxDepth = do
     let nBuckets = 1 `shiftL` n
         bucketMask = nBuckets - 1
-    buckets <- A.listArray (0, nBuckets-1) <$> replicateM nBuckets (newTMVarIO ())
-    return BucketedLock {..}
+    buckets <- A.listArray (0, nBuckets-1) <$> replicateM nBuckets (newTBQueueIO maxDepth)
+    bucketedQueueStop <- newTVarIO False
+    let startConsumer :: TBQueue (k,v) -> IO ()
+        startConsumer queue = do
+            item <- atomically $ takeItem `orElse` stop
+            case item of
+              Just (k, v) -> f k v >> startConsumer queue
+              Nothing -> return ()
+          where
+            takeItem = Just <$> readTBQueue queue
+            stop = do
+                shouldStop <- readTVar bucketedQueueStop
+                if shouldStop
+                    then pure Nothing
+                    else retry
 
-withBucketLock :: (MonadIO m, MonadMask m, Hashable a)
-               => BucketedLock -> a -> m r -> m r
-withBucketLock (BucketedLock{..}) x = bracket acquire release . const
+    bucketWorkers <- traverse (async . startConsumer) $ toList buckets
+    return BucketedQueue {..}
+
+stopBucketedQueue :: BucketedQueue k v -> IO ()
+stopBucketedQueue BucketedQueue{..} = do
+    atomically $ writeTVar bucketedQueueStop True
+    traverse_ wait bucketWorkers
+
+pushBucketedQueue :: Hashable k => BucketedQueue k v -> k -> v -> IO ()
+pushBucketedQueue BucketedQueue{..} k v = do
+    stopped <- atomically $ do
+        shouldStop <- readTVar bucketedQueueStop
+        if shouldStop
+          then return True
+          else writeTBQueue queue (k,v) >> return False
+    when stopped $ fail "Uh oh"
   where
-    !lock = buckets A.! (bucketMask .&. hash x)
-    acquire = liftIO $ atomically $ takeTMVar lock
-    release _ = liftIO $ atomically $ putTMVar lock ()
+    !queue = buckets A.! (bucketMask .&. hash k)
 
 data DiskIndex (mode :: Mode) term termInfo doc p
     = DiskIndex { docIndex :: !K.Tree
                 , postingIndex :: !K.Tree
-                , nextDocId :: !(TVar DocId)
-                , termLock :: !BucketedLock
+                , nextDocId :: !(MVar DocId)
+                , termQueues :: BucketedQueue term termInfo
                 , indexPath :: DiskIndexPath term termInfo doc p
                 , writable :: Bool -- TODO break out a new type
                 }
@@ -137,7 +165,8 @@ instance IsWritable ReadMode where isWritable _ = False
 -- | Open an on-disk index.
 --
 -- The path should be the directory of a valid 'DiskIndex'
-open :: forall term termInfo doc p mode. (IsWritable mode)
+open :: forall term termInfo doc p mode.
+        (IsWritable mode, Semigroup termInfo, S.Serialise termInfo, S.Serialise term, Hashable term)
      => DiskIndexPath term termInfo doc p -> IO (DiskIndex mode term termInfo doc p)
 open indexPath = do
     let writable = isWritable $ Proxy @mode
@@ -148,13 +177,17 @@ open indexPath = do
     postingIndex <- K.openTree (postingIndexPath indexPath) loggingOpts access
     Just nextDocId <- K.get docIndex "next-docid"
     let Right (_, _, nextDocId') = B.decodeOrFail $ BSL.fromStrict nextDocId
-    nextDocId <- newTVarIO nextDocId'
-    termLock <- newBucketedLock 6
-    return $ DiskIndex {..}
-  where
-    termLockBuckets = 128
+    --when writable $ async $ forever $ do
+    --    threadDelay (30*1000*1000)
+    --    K.synchronize postingIndex False
+    --    K.synchronize docIndex False
 
-withIndex :: (MonadMask m, MonadIO m, IsWritable mode)
+    nextDocId <- newMVar nextDocId'
+    let index = DiskIndex { termQueues = undefined, ..}
+    termQueues <- newBucketedQueue (updateTermInfo index) 7 32
+    return index { termQueues = termQueues }
+
+withIndex :: (MonadMask m, MonadIO m, IsWritable mode, S.Serialise termInfo, Semigroup termInfo, S.Serialise term, Hashable term)
           => DiskIndexPath term termInfo doc p
           -> (DiskIndex mode term termInfo doc p -> m a)
           -> m a
@@ -165,8 +198,8 @@ loggingOpts = K.defaultLoggingOptions
 
 treeOpts :: K.TreeOptions
 treeOpts = K.defaultTreeOptions
-    { K.buckets = Just (8 * 1024 * 1024 * 1024) -- TODO: should be 10% record count
-    , K.pageCacheSize = Just (4 * 1024 * 1024 * 1024)
+    { K.buckets = Just (64 * 1024 * 1024) -- TODO: should be 10% record count
+    , K.pageCacheSize = Just (1 * 1024 * 1024 * 1024)
     }
 
 create :: forall term termInfo doc p. ()
@@ -176,8 +209,8 @@ create dest = do
     createDirectory dest
     docIndex <- K.makeTree (docIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
     postingIndex <- K.makeTree (postingIndexPath indexPath) loggingOpts treeOpts (K.Writer [K.Create] [K.TryLock])
-    nextDocId <- newTVarIO $ DocId 1
-    termLock <- newBucketedLock 1
+    nextDocId <- newMVar $ DocId 1
+    termQueues <- newBucketedQueue (\_ _ -> return ()) 1 1
     let writable = True
     close $ DiskIndex {..}
     return indexPath
@@ -186,7 +219,8 @@ create dest = do
 
 close :: DiskIndex mode term termInfo doc p -> IO ()
 close DiskIndex{..} = do
-    docId <- atomically $ readTVar nextDocId
+    stopBucketedQueue termQueues
+    docId <- readMVar nextDocId
     when writable $ K.set docIndex "next-docid" (BSL.toStrict $ B.encode docId)
     K.close docIndex
     K.close postingIndex
@@ -212,10 +246,6 @@ postingsKeyDocId = B.runGet parse . BSL.fromStrict
 documentKey :: DocId -> BS.ByteString
 documentKey = BSL.toStrict . B.encode
 
-withTermLock :: Hashable term
-             => DiskIndex 'ReadWriteMode term termInfo doc p -> term -> IO a -> IO a
-withTermLock DiskIndex{..} = withBucketLock termLock
-
 addDocuments
     :: forall doc p term termInfo m.
        (S.Serialise doc, S.Serialise p,
@@ -230,10 +260,9 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
     step !count docs = liftIO $ do
         let !nDocs = V.length docs
             !count' = count + nDocs
-        docId0 <- atomically $ do
-            DocId docId <- readTVar nextDocId
-            writeTVar nextDocId $! DocId $ docId + fromIntegral nDocs
-            return (DocId docId)
+        docId0 <- modifyMVar nextDocId $ \(DocId docId0) ->
+          let !docId' = DocId (docId0 + fromIntegral nDocs)
+          in return (docId', DocId docId0)
 
         K.setBulk docIndex
             [ (BSL.toStrict $ B.encode docId, BSL.toStrict $ S.serialise doc)
@@ -256,18 +285,25 @@ addDocuments idx@DiskIndex{..} = Foldl.FoldM step initial finish
             ]
             notAtomic
 
-        forM_ (M.assocs inverted) $ \(term, (termInfo, _)) -> withTermLock idx term $ do
-            let key = termKey term
-            mbTermInfo0 <- K.get postingIndex key
-            case mbTermInfo0 of
-              Just termInfo0 -> let Right termInfo0' = S.deserialiseOrFail $ BSL.fromStrict termInfo0
-                                in K.replace postingIndex key $ BSL.toStrict $ S.serialise $ termInfo0' <> termInfo
-              Nothing        -> K.set postingIndex key $ BSL.toStrict $ S.serialise termInfo
+        forM_ (M.assocs inverted) $ \(term, (termInfo, _)) -> do
+            pushBucketedQueue termQueues term termInfo
 
         return $! count'
 
     initial = return 0
     finish count = return count
+
+updateTermInfo :: (S.Serialise termInfo, S.Serialise term, Semigroup termInfo, Hashable term)
+               => DiskIndex 'ReadWriteMode term termInfo doc p
+               -> term -> termInfo
+               -> IO ()
+updateTermInfo DiskIndex{..} term termInfo = do
+    let key = termKey term
+    mbTermInfo0 <- K.get postingIndex key
+    case mbTermInfo0 of
+      Just termInfo0 -> let Right termInfo0' = S.deserialiseOrFail $ BSL.fromStrict termInfo0
+                        in K.replace postingIndex key $ BSL.toStrict $ S.serialise $ termInfo0' <> termInfo
+      Nothing        -> K.set postingIndex key $ BSL.toStrict $ S.serialise termInfo
 
 -- | Lookup postings for a term.
 lookupPostings
