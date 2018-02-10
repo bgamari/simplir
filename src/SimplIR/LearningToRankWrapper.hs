@@ -12,6 +12,7 @@ import Data.Aeson as Aeson
 import qualified Data.Text as T
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as VU
+import Data.Maybe
 import System.Random
 
 import SimplIR.LearningToRank
@@ -72,7 +73,7 @@ avgMetricQrel qrel =
                                       , let n = case rel of Relevant -> 1
                                                             NotRelevant -> 0 ]
         metric :: ScoringMetric IsRelevant query doc
-        metric = meanAvgPrec (totalRel M.!) Relevant
+        metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
     in metric
 
 
@@ -82,7 +83,7 @@ avgMetricData :: forall query doc. (Ord query)
 avgMetricData traindata =
     let totalRel = fmap (length . filter (\(_,_, rel)-> (rel == Relevant)) )  traindata
         metric :: ScoringMetric IsRelevant query doc
-        metric = meanAvgPrec (totalRel M.!) Relevant
+        metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
     in metric
 
 augmentWithQrels :: forall docId queryId. (Ord queryId, Ord docId)
