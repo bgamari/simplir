@@ -45,6 +45,10 @@ class RelevanceScale rel where
     parseRelevance :: T.Text -> rel
     formatRelevance :: rel -> T.Text
 
+instance RelevanceScale T.Text where
+    parseRelevance = id
+    formatRelevance = id
+
 instance RelevanceScale IsRelevant where
     parseRelevance "0" = NotRelevant
     parseRelevance "1" = Relevant
