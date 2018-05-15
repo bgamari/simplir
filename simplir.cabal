@@ -48,6 +48,7 @@ library
       SimplIR.Encoded.Cbor
       SimplIR.EncodedList
       SimplIR.EncodedList.Cbor
+      SimplIR.TrecEval
       SimplIR.LearningToRank
       SimplIR.LearningToRankWrapper
       Progress
