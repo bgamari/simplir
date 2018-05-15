@@ -10,6 +10,10 @@ killStopwords :: StopWords -> [T.Text] -> [T.Text]
 killStopwords stopWords =
     filter (not . (`HS.member` stopWords))
 
+killStopwords' :: StopWords -> (a -> T.Text) -> [a] -> [a]
+killStopwords' stopWords f =
+    filter (not . (`HS.member` stopWords) . f)
+
 type StopWords = HS.HashSet T.Text
 
 enInquery :: StopWords

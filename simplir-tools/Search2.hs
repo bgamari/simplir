@@ -9,7 +9,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 
+import GHC.Conc (getNumCapabilities)
 import Control.Monad.State.Strict hiding ((>=>))
+import Control.Concurrent.Async
+import Data.List.Split
 import Data.Bifunctor
 import Data.Maybe
 import Data.Monoid
@@ -37,9 +40,12 @@ import Options.Applicative
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
 import SimplIR.Types
+import Control.Concurrent.Map
 import SimplIR.Term as Term
 import SimplIR.Tokenise
 import SimplIR.DataSource
+import SimplIR.DataSource.Compression
+import SimplIR.StopWords
 import qualified SimplIR.KyotoIndex as KI
 import qualified SimplIR.TREC as Trec
 import qualified SimplIR.TrecStreaming as Kba
@@ -87,19 +93,23 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-
 buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     indexPath <- KI.create "index"
-    runSafeT $ KI.withIndex indexPath $ \idx -> do
+    n <- getNumCapabilities
+    KI.withIndex indexPath $ \idx ->
+        mapConcurrentlyL_ n (run idx) (chunksOf 10 docs)
+  where
+    run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
             indexFold = (,) <$> KI.addDocuments idx <*> pure ()
-        (idx, corpusStats) <- foldProducer indexFold
+        (idx, corpusStats) <-
+              foldProducer indexFold
             $ foldChunks 1000 (Foldl.generalize Foldl.vector)
             $ docSource docs
           >-> normalizationPipeline
-          >-> P.P.map (second $ M.fromList . map (second $ \x -> ((), x)))
+          >-> P.P.map (second $ M.map (\x->((), x)) . M.fromListWith (+) . map (\(x,_pos) -> (x, 1::Int)))
         return ()
 
 type ArchiveName = T.Text
@@ -107,11 +117,13 @@ type ArchiveName = T.Text
 trecSource :: [DataSource (SafeT IO)]
            -> Producer ((ArchiveName, DocumentName), Trec.Document) (SafeT IO) ()
 trecSource dsrcs =
-    mapM_ (\dsrc -> Trec.trecDocuments' (P.T.decodeIso8859_1 $ runDataSource dsrc)
+    mapM_ (\dsrc -> do
+                liftIO $ print dsrc
+                Trec.trecDocuments' (P.T.decodeIso8859_1 $ decompressed $ runDataSource dsrc)
                     >-> P.P.map (\d -> ( ( T.pack $ dataSourceFileName dsrc
                                          , DocName $ Utf8.fromText $ Trec.docNo d)
                                        , d))
-                    >-> P.P.chain (liftIO . print . fst)
+                    -- >-> P.P.chain (liftIO . print . fst)
           ) dsrcs
 
 
@@ -176,12 +188,12 @@ normalizationPipeline =
       >-> cat'                                          @( DocumentInfo, [(T.Text, Position)])
       >-> P.P.map (fmap normTerms)
       >-> cat'                                          @( DocumentInfo, [(Term, Position)])
-      >-> P.P.chain (liftIO . print . fst)
+      -- >-> P.P.chain (liftIO . print . fst)
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
     normTerms = map (first Term.fromText) . filterTerms . caseNorm
       where
-        filterTerms = filter ((>2) . T.length . fst)
+        filterTerms = killStopwords' enInquery fst . filter ((>2) . T.length . fst)
         caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     killPunctuation c

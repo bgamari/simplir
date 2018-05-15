@@ -3,6 +3,7 @@
 
 module Control.Concurrent.Map
     ( mapConcurrentlyL
+    , mapConcurrentlyL_
     , concurrencyLimited
     ) where
 
@@ -12,6 +13,15 @@ import Control.Monad.Catch
 import Control.Concurrent.Async.Lifted
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TSem
+
+-- | Map concurrently with a limit to the number of concurrent workers.
+mapConcurrentlyL_ :: forall m f a b.
+                     (MonadBaseControl IO m, MonadIO m, MonadMask m, Traversable f)
+                  => Int -> (a -> m b) -> f a -> m ()
+mapConcurrentlyL_ n f xs = do
+    withLimit <- concurrencyLimited n
+    mapConcurrently_ (withLimit . f) xs
+{-# INLINEABLE mapConcurrentlyL_ #-}
 
 -- | Map concurrently with a limit to the number of concurrent workers.
 mapConcurrentlyL :: forall m f a b.
