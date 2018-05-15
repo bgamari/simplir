@@ -50,6 +50,7 @@ library
       SimplIR.EncodedList.Cbor
       SimplIR.TrecEval
       SimplIR.LearningToRank
+      SimplIR.LearningToRank.Tests
       SimplIR.LearningToRankWrapper
       Progress
       SimplIR.Tokenise
