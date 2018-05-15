@@ -129,8 +129,8 @@ fromList space xs = FeatureVec $ VU.create $ do
     dim = featureDimension space
     fail' err = error $ "SimplIR.FeatureSpace.fromList: " ++ err
 
-modify :: (VU.Unbox a, Ord f, Show f)
-         =>  FeatureSpace f
+modify :: (VU.Unbox a, Ord f, Show f, HasCallStack)
+         => FeatureSpace f
          -> FeatureVec f a -- ^ default value
          -> [(f, a)]
          -> FeatureVec f a
