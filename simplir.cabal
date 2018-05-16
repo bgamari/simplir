@@ -37,6 +37,9 @@ library
       SimplIR.BinaryFile
       SimplIR.Format.TrecRunFile
       SimplIR.Format.QRel
+      SimplIR.Ranking
+      SimplIR.Ranking.Evaluation
+      SimplIR.Ranking.Evaluation.Tests
       SimplIR.RetrievalModels.CorpusStats
       SimplIR.RetrievalModels.QueryLikelihood
       SimplIR.RetrievalModels.TfIdf
@@ -50,7 +53,6 @@ library
       SimplIR.EncodedList.Cbor
       SimplIR.TrecEval
       SimplIR.LearningToRank
-      SimplIR.LearningToRank.Tests
       SimplIR.LearningToRankWrapper
       Progress
       SimplIR.Tokenise
@@ -58,7 +60,6 @@ library
       SimplIR.Utils
       SimplIR.Utils.Compact
       SimplIR.Types
-      SimplIR.Ranking
       SimplIR.Histogram
       SimplIR.Term
       SimplIR.WarcDocSource

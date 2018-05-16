@@ -127,7 +127,7 @@ learnToRank franking featureNames metric gen0 =
 
 rerankRankings :: Model
          -> M.Map Run.QueryId [(QRel.DocumentName, Features)]
-         ->  M.Map Run.QueryId (Ranking QRel.DocumentName)
+         -> M.Map Run.QueryId (Ranking Score QRel.DocumentName)
 rerankRankings model featureData  =
     fmap (rerank (toWeights model)) featureData
 
@@ -138,7 +138,7 @@ rerankRankings model featureData  =
 
 rerankRankings' :: Model
          -> M.Map q [(docId, Features, rel)]
-         -> M.Map q (Ranking (docId, rel))
+         -> M.Map q (Ranking Score (docId, rel))
 rerankRankings' model featureData  =
     fmap (rerank (toWeights model))
     $ fmap rearrangeTuples featureData

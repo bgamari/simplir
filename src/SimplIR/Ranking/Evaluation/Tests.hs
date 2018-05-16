@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module SimplIR.LearningToRank.Tests (tests) where
+module SimplIR.Ranking.Evaluation.Tests (tests) where
 
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
@@ -12,11 +12,11 @@ import Test.QuickCheck.Monadic
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
-import SimplIR.LearningToRank
+import SimplIR.Ranking as Ranking
+import SimplIR.Ranking.Evaluation as Eval
 import qualified SimplIR.TrecEval as TrecEval
 import SimplIR.Format.TrecRunFile as Run
 import SimplIR.Format.QRel as QRel
-import SimplIR.LearningToRank as LearningToRank
 
 data AssessedRanking a = AssessedRanking { relevant :: S.Set a
                                          , nonrelevant :: S.Set a
@@ -80,14 +80,14 @@ mapMatchesTrecEval assessed = monadicIO $ do
       | isNaN score' = 0
       | otherwise    = score'
 
-    score' = LearningToRank.meanAvgPrec (const $ S.size $ relevant assessed) Relevant
-        $ M.singleton ("query" :: String) $ Ranking
+    score' = Eval.meanAvgPrec (const $ S.size $ relevant assessed) Relevant
+        $ M.singleton ("query" :: String) $ Ranking.fromSortedList
         [ (score, (docName, rel))
         | (score, docName) <- ranking assessed
         , let rel = getRelevance docName
         ]
 
 tests :: TestTree
-tests = testGroup "LearningToRank"
+tests = testGroup "Ranking evaluation"
     [ testProperty "MAP matches trec-eval" mapMatchesTrecEval
     ]
