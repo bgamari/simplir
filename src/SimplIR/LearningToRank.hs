@@ -9,8 +9,6 @@ module SimplIR.LearningToRank
       Score
     , Ranking
     , TotalRel
-    , Rankings
-    , Ranking(..)
     , Weight
       -- * Features
     , Features(..)
@@ -32,13 +30,15 @@ module SimplIR.LearningToRank
 import GHC.Generics
 import Data.Ord
 import Data.List
-import Data.Maybe
 import qualified System.Random as Random
 import System.Random.Shuffle
 import Data.Hashable
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector as V
+
+import SimplIR.Ranking as Ranking
+import SimplIR.Ranking.Evaluation
 
 type Score = Double
 
@@ -46,50 +46,6 @@ type Score = Double
 data IsRelevant = NotRelevant | Relevant
                 deriving (Ord, Eq, Show, Generic)
 instance Hashable IsRelevant
-
--- | A ranking of documents
-newtype Ranking a = Ranking { getRanking :: [(Score, a)] }
-                  deriving (Show)
-
--- | The total number of relevant documents for a query.
-type TotalRel = Int
-
--- | A collection of rankings for a set of queries.
-type Rankings rel qid a = M.Map qid (Ranking (a, rel))
-
-type ScoringMetric rel qid a = Rankings rel qid a -> Double
-
-meanAvgPrec :: (Ord rel)
-            => (qid -> TotalRel) -> rel -> ScoringMetric rel qid a
-meanAvgPrec totalRel relThresh rankings =
-    mean (mapMaybe (\(qid, ranking) -> avgPrec relThresh (totalRel qid) ranking) (M.toList rankings))
-
-mean :: (RealFrac a) => [a] -> a
-mean xs = sum xs / realToFrac (length xs)
-
-avgPrec :: forall rel doc. (Ord rel)
-        => rel -> TotalRel -> Ranking (doc, rel) -> Maybe Double
-avgPrec relThresh totalRel ranking
-  | totalRel == 0 = Nothing
-  | otherwise =
-    let (_, relAtR) = mapAccumL numRelevantAt 0 rels
-        rels :: [rel]
-        rels = map (snd . snd) (getRanking ranking)
-
-        numRelevantAt :: Int -> rel -> (Int, Int)
-        numRelevantAt accum rel
-          | rel >= relThresh = (accum + 1, accum + 1)
-          | otherwise        = (accum, accum)
-
-        precAtR :: [(Double, rel)]
-        precAtR = zip (zipWith (\n k -> realToFrac n / k) relAtR [1..]) rels
-
-        precAtRelevantRanks = [ prec
-                              | (prec, rel) <- precAtR
-                              , rel >= relThresh
-                              ]
-    in Just $ sum precAtRelevantRanks / realToFrac totalRel
-
 
 newtype Features = Features { getFeatures :: VU.Vector Double }
                  deriving (Show, Eq)
@@ -108,13 +64,10 @@ type FRanking relevance a = [(a, Features, relevance)]
 dot :: Features -> Features -> Double
 dot (Features v) (Features u) = VU.sum $ VU.zipWith (*) v u
 
-mkRanking :: [(Score, a)] -> Ranking a
-mkRanking = Ranking . sortBy (flip $ comparing fst)
-
 -- | Re-rank a set of documents given a weight vector.
-rerank :: Features -> [(a, Features)] -> Ranking a
+rerank :: Features -> [(a, Features)] -> Ranking Score a
 rerank weight fRanking =
-    mkRanking
+    Ranking.fromList
     [ (weight `dot` feats, doc)
     | (doc, feats) <- fRanking
     ]
@@ -191,7 +144,7 @@ scoreStepOracle w@(Features w') f@(Features f') = scoreFun
     scoreTerm dim off = (off + w' VU.! dim) * (f' VU.! dim)
     !score0 = w `dot` f
 
-coordAscent :: forall a qid relevance gen. (Random.RandomGen gen, Show Features, Show qid, Show a)
+coordAscent :: forall a qid relevance gen. (Random.RandomGen gen, Show qid, Show a)
             => gen
             -> ScoringMetric relevance qid a
             -> Features -- ^ initial weights
@@ -210,7 +163,7 @@ coordAscent gen0 scoreRanking w0 fRankings
                          (intercalate "\n" $ take 10
                                            $ [ "("++show key ++", "++ show doc ++ ", featureDim = " ++ show (featureDim fv) ++ ") :" ++  show fv
                                              | (key, list) <-  M.toList fRankings
-                                             , elem@(doc, fv, _) <- list
+                                             , (doc, fv, _) <- list
                                              , featureDim fv /= dim
                                              ])
            | otherwise = Nothing
@@ -237,7 +190,7 @@ coordAscent gen0 scoreRanking w0 fRankings
       where
         scoreStep :: Step -> Score
         scoreStep step =
-            scoreRanking $ fmap (mkRanking . map newScorer') cachedScoredRankings
+            scoreRanking $ fmap (Ranking.fromList . map newScorer') cachedScoredRankings
           where
             newScorer' ::  (a, Step -> Score, relevance) -> (Score, (a, relevance))
             newScorer' (doc,scorer,rel) = (scorer step, (doc, rel))
