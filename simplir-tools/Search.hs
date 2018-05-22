@@ -178,12 +178,14 @@ data CorpusStats = CorpusStats { corpusCollectionLength :: !Int
                  deriving (Generic)
 
 instance Binary CorpusStats
-instance Monoid CorpusStats where
-    mempty = CorpusStats 0 0
-    a `mappend` b =
+instance Semigroup CorpusStats where
+    a <> b =
         CorpusStats { corpusCollectionLength = corpusCollectionLength a + corpusCollectionLength b
                     , corpusCollectionSize = corpusCollectionSize a + corpusCollectionSize b
                     }
+instance Monoid CorpusStats where
+    mempty = CorpusStats 0 0
+    mappend = (<>)
 
 foldCorpusStats :: Foldl.Fold DocumentInfo CorpusStats
 foldCorpusStats =
@@ -383,9 +385,12 @@ offlineMerge = mergeIndexes . map toChunk
 
 newtype DocumentFrequency = DocumentFrequency Int
                           deriving (Show, Eq, Ord, Binary)
+instance Semigroup DocumentFrequency where
+    DocumentFrequency a <> DocumentFrequency b = DocumentFrequency (a+b)
+
 instance Monoid DocumentFrequency where
     mempty = DocumentFrequency 0
-    DocumentFrequency a `mappend` DocumentFrequency b = DocumentFrequency (a+b)
+    mappend = (<>)
 
 type SavedPostings p = M.Map Term (V.Vector (Posting p))
 type FragmentIndex p =

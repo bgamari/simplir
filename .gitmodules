@@ -40,3 +40,6 @@
 [submodule "vendor/trifecta"]
 	path = vendor/trifecta
 	url = git://github.com/ekmett/trifecta
+[submodule "vendor/pipes-zlib"]
+	path = vendor/pipes-zlib
+	url = https://github.com/k0001/pipes-zlib.git

@@ -33,7 +33,6 @@ import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.Utils
-import Control.Foldl.Map
 import SimplIR.BinaryFile as BinaryFile
 import SimplIR.Types
 import SimplIR.Tokenise
