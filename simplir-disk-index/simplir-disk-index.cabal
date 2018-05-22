@@ -15,7 +15,6 @@ cabal-version:       >=1.10
 
 
 library
-  default-language:    Haskell2010
   ghc-options:         -Wall
   hs-source-dirs:      src
   other-modules:
@@ -47,7 +46,7 @@ library
       SimplIR.SimpleIndex.Models.BM25
 
   build-depends:
-      base >=4.8 && <4.11,
+      base >=4.8 && <4.12,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
