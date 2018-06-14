@@ -38,7 +38,7 @@ decompressGZip :: MonadIO m
 decompressGZip = go
   where
     go prod = do
-        res <- P.GZip.decompressMember prod
+        res <- P.GZip.decompress' prod
         case res of
             Left prod' -> go prod'
             Right r    -> return r
