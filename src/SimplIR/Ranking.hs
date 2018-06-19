@@ -7,6 +7,8 @@ module SimplIR.Ranking
     , fromSortedList
       -- ** Destruction
     , toSortedList
+      -- ** Transformer
+    , takeTop
     ) where
 
 import Data.List
@@ -29,3 +31,6 @@ fromSortedList = Ranking
 toSortedList :: Ranking score a -> [(score, a)]
 toSortedList (Ranking xs) = xs
 
+takeTop :: Int -> Ranking score a -> Ranking score a
+takeTop k (Ranking ranking) =
+    Ranking (take k ranking)
