@@ -101,7 +101,7 @@ buildTermFreq path docs = do
     buildPostings :: Foldl.FoldM (SafeT IO) (doc, [term])
                                  (DiskIndex.DiskIndexPath term (DocumentLength, doc) Int)
     buildPostings =
-        Foldl.premapM (pure . buildTfPostings)
+        Foldl.premapM buildTfPostings
         $ buildIndex chunkSize destPath
       where destPath = DiskIndex.getDiskIndexPath $ simpleIndexPath path'
 {-# INLINEABLE buildTermFreq #-}
