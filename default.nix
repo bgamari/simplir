@@ -20,7 +20,7 @@ let
   haskellOverrides = self: super:
     let
       simplirPackages = {
-        simplir              = let base = self.callCabal2nix "simplir" (localDir ./.) {};
+        simplir              = let base = self.callCabal2nix "simplir" (localDir ./simplir) {};
                                in nixpkgs.haskell.lib.overrideCabal base (drv: { testDepends = [ trec-eval ]; });
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
