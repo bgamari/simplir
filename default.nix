@@ -36,6 +36,7 @@ let
         fork-map             = self.callCabal2nix "fork-map" ./vendor/fork-map {};
 
         lzma = dontCheck super.lzma;
+        foldl = self.callHackage "foldl" "1.4.0" {};
         text-icu   = dontCheck super.text-icu;
         pipes-zlib = doJailbreak super.pipes-zlib;
         optparse-applicative = self.callHackage "optparse-applicative" "0.14.0.0" {};
