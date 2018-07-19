@@ -48,7 +48,7 @@ parseLine = do
     documentScore <- either realToFrac id <$> integerOrDouble
     methodName <- T.pack <$> many (noneOf "\n")
     void (some newline) <|> eof
-    return $ RankingEntry {..}
+    return $! RankingEntry {..}
 
 readRunFile :: FilePath -> IO [RankingEntry]
 readRunFile fname =

@@ -15,10 +15,13 @@ let
 
   cborgSrc = nixpkgs.fetchgit { url = https://github.com/well-typed/cborg.git; rev = "6c05de8e9490d32e80611e5b41773103ebe72ec3"; sha256 = "18cwgvk7gahab742hwj5257x6mpcf4yci076lsbkaf1fb70kwmjp"; };
 
+  trec-eval = nixpkgs.enableDebugging (nixpkgs.callPackage ./trec-eval.nix {});
+
   haskellOverrides = self: super:
     let
       simplirPackages = {
-        simplir              = self.callCabal2nix "simplir" (localDir ./.) {};
+        simplir              = let base = self.callCabal2nix "simplir" (localDir ./.) {};
+                               in nixpkgs.haskell.lib.overrideCabal base (drv: { testDepends = [ trec-eval ]; });
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
         simplir-trec         = self.callCabal2nix "simplir-trec" (localDir ./simplir-trec) {};
@@ -43,9 +46,10 @@ let
       };
     in simplirPackages // { simplirPackages = simplirPackages; };
 
-  haskellPackages = nixpkgs.haskell.packages.ghc821.override {overrides = haskellOverrides;};
+  haskellPackages = nixpkgs.haskell.packages.ghc822.override {overrides = haskellOverrides;};
 in {
   inherit haskellPackages haskellOverrides;
+  inherit trec-eval;
   inherit (haskellPackages) simplirPackages;
   env = haskellPackages.ghcWithHoogle (pkgs: builtins.attrValues haskellPackages.simplirPackages);
 }

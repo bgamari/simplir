@@ -4,6 +4,7 @@
 
 module SimplIR.Utils where
 
+import Data.Monoid
 import Control.Monad ((>=>))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -27,26 +28,34 @@ foldProducer' :: Monad m => Foldl.FoldM m a b -> Producer a m r -> m (b, r)
 foldProducer' (Foldl.FoldM step initial extract) =
     P.P.foldM' step initial extract
 
+foldChunks :: (Monad m)
+           => Int -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
+foldChunks size = foldChunks' (const $ Sum 1) (Sum size)
+{-# INLINEABLE foldChunks #-}
+
 -- | Fold over fixed-size chunks of the output of a 'Producer' with the given
 -- 'FoldM', emitting the result from each.
-foldChunks :: Monad m => Int -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
-foldChunks chunkSize (Foldl.FoldM step initial extract) = start
+foldChunks' :: (Ord size, Monoid size, Monad m)
+            => (a -> size) -> size -> Foldl.FoldM m a b -> Producer a m () -> Producer b m ()
+foldChunks' getSize chunkSize (Foldl.FoldM step initial extract) = start
   where
     start prod = do
         acc <- lift initial
-        go chunkSize acc prod
+        go mempty acc prod
 
-    go 0 acc prod = do
-        lift (extract acc) >>= yield
-        start prod
-    go n acc prod = do
-        mx <- lift $ next prod
-        case mx of
-          Right (x, prod') -> do
-              acc' <- lift $ step acc x
-              go (n-1 :: Int) acc' prod'
-          Left () -> lift (extract acc) >>= yield
-{-# INLINEABLE foldChunks #-}
+    go s acc prod
+      | s >= chunkSize = do
+            lift (extract acc) >>= yield
+            start prod
+      | otherwise  = do
+            mx <- lift $ next prod
+            case mx of
+              Right (x, prod') -> do
+                  let !s' = s <> getSize x
+                  acc' <- lift $ step acc x
+                  go s' acc' prod'
+              Left () -> lift (extract acc) >>= yield
+{-# INLINEABLE foldChunks' #-}
 
 -- | Zip the elements coming down a 'Pipe' with elements of a list. Fails if the
 -- list runs out of elements.
@@ -81,12 +90,13 @@ traceP :: (MonadIO m, Show a) => Pipe a a m r
 traceP = P.P.mapM (\x -> liftIO (print x) >> return x)
 
 -- | Fold over inputs in fixed-size chunks, folding over those results.
-foldChunksOf :: Monad m
-             => Int                 -- ^ Chunk size
-             -> Foldl.FoldM m a b   -- ^ "inner" fold, reducing "points"
-             -> Foldl.FoldM m b c   -- ^ "outer" fold, reducing chunks
-             -> Foldl.FoldM m a c
-foldChunksOf n
+foldChunksOfSize :: (Ord size, Monoid size, Monad m)
+                 => (a -> size)
+                 -> size                -- ^ Chunk size
+                 -> Foldl.FoldM m a b   -- ^ "inner" fold, reducing "points"
+                 -> Foldl.FoldM m b c   -- ^ "outer" fold, reducing chunks
+                 -> Foldl.FoldM m a c
+foldChunksOfSize pointSize n
            (Foldl.FoldM stepIn initialIn finalizeIn)
            (Foldl.FoldM stepOut initialOut finalizeOut) =
     Foldl.FoldM step initial finalize
@@ -94,19 +104,28 @@ foldChunksOf n
     initial = do
         sIn <- initialIn
         sOut <- initialOut
-        return (0, sIn, sOut)
+        return (mempty, sIn, sOut)
     finalize (_, sIn, sOut) = do
         sIn' <- finalizeIn sIn
         stepOut sOut sIn' >>= finalizeOut
-    step (!m, !sIn, !sOut) x
-      | n == m = do
+    step (!s, !sIn, !sOut) x
+      | n <= s = do
         sIn' <- finalizeIn sIn
         sOut' <- stepOut sOut sIn'
         sIn'' <- initialIn >>= flip stepIn x
-        return (1, sIn'', sOut')
+        return (pointSize x, sIn'', sOut')
       | otherwise = do
         sIn' <- stepIn sIn x
-        return (m+1, sIn', sOut)
+        let !s' = s <> pointSize x
+        return (s', sIn', sOut)
+{-# INLINEABLE foldChunksOfSize #-}
+
+foldChunksOf :: (Monad m)
+             => Int                 -- ^ Chunk size
+             -> Foldl.FoldM m a b   -- ^ "inner" fold, reducing "points"
+             -> Foldl.FoldM m b c   -- ^ "outer" fold, reducing chunks
+             -> Foldl.FoldM m a c
+foldChunksOf = foldChunksOfSize (const (Sum 1)) . Sum
 {-# INLINEABLE foldChunksOf #-}
 
 statusEvery :: MonadIO m => Int -> (Int -> String) -> Pipe a a m r

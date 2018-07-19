@@ -53,7 +53,7 @@ featureNames (Space _ v _) = V.toList v
 
 mkFeatureSpace :: (Ord f, Show f, HasCallStack)
                => [f] -> FeatureSpace f
-mkFeatureSpace xs
+mkFeatureSpace xs0
   | not $ null duplicates =
      error $ "SimplIR.FeatureSpace.mkFeatureSpace: Duplicate features: "++show duplicates
   | otherwise  = unsafeFeatureSpaceFromSorted sorted
@@ -64,7 +64,7 @@ mkFeatureSpace xs
             go (_:xs)  = go xs
             go []      = []
 
-    sorted = sort xs
+    sorted = sort xs0
 
 
 unsafeFeatureSpaceFromSorted :: (Ord f) => [f] -> FeatureSpace f
@@ -84,7 +84,7 @@ lookupName2Index (Space stack _ m) x =
     fromMaybe (error err) $ M.lookup x m
   where err = unlines $ ["lookupName2Index: feature not found "++ show x
                         ,"Known features: " ]
-                     ++ [show (fname, fname == x)  | (fname, fidx) <- M.toList m]
+                     ++ [show (fname, fname == x)  | (fname, _fidx) <- M.toList m]
                      ++ [show (M.lookup x m)]
                      ++ ["CallStack: "++show stack ]
 

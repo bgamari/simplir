@@ -92,7 +92,7 @@ predictMode =
                       | ((queryId, doc), fs) <- M.assocs features
                       ]
 
-            rankings :: M.Map Run.QueryId (Ranking QRel.DocumentName)
+            rankings :: M.Map Run.QueryId (Ranking Score QRel.DocumentName)
 --             rankings = fmap (rerank (toWeights model)) featureData
             rankings = rerankRankings model featureData
         print rankings
