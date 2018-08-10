@@ -3,6 +3,8 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DerivingStrategies #-}
 
 module SimplIR.LearningToRank
     ( -- * Basic types
@@ -28,6 +30,7 @@ module SimplIR.LearningToRank
     ) where
 
 import GHC.Generics
+import Control.DeepSeq
 import Data.Ord
 import Data.List
 import qualified System.Random as Random
@@ -46,9 +49,11 @@ type Score = Double
 data IsRelevant = NotRelevant | Relevant
                 deriving (Ord, Eq, Show, Generic)
 instance Hashable IsRelevant
+instance NFData IsRelevant
 
 newtype Features = Features { getFeatures :: VU.Vector Double }
                  deriving (Show, Eq)
+                 deriving newtype NFData
 type Weight = Features
 
 featureDim :: Features -> Int
