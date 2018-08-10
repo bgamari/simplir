@@ -8,14 +8,21 @@ module SimplIR.FeatureSpace
     -- * Feature Spaces
       FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
     -- * Feature Vectors
-    , FeatureVec, getFeatureVec, concatFeatureVec, projectFeatureVec
+    , FeatureVec, getFeatureVec, featureVecDimension
+    , concatFeatureVec, projectFeatureVec
     , repeat, fromList, generate
     , modify, toList, mapFeatureVec
     -- ** Algebraic operations
+    , l2Normalize
     , aggregateWith, scaleFeatureVec, dotFeatureVecs
     , sumFeatureVecs, (^-^), (^+^), (^*^), (^/^)
     -- * Unpacking to plain vector
     , toVector
+    -- * Indexing
+    , FeatureIndex
+    , getFeatureIndex
+    , featureIndexes
+    , lookupIndex
     -- * Unsafe construction
     , unsafeFeatureVecFromVector
     ) where
@@ -41,7 +48,7 @@ newtype FeatureVec f a = FeatureVec { getFeatureVec :: VU.Vector a }
 unsafeFeatureVecFromVector :: VU.Vector a -> FeatureVec f a
 unsafeFeatureVecFromVector = FeatureVec
 
-newtype FeatureIndex f = FeatureIndex Int
+newtype FeatureIndex f = FeatureIndex { getFeatureIndex :: Int }
                        deriving (Show)
 
 data FeatureSpace f where
@@ -58,6 +65,9 @@ featureDimension (Space _ v _) = V.length v
 
 featureNames :: FeatureSpace f -> [f]
 featureNames (Space _ v _) = V.toList v
+
+featureIndexes :: FeatureSpace f -> [FeatureIndex f]
+featureIndexes s = map FeatureIndex [0..featureDimension s-1]
 
 mkFeatureSpace :: (Ord f, Show f, HasCallStack)
                => [f] -> FeatureSpace f
@@ -119,9 +129,19 @@ lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
 lookupIndex :: VU.Unbox a => FeatureVec f a -> FeatureIndex f -> a
 lookupIndex (FeatureVec v) (FeatureIndex i) = v VU.! i
 
+featureVecDimension :: VU.Unbox a => FeatureVec f a -> Int
+featureVecDimension (FeatureVec v) = VU.length v
+
 mapFeatureVec :: (VU.Unbox a, VU.Unbox b)
               => (a -> b) -> FeatureVec f a -> FeatureVec f b
 mapFeatureVec f (FeatureVec v) = FeatureVec $ VU.map f v
+
+l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> a
+l2Norm (FeatureVec xs) = sqrt $ VU.sum $ VU.map squared xs
+  where squared x = x*x
+
+l2Normalize :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> FeatureVec f a
+l2Normalize f = l2Norm f `scaleFeatureVec` f
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')

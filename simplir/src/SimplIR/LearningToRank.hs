@@ -11,9 +11,9 @@ module SimplIR.LearningToRank
       Score
     , Ranking
     , TotalRel
-    , Weight
+    , WeightVec(..)
+    , score
       -- * Features
-    , Features(..)
       -- * Computing rankings
     , rerank
       -- * Scoring metrics
@@ -36,10 +36,17 @@ import Data.Hashable
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 
+import SimplIR.FeatureSpace as FS
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
 
 type Score = Double
+
+newtype WeightVec f = WeightVec { getWeightVec :: FeatureVec f Double }
+                    deriving (Show, Generic, NFData)
+
+l2NormalizeWeightVec :: WeightVec f -> WeightVec f
+l2NormalizeWeightVec = WeightVec . FS.l2Normalize . getWeightVec
 
 -- | Binary relevance judgement
 data IsRelevant = NotRelevant | Relevant
@@ -47,82 +54,70 @@ data IsRelevant = NotRelevant | Relevant
 instance Hashable IsRelevant
 instance NFData IsRelevant
 
-newtype Features = Features { getFeatures :: VU.Vector Double }
-                 deriving (Show, Eq)
-                 deriving newtype NFData
-type Weight = Features
-
-featureDim :: Features -> Int
-featureDim (Features v) = VU.length v
-
-stepFeature :: Step -> Features -> Features
-stepFeature (Step dim delta) (Features v) =
-    Features $ VU.update v (VU.fromList [(dim, v VU.! dim + delta)])
+stepFeature :: Step f -> WeightVec f -> WeightVec f
+stepFeature (Step dim delta) (WeightVec v) =
+    WeightVec $ unsafeFeatureVecFromVector
+    $ VU.update (getFeatureVec v) (VU.fromList [(getFeatureIndex dim, v `FS.lookupIndex` dim + delta)])
 
 -- | A ranking of documents along with relevance annotations
-type FRanking relevance a = [(a, Features, relevance)]
+type FRanking f relevance a = [(a, FeatureVec f Double, relevance)]
 
-dot :: Features -> Features -> Double
-dot (Features v) (Features u) = VU.sum $ VU.zipWith (*) v u
+score :: WeightVec f -> FeatureVec f Double -> Score
+score (WeightVec w) f = w `FS.dotFeatureVecs` f
 
 -- | Re-rank a set of documents given a weight vector.
-rerank :: Features -> [(a, Features)] -> Ranking Score a
+rerank :: WeightVec f -> [(a, FeatureVec f Double)] -> Ranking Score a
 rerank weight fRanking =
     Ranking.fromList
-    [ (weight `dot` feats, doc)
+    [ (weight `score` feats, doc)
     | (doc, feats) <- fRanking
     ]
 
-data Step = Step Int Double
+data Step f = Step !(FeatureIndex f) Double
 
-zeroStep :: Step
-zeroStep = Step 0 0
-
-isZeroStep :: Step -> Bool
+isZeroStep :: Step f -> Bool
 isZeroStep (Step _ d) = d == 0
-
-l2Normalize :: Features -> Features
-l2Normalize (Features xs) = Features $ VU.map (/ norm) xs
-  where norm = sqrt $ VU.sum $ VU.map squared xs
-
--- a few helpful utilities
-squared :: Num a => a -> a
-squared x = x*x
 
 -- | @dotStepOracle w f step == (w + step) `dot` f@.
 -- produces scorers that make use of the original dot product - only applying local modifications induced by the step
-scoreStepOracle :: Weight -> Features -> (Step -> Score)
-scoreStepOracle w@(Features w') f@(Features f') = scoreFun
+scoreStepOracle :: forall f. WeightVec f -> FeatureVec f Double -> (Step f -> Score)
+scoreStepOracle w f = scoreFun
   where
-    scoreFun :: Step -> Score
+    scoreFun :: Step f -> Score
     scoreFun s | isZeroStep s = score0
     scoreFun (Step dim delta) = score0 - scoreTerm dim 0 + scoreTerm dim delta
 
     -- scoreDeltaTerm: computes term contribution to dot product of w' + step
-    scoreTerm dim off = (off + w' VU.! dim) * (f' VU.! dim)
-    !score0 = w `dot` f
+    scoreTerm dim off = (off + getWeightVec w `FS.lookupIndex` dim) * (f `FS.lookupIndex` dim)
+    !score0 = w `score` f
 
-coordAscent :: forall a qid relevance gen. (Random.RandomGen gen, Show qid, Show a)
+coordAscent :: forall a f qid relevance gen.
+               (Random.RandomGen gen, Show qid, Show a)
             => gen
             -> ScoringMetric relevance qid a
-            -> Features -- ^ initial weights
-            -> M.Map qid (FRanking relevance a)
-            -> [(Score, Weight)]
-coordAscent gen0 scoreRanking w0 fRankings
+            -> FeatureSpace f
+            -> WeightVec f   -- ^ initial weights
+            -> M.Map qid (FRanking f relevance a)
+            -> [(Score, WeightVec f)]
+coordAscent gen0 scoreRanking fspace w0 fRankings
   | Just msg <- badMsg       = error msg
   | otherwise = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
-    dim = featureDim w0
+
+    dim = FS.featureDimension fspace
+
+    zeroStep :: Step f
+    zeroStep = Step (head $ featureIndexes fspace) 0
 
     -- lightweight checking of inputs
-    badMsg | any (any $ \(_, fv, _) -> featureDim fv /= dim) fRankings -- check that features have same dimension as dim
+    badMsg | any (any $ \(_, fv, _) -> featureVecDimension fv /= dim) fRankings -- check that features have same dimension as dim
              =  Just $ "Based on initial weights, Feature dimension expected to be "++show dim++ ", but feature vectors contain other dimensions. Examples "++
                          (intercalate "\n" $ take 10
-                                           $ [ "("++show key ++", "++ show doc ++ ", featureDim = " ++ show (featureDim fv) ++ ") :" ++  show fv
+                                           $ [ "("++show key ++", "++ show doc ++ ", featureDim = " ++ show (featureVecDimension fv) ++ ") :" ++  show fv
                                              | (key, list) <-  M.toList fRankings
                                              , (doc, fv, _) <- list
-                                             , featureDim fv /= dim
+                                             , featureVecDimension fv /= dim
                                              ])
            | otherwise = Nothing
 
@@ -131,33 +126,33 @@ coordAscent gen0 scoreRanking w0 fRankings
              , f <- [id, negate]
              ] ++ [0]
 
-    go :: gen -> (Score, Weight) -> [(Score, Weight)]
+    go :: gen -> (Score, WeightVec f) -> [(Score, WeightVec f)]
     go gen w = w' : go gen' w'
       where
         w' = foldl' updateDim w dims
-        dims = shuffle' [0..dim-1] dim g
+        dims = shuffle' (featureIndexes fspace) dim g
         (g, gen') = Random.split gen
 
-    updateDim :: (Score, Weight) -> Int -> (Score, Weight)
+    updateDim :: (Score, WeightVec f) -> FeatureIndex f -> (Score, WeightVec f)
     updateDim (_, w) dim =
         maximumBy (comparing fst)
-        [ (scoreStep step, l2Normalize $ stepFeature step w)  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
+        [ (scoreStep step, l2NormalizeWeightVec $ stepFeature step w)  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
         | delta <- deltas
         , let step = Step dim delta
         ]
       where
-        scoreStep :: Step -> Score
+        scoreStep :: Step f -> Score
         scoreStep step =
             scoreRanking $ fmap (Ranking.fromList . map newScorer') cachedScoredRankings
           where
-            newScorer' ::  (a, Step -> Score, relevance) -> (Score, (a, relevance))
+            newScorer' ::  (a, Step f -> Score, relevance) -> (Score, (a, relevance))
             newScorer' (doc,scorer,rel) = (scorer step, (doc, rel))
 
-        cachedScoredRankings :: M.Map qid [(a, Step -> Score, relevance)]
+        cachedScoredRankings :: M.Map qid [(a, Step f -> Score, relevance)]
         cachedScoredRankings =
             fmap newScorer fRankings
           where
-            newScorer :: FRanking relevance a -> [(a, Step -> Score, relevance)]
+            newScorer :: FRanking f relevance a -> [(a, Step f -> Score, relevance)]
             newScorer = docSorted . map (middle (\f -> scoreStepOracle w f))
 
             docSorted = sortBy (flip $ comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)

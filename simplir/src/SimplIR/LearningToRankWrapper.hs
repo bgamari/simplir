@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -7,7 +6,6 @@
 module SimplIR.LearningToRankWrapper
     ( Model(..)
     , WeightVec(..)
-    , score
     , modelWeights
     , toFeatures'
     , toDocFeatures'
@@ -25,23 +23,20 @@ module SimplIR.LearningToRankWrapper
 
 import GHC.Generics
 
-import Control.DeepSeq
 import Data.Bifunctor
-import Data.Aeson as Aeson
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Text as T
 import qualified Data.Map as M
+import qualified Data.HashMap.Strict as HM
 import Data.Maybe
 import System.Random
 
-import SimplIR.LearningToRank hiding (Weight)
-import qualified SimplIR.LearningToRank as L2R
+import SimplIR.LearningToRank
 import SimplIR.FeatureSpace
 import qualified SimplIR.FeatureSpace as FS
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
-
-newtype WeightVec f = WeightVec { getWeightVec :: FeatureVec f Double }
-                    deriving (Show, Generic, NFData)
 
 data Model f = Model { modelWeights' :: !(WeightVec f)
                      , modelFeatures :: !(FeatureSpace f)
@@ -52,20 +47,26 @@ modelWeights :: Model f -> [(f, Double)]
 modelWeights (Model weights feats) = FS.toList feats (getWeightVec weights)
 
 -- TODO also save feature space to ensure features idx don't change semantics
-instance (Ord f, Show f) => ToJSON (Model f) where
+instance (Ord f, Show f) => Aeson.ToJSON (Model f) where
     toJSON (Model weights feats) =
         Aeson.toJSON $ M.fromList $ map (first show) $ FS.toList feats (getWeightVec weights)
     toEncoding (Model weights feats) =
-        Aeson.pairs $ foldMap (\(f,x) -> T.pack (show f) .= x) (FS.toList feats (getWeightVec weights))
-instance FromJSONKey f => FromJSON (Model f) where
-    parseJSON = withObject "feature vector" $ \o -> undefined
+        Aeson.pairs $ foldMap (\(f,x) -> T.pack (show f) Aeson..= x) (FS.toList feats (getWeightVec weights))
+instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
+    parseJSON = Aeson.withObject "feature vector" $ \o -> do
+      let parsePair :: (T.Text, Aeson.Value) -> Aeson.Parser (f, Double)
+          parsePair (k,v)
+            | (k', "") : _ <- reads (T.unpack k) =
+                  (,) <$> pure k' <*> Aeson.parseJSON v
+            | otherwise = fail $ "Failed to parse feature name: "++show k
+      pairs <- mapM parsePair (HM.toList o)
+      let fspace = FS.mkFeatureSpace $ map fst pairs
+          weights = WeightVec $ FS.fromList fspace pairs
+      return $ Model weights fspace
 
 
 newtype FeatureName = FeatureName { getFeatureName :: T.Text }
-                    deriving (Ord, Eq, Show, ToJSON, FromJSON, ToJSONKey, FromJSONKey)
-
-score :: WeightVec f -> FeatureVec f Double -> Double
-score (WeightVec w) f = w `FS.dotFeatureVecs` f
+                    deriving (Ord, Eq, Show, Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey)
 
 runToDocFeatures :: Ord f
                  => M.Map f [Run.RankingEntry]
@@ -112,8 +113,8 @@ avgMetricQrel qrel =
     in metric
 
 
-avgMetricData :: forall query doc. (Ord query)
-              => M.Map query [(doc, Features, IsRelevant)]
+avgMetricData :: forall query doc f. (Ord query)
+              => M.Map query [(doc, FeatureVec f Double, IsRelevant)]
               -> ScoringMetric IsRelevant query doc
 avgMetricData traindata =
     let totalRel = fmap (length . filter (\(_,_, rel)-> (rel == Relevant)) )  traindata
@@ -148,35 +149,31 @@ learnToRank :: forall f query docId. (Ord query, Show query, Show docId)
 learnToRank franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = coordAscent gen0 metric
-            (featureVecToFeatures $ getWeightVec weights0)
-            (fmap (\xs -> [(a, featureVecToFeatures b, c) | (a, b, c) <- xs]) franking)
+        iters = coordAscent gen0 metric fspace weights0
+            (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
         errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
         hasConverged (a,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
            | otherwise = (abs (a-b))/(abs b) < 1e-3
         convergence = untilConverged hasConverged
-        (evalScore, Features weights) = case convergence iters of
+        (evalScore, weights) = case convergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
            itersResult -> last itersResult
-    in (Model (WeightVec $ FS.unsafeFeatureVecFromVector weights) fspace, evalScore)
+    in (Model weights fspace, evalScore)
 
 rerankRankings :: Model f
                -> M.Map Run.QueryId [(QRel.DocumentName, FeatureVec f Double)]
                -> M.Map Run.QueryId (Ranking Score QRel.DocumentName)
 rerankRankings model featureData  =
-    fmap (rerank (toWeights $ modelWeights' model) . map (second featureVecToFeatures)) featureData
+    fmap (rerank (modelWeights' model)) featureData
 
 rerankRankings' :: Model f
          -> M.Map q [(docId, FeatureVec f Double, rel)]
          -> M.Map q (Ranking Score (docId, rel))
 rerankRankings' model featureData  =
-    fmap (rerank (toWeights $ modelWeights' model))
+    fmap (rerank (modelWeights' model))
     $ fmap rearrangeTuples featureData
-  where rearrangeTuples = (fmap (\(d,f,r)-> ((d,r), featureVecToFeatures f)))
-
-toWeights :: WeightVec f -> L2R.Weight
-toWeights = featureVecToFeatures . getWeightVec
+  where rearrangeTuples = (fmap (\(d,f,r)-> ((d,r), f)))
 
 untilConverged :: (a -> a -> Bool) -> [a] -> [a]
 untilConverged eq xs0 = go xs0
@@ -185,11 +182,3 @@ untilConverged eq xs0 = go xs0
       | x `eq` y  = x : y : []
     go (x:rest)   = x : go rest
     go []         = []
-
--- | Quite unsafe
-featureVecToFeatures :: FeatureVec a Double -> Features
-featureVecToFeatures = Features . FS.getFeatureVec
-
--- | Quite unsafe
-featuresToFeatureVec :: Features -> FeatureVec a Double
-featuresToFeatureVec = FS.unsafeFeatureVecFromVector . getFeatures
