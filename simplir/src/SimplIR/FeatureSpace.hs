@@ -1,4 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 
 module SimplIR.FeatureSpace
@@ -6,14 +8,19 @@ module SimplIR.FeatureSpace
     -- * Feature Spaces
       FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
     -- * Feature Vectors
-    , FeatureVec, getFeatureVec, concatFeatureVec, repeat, fromList, modify, toList
+    , FeatureVec, getFeatureVec, concatFeatureVec, projectFeatureVec
+    , repeat, fromList, generate
+    , modify, toList, mapFeatureVec
+    -- ** Algebraic operations
     , aggregateWith, scaleFeatureVec, dotFeatureVecs
+    , sumFeatureVecs, (^-^), (^+^), (^*^), (^/^)
     -- * Unpacking to plain vector
     , toVector
     -- * Unsafe construction
     , unsafeFeatureVecFromVector
     ) where
 
+import Control.DeepSeq
 import Control.Monad
 import Data.List hiding (repeat)
 import Data.Maybe
@@ -27,7 +34,7 @@ import Prelude hiding (repeat)
 
 -- Should be opaque
 newtype FeatureVec f a = FeatureVec { getFeatureVec :: VU.Vector a }
-  deriving (Show)
+  deriving (Show, NFData)
 
 -- | It is the responsibility of the caller to guarantee that the indices
 -- correspond to the feature space.
@@ -39,9 +46,10 @@ newtype FeatureIndex f = FeatureIndex Int
 
 data FeatureSpace f where
     -- | Space to create low level feature vectors
-    Space :: CallStack
-          -> V.Vector f
-          -> M.Map f (FeatureIndex f)
+    Space :: { fsOrigin :: CallStack
+             , fsIndexToFeature :: V.Vector f
+             , fsFeatureToIndex :: M.Map f (FeatureIndex f)
+             }
           -> FeatureSpace f
     deriving (Show)
 
@@ -79,6 +87,23 @@ concatSpace fs1 fs2 =
     unsafeFeatureSpaceFromSorted
     $ map Left (featureNames fs1) ++ map Right (featureNames fs2)
 
+projectFeatureVec :: forall f g a. (VU.Unbox a, Ord g)
+                  => FeatureSpace f -> FeatureSpace g
+                  -> (f -> Maybe g)
+                  -> FeatureVec f a -> FeatureVec g a
+projectFeatureVec fa fb convert va
+  | otherwise
+  = let lookup :: g -> a
+        lookup g
+            | Just idx <- g `M.lookup` src_map
+            = lookupIndex va idx
+    in FeatureVec $ V.convert $ V.map lookup (fsIndexToFeature fb)
+  where
+    src_map :: M.Map g (FeatureIndex f)
+    src_map = M.fromList $ mapMaybe convert' $ M.toList (fsFeatureToIndex fa)
+      where convert' (f,i) | Just g <- convert f = Just (g, i)
+            convert' _ = Nothing
+
 lookupName2Index :: (Ord f, Show f, HasCallStack) => FeatureSpace f -> f -> FeatureIndex f
 lookupName2Index (Space stack _ m) x =
     fromMaybe (error err) $ M.lookup x m
@@ -91,6 +116,13 @@ lookupName2Index (Space stack _ m) x =
 lookupIndex2Name :: FeatureSpace f -> FeatureIndex f -> f
 lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
 
+lookupIndex :: VU.Unbox a => FeatureVec f a -> FeatureIndex f -> a
+lookupIndex (FeatureVec v) (FeatureIndex i) = v VU.! i
+
+mapFeatureVec :: (VU.Unbox a, VU.Unbox b)
+              => (a -> b) -> FeatureVec f a -> FeatureVec f b
+mapFeatureVec f (FeatureVec v) = FeatureVec $ VU.map f v
+
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
 
@@ -99,6 +131,38 @@ scaleFeatureVec s (FeatureVec v) = FeatureVec (VU.map (s*) v)
 
 dotFeatureVecs :: (Num a, VU.Unbox a) => FeatureVec f a -> FeatureVec f a -> a
 dotFeatureVecs (FeatureVec u) (FeatureVec v) = VU.sum (VU.zipWith (*) u v)
+
+
+(^+^), (^-^), (^*^)
+    :: (VU.Unbox a, Num a)
+    => FeatureVec f a
+    -> FeatureVec f a
+    -> FeatureVec f a
+(^/^) :: (VU.Unbox a, Fractional a)
+      => FeatureVec f a
+      -> FeatureVec f a
+      -> FeatureVec f a
+FeatureVec xs ^/^ FeatureVec ys = FeatureVec $ VU.zipWith (/) xs ys
+FeatureVec xs ^*^ FeatureVec ys = FeatureVec $ VU.zipWith (*) xs ys
+FeatureVec xs ^+^ FeatureVec ys = FeatureVec $ VU.zipWith (+) xs ys
+FeatureVec xs ^-^ FeatureVec ys = FeatureVec $ VU.zipWith (-) xs ys
+
+sumFeatureVecs :: (Num a, VU.Unbox a)
+               => [FeatureVec f a] -> FeatureVec f a
+sumFeatureVecs [] = error "sumFeatureVecs: empty list"
+sumFeatureVecs fs = FeatureVec $ VU.create $ do
+    accum <- VUM.replicate dim 0
+    forM_ fs $ \(FeatureVec f) -> do
+        forM_ [0..dim] $ \i -> do
+            let v = f VU.! i
+            VUM.modify accum (+ v) i
+    return accum
+  where dim = VU.length $ getFeatureVec $ head fs
+
+generate :: (Ord f, Show f, VU.Unbox a, VU.Unbox a)
+         => (f -> a) -> FeatureSpace f -> FeatureVec f a
+generate f fspace =
+    fromList fspace [ (feat, f feat) | feat <- featureNames fspace ]
 
 repeat :: VU.Unbox a => FeatureSpace f -> a -> FeatureVec f a
 repeat space value =
@@ -142,7 +206,7 @@ modify space (FeatureVec def) xs =
     ]
 
 aggregateWith :: (VU.Unbox a)
-              =>  (a -> a -> a)
+              => (a -> a -> a)
               -> [FeatureVec f a]
               -> FeatureVec f a
 aggregateWith aggregator vecs =

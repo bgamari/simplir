@@ -6,7 +6,6 @@
 module Main where
 
 import Control.Monad (when)
-import GHC.Generics
 import Data.Semigroup hiding (option)
 
 import Data.Aeson as Aeson
@@ -14,10 +13,10 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Data.Vector.Unboxed as VU
 import Options.Applicative
 import System.Random
 
+import SimplIR.FeatureSpace as FS
 import SimplIR.LearningToRank
 import SimplIR.LearningToRankWrapper
 import qualified SimplIR.Format.TrecRunFile as Run
@@ -62,12 +61,12 @@ learnMode =
         runFiles <- traverse Run.readRunFile $ M.fromListWith (error "Duplicate feature") featureFiles
         qrel <- QRel.readQRel qrelFile
         gen0 <- newStdGen
-        let featureNames = M.keys runFiles
-            docFeatures = toDocFeatures' featureNames runFiles
+        let fspace = FS.mkFeatureSpace $ M.keys runFiles
+            docFeatures = toDocFeatures' fspace runFiles
             franking =  augmentWithQrels qrel docFeatures Relevant
 
             metric = avgMetricQrel qrel
-            (model, evalScore) = learnToRank franking featureNames metric gen0
+            (model, evalScore) = learnToRank franking fspace metric gen0
         print evalScore
         BSL.writeFile modelFile $ Aeson.encode $ model
 
@@ -83,10 +82,10 @@ predictMode =
     run modelFile featureFiles = do
         runFiles <- traverse Run.readRunFile $ M.fromList featureFiles
         Just model <- Aeson.decode <$> BSL.readFile modelFile
-        when (not $ S.null $ M.keysSet (modelWeights model) `S.difference` M.keysSet runFiles) $
+        when (not $ S.null $ S.fromList (featureNames $ modelFeatures model) `S.difference` M.keysSet runFiles) $
             fail "bad features"
-        let features = toDocFeatures' (M.keys $ modelWeights model) runFiles
-            featureData :: M.Map Run.QueryId [(QRel.DocumentName, Features)]
+        let features = toDocFeatures' (modelFeatures model) runFiles
+            featureData :: M.Map Run.QueryId [(QRel.DocumentName, FeatureVec FeatureName Double)]
             featureData = M.fromListWith (<>)
                       [ (queryId, [(doc, fs)])
                       | ((queryId, doc), fs) <- M.assocs features

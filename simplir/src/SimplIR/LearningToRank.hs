@@ -14,9 +14,6 @@ module SimplIR.LearningToRank
     , Weight
       -- * Features
     , Features(..)
-    , NormFeatures
-    , zNormalizer
-    , Normalization(..)
       -- * Computing rankings
     , rerank
       -- * Scoring metrics
@@ -38,7 +35,6 @@ import System.Random.Shuffle
 import Data.Hashable
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
-import qualified Data.Vector as V
 
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
@@ -89,52 +85,9 @@ l2Normalize :: Features -> Features
 l2Normalize (Features xs) = Features $ VU.map (/ norm) xs
   where norm = sqrt $ VU.sum $ VU.map squared xs
 
-type NormFeatures = Features
-
-data Normalization = Normalization { normFeatures   :: Features -> NormFeatures
-                                   , denormFeatures :: NormFeatures -> Features
-                                     -- | un-normalize feature weights (up to sort order)
-                                   , denormWeights  :: Weight -> Weight
-                                   }
-
-zNormalizer :: [Features] -> Normalization
-zNormalizer feats =
-    Normalization
-      { normFeatures   = \(Features xs) -> Features $ (xs ^-^ mean) ^/^ std'
-      , denormFeatures = \(Features xs) -> Features $ (xs ^*^ std')  ^+^ mean
-      , denormWeights  = \(Features xs) -> Features $ (xs ^/^ std')
-      }
-  where
-    (mean, std) = featureMeanDev feats
-    -- Ignore uniform features
-    std' = VU.map f std
-      where f 0 = 1
-            f x = x
-
-featureMeanDev :: [Features] -> (VU.Vector Double, VU.Vector Double)
-featureMeanDev []    = error "featureMeanDev: no features"
-featureMeanDev feats = (mean, std)
-  where
-    feats' = V.fromList $ map (\(Features xs) -> xs) feats
-    mean = meanV feats'
-    std  = VU.map sqrt $ meanV $ fmap (\xs -> VU.map squared $ xs ^-^ mean) feats'
-
-    meanV :: V.Vector (VU.Vector Double) -> VU.Vector Double
-    meanV xss = recip n *^ V.foldl1' (^+^) xss
-      where n = realToFrac $ V.length xss
-
 -- a few helpful utilities
 squared :: Num a => a -> a
 squared x = x*x
-
-(*^) :: Double -> VU.Vector Double -> VU.Vector Double
-s   *^ xs = VU.map (*s) xs
-
-(^/^), (^*^), (^+^), (^-^) :: VU.Vector Double -> VU.Vector Double -> VU.Vector Double
-xs ^/^ ys = VU.zipWith (/) xs ys
-xs ^*^ ys = VU.zipWith (*) xs ys
-xs ^+^ ys = VU.zipWith (+) xs ys
-xs ^-^ ys = VU.zipWith (-) xs ys
 
 -- | @dotStepOracle w f step == (w + step) `dot` f@.
 -- produces scorers that make use of the original dot product - only applying local modifications induced by the step
