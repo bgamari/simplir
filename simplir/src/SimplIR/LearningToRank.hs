@@ -35,6 +35,7 @@ import System.Random.Shuffle
 import Data.Hashable
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
+import Linear.Epsilon
 
 import SimplIR.FeatureSpace as FS
 import SimplIR.Ranking as Ranking
@@ -45,8 +46,12 @@ type Score = Double
 newtype WeightVec f = WeightVec { getWeightVec :: FeatureVec f Double }
                     deriving (Show, Generic, NFData)
 
-l2NormalizeWeightVec :: WeightVec f -> WeightVec f
-l2NormalizeWeightVec = WeightVec . FS.l2Normalize . getWeightVec
+-- | Returns 'Nothing' if vector is near zero magnitude.
+l2NormalizeWeightVec :: WeightVec f -> Maybe (WeightVec f)
+l2NormalizeWeightVec (WeightVec w)
+  | nearZero norm = Nothing
+  | otherwise     = Just $ WeightVec $ recip norm `FS.scaleFeatureVec` w
+  where norm = FS.l2Norm w
 
 -- | Binary relevance judgement
 data IsRelevant = NotRelevant | Relevant
@@ -100,6 +105,7 @@ coordAscent :: forall a f qid relevance gen.
             -> M.Map qid (FRanking f relevance a)
             -> [(Score, WeightVec f)]
 coordAscent gen0 scoreRanking fspace w0 fRankings
+  | isNaN score0  = error "coordAscent: Initial score is not a number"
   | Just msg <- badMsg       = error msg
   | otherwise = go gen0 (score0, w0)
   where
@@ -134,17 +140,23 @@ coordAscent gen0 scoreRanking fspace w0 fRankings
         (g, gen') = Random.split gen
 
     updateDim :: (Score, WeightVec f) -> FeatureIndex f -> (Score, WeightVec f)
-    updateDim (_, w) dim =
-        maximumBy (comparing fst)
-        [ (scoreStep step, l2NormalizeWeightVec $ stepFeature step w)  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
-        | delta <- deltas
-        , let step = Step dim delta
-        ]
+    updateDim (score0, w0) dim
+      | null steps = (score0, w0)
+      | otherwise  = maximumBy (comparing fst) steps
       where
+        steps :: [(Score, WeightVec f)]
+        steps =
+            [ (scoreStep step, w')  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
+            | delta <- deltas
+            , let step = Step dim delta
+            , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
+            ]
         scoreStep :: Step f -> Score
-        scoreStep step =
-            scoreRanking $ fmap (Ranking.fromList . map newScorer') cachedScoredRankings
+        scoreStep step
+          | isNaN s   = error "coordAscent: Score is NaN"
+          | otherwise = s
           where
+            s = scoreRanking $ fmap (Ranking.fromList . map newScorer') cachedScoredRankings
             newScorer' ::  (a, Step f -> Score, relevance) -> (Score, (a, relevance))
             newScorer' (doc,scorer,rel) = (scorer step, (doc, rel))
 
@@ -153,7 +165,7 @@ coordAscent gen0 scoreRanking fspace w0 fRankings
             fmap newScorer fRankings
           where
             newScorer :: FRanking f relevance a -> [(a, Step f -> Score, relevance)]
-            newScorer = docSorted . map (middle (\f -> scoreStepOracle w f))
+            newScorer = docSorted . map (middle (\f -> scoreStepOracle w0 f))
 
             docSorted = sortBy (flip $ comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)
 

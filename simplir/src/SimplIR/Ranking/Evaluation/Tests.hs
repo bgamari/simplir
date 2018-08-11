@@ -69,7 +69,11 @@ mapMatchesTrecEval assessed = monadicIO $ do
     score <- runTrecEval TrecEval.meanAvgPrec assessed
     monitor $ counterexample ("trec_eval="++show score++", us="++show score'')
     let relDiff = abs ((score'' - score) / score)
-    return $ (score'' < 1e-5 && score == 0) || (relDiff < 1e-2)
+        noRel = S.null $ relevant assessed
+    return $ or [ noRel && score == 0
+                , score'' < 1e-5 && score == 0
+                , relDiff < 1e-2
+                ]
   where
     getRelevance docName
       | docName `S.member` relevant assessed = Relevant

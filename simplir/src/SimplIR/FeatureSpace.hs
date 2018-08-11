@@ -13,7 +13,7 @@ module SimplIR.FeatureSpace
     , repeat, fromList, generate
     , modify, toList, mapFeatureVec
     -- ** Algebraic operations
-    , l2Normalize
+    , l2Normalize, l2Norm
     , aggregateWith, scaleFeatureVec, dotFeatureVecs
     , sumFeatureVecs, (^-^), (^+^), (^*^), (^/^)
     -- * Unpacking to plain vector
@@ -142,15 +142,15 @@ mapFeatureVec f (FeatureVec v) = FeatureVec $ VU.map f v
 l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> a
 l2Norm (FeatureVec xs) = sqrt $ VU.sum $ VU.map squared xs
   where squared x = x*x
+{-# INLINABLE l2Norm #-}
 
 l2Normalize :: (VU.Unbox a, RealFloat a, Epsilon a, HasCallStack)
             => FeatureVec f a -> FeatureVec f a
 l2Normalize f
   | nearZero norm = error "Preventing underflow in Model: L2 norm of near-null vector."
-  | otherwise = norm `scaleFeatureVec` f
+  | otherwise     = norm `scaleFeatureVec` f
   where norm = l2Norm f
 {-# INLINABLE l2Normalize #-}
-
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
