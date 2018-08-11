@@ -7,6 +7,7 @@ module SimplIR.LearningToRankWrapper
     ( Model(..)
     , WeightVec(..)
     , modelWeights
+    , modelFeatures
     , toFeatures'
     , toDocFeatures'
     , avgMetricQrel
@@ -39,13 +40,15 @@ import qualified SimplIR.FeatureSpace as FS
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
 
-data Model f = Model { modelWeights' :: !(WeightVec f)
-                     }
-           deriving (Show, Generic)
+newtype Model f = Model { modelWeights' :: WeightVec f }
+                deriving (Show, Generic)
 instance NFData (Model f) where rnf = (`seq` ())
 
 modelWeights :: Model f -> [(f, Double)]
 modelWeights (Model weights) = FS.toList (getWeightVec weights)
+
+modelFeatures :: Model f -> FeatureSpace f
+modelFeatures = featureSpace . getWeightVec . modelWeights'
 
 -- TODO also save feature space to ensure features idx don't change semantics
 instance (Ord f, Show f) => Aeson.ToJSON (Model f) where
