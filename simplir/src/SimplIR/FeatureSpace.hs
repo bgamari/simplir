@@ -124,12 +124,16 @@ lookupName2Index (Space stack _ m) x =
                      ++ [show (M.lookup x m)]
                      ++ ["CallStack: "++show stack ]
 
-lookupIndex2Name :: FeatureSpace f -> FeatureIndex f -> f
-lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
+lookupIndex2Name :: HasCallStack => FeatureSpace f -> FeatureIndex f -> f
+lookupIndex2Name (Space _ v _) (FeatureIndex i)
+  | i >= V.length v = error "lookupIndex2Name"
+  | otherwise= v V.! i
 {-# INLINEABLE lookupIndex2Name #-}
 
-lookupIndex :: VU.Unbox a => FeatureVec f a -> FeatureIndex f -> a
-lookupIndex (FeatureVec v) (FeatureIndex i) = v VU.! i
+lookupIndex :: (HasCallStack, VU.Unbox a) => FeatureVec f a -> FeatureIndex f -> a
+lookupIndex (FeatureVec v) (FeatureIndex i)
+  | i >= VU.length v = error "lookupIndex: ugh!"
+  | otherwise = v VU.! i
 {-# INLINEABLE lookupIndex #-}
 
 featureVecDimension :: VU.Unbox a => FeatureVec f a -> Int
