@@ -125,9 +125,11 @@ lookupName2Index (Space stack _ m) x =
 
 lookupIndex2Name :: FeatureSpace f -> FeatureIndex f -> f
 lookupIndex2Name (Space _ v _) (FeatureIndex i) = v V.! i
+{-# INLINEABLE lookupIndex2Name #-}
 
 lookupIndex :: VU.Unbox a => FeatureVec f a -> FeatureIndex f -> a
 lookupIndex (FeatureVec v) (FeatureIndex i) = v VU.! i
+{-# INLINEABLE lookupIndex #-}
 
 featureVecDimension :: VU.Unbox a => FeatureVec f a -> Int
 featureVecDimension (FeatureVec v) = VU.length v
@@ -151,7 +153,8 @@ scaleFeatureVec s (FeatureVec v) = FeatureVec (VU.map (s*) v)
 
 dotFeatureVecs :: (Num a, VU.Unbox a) => FeatureVec f a -> FeatureVec f a -> a
 dotFeatureVecs (FeatureVec u) (FeatureVec v) = VU.sum (VU.zipWith (*) u v)
-
+{-# SPECIALISE dotFeatureVecs :: FeatureVec f Double -> FeatureVec f Double -> Double #-}
+{-# SPECIALISE dotFeatureVecs :: FeatureVec f Float -> FeatureVec f Float -> Float #-}
 
 (^+^), (^-^), (^*^)
     :: (VU.Unbox a, Num a)
@@ -166,13 +169,17 @@ FeatureVec xs ^/^ FeatureVec ys = FeatureVec $ VU.zipWith (/) xs ys
 FeatureVec xs ^*^ FeatureVec ys = FeatureVec $ VU.zipWith (*) xs ys
 FeatureVec xs ^+^ FeatureVec ys = FeatureVec $ VU.zipWith (+) xs ys
 FeatureVec xs ^-^ FeatureVec ys = FeatureVec $ VU.zipWith (-) xs ys
+{-# INLINEABLE (^/^) #-}
+{-# INLINEABLE (^*^) #-}
+{-# INLINEABLE (^+^) #-}
+{-# INLINEABLE (^-^) #-}
 
 sumFeatureVecs :: (Num a, VU.Unbox a)
                => [FeatureVec f a] -> FeatureVec f a
 sumFeatureVecs [] = error "sumFeatureVecs: empty list"
 sumFeatureVecs fs = FeatureVec $ VU.create $ do
     accum <- VUM.replicate dim 0
-    forM_ fs $ \(FeatureVec f) -> do
+    forM_ fs $ \(FeatureVec f) ->
         forM_ [0..dim] $ \i -> do
             let v = f VU.! i
             VUM.modify accum (+ v) i
