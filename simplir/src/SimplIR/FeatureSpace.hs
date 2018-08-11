@@ -37,6 +37,7 @@ import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
 import GHC.Stack
 import Prelude hiding (repeat)
+import Linear.Epsilon
 
 
 -- Should be opaque
@@ -142,14 +143,22 @@ l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> a
 l2Norm (FeatureVec xs) = sqrt $ VU.sum $ VU.map squared xs
   where squared x = x*x
 
-l2Normalize :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> FeatureVec f a
-l2Normalize f = l2Norm f `scaleFeatureVec` f
+l2Normalize :: (VU.Unbox a, RealFloat a, Epsilon a, HasCallStack)
+            => FeatureVec f a -> FeatureVec f a
+l2Normalize f
+  | nearZero norm = error "Preventing underflow in Model: L2 norm of near-null vector."
+  | otherwise = norm `scaleFeatureVec` f
+  where norm = l2Norm f
+{-# INLINABLE l2Normalize #-}
+
 
 concatFeatureVec :: VU.Unbox a => FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec (FeatureVec v) (FeatureVec v') = FeatureVec (v VU.++ v')
 
 scaleFeatureVec :: (Num a, VU.Unbox a) => a -> FeatureVec f a -> FeatureVec f a
 scaleFeatureVec s (FeatureVec v) = FeatureVec (VU.map (s*) v)
+{-# SPECIALISE scaleFeatureVec :: Double -> FeatureVec f Double -> FeatureVec f Double #-}
+{-# SPECIALISE scaleFeatureVec :: Float -> FeatureVec f Float -> FeatureVec f Float #-}
 
 dotFeatureVecs :: (Num a, VU.Unbox a) => FeatureVec f a -> FeatureVec f a -> a
 dotFeatureVecs (FeatureVec u) (FeatureVec v) = VU.sum (VU.zipWith (*) u v)
