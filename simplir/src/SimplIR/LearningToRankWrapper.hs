@@ -40,20 +40,19 @@ import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
 
 data Model f = Model { modelWeights' :: !(WeightVec f)
-                     , modelFeatures :: !(FeatureSpace f)
                      }
            deriving (Show, Generic)
 instance NFData (Model f) where rnf = (`seq` ())
 
 modelWeights :: Model f -> [(f, Double)]
-modelWeights (Model weights feats) = FS.toList feats (getWeightVec weights)
+modelWeights (Model weights) = FS.toList (getWeightVec weights)
 
 -- TODO also save feature space to ensure features idx don't change semantics
 instance (Ord f, Show f) => Aeson.ToJSON (Model f) where
-    toJSON (Model weights feats) =
-        Aeson.toJSON $ M.fromList $ map (first show) $ FS.toList feats (getWeightVec weights)
-    toEncoding (Model weights feats) =
-        Aeson.pairs $ foldMap (\(f,x) -> T.pack (show f) Aeson..= x) (FS.toList feats (getWeightVec weights))
+    toJSON (Model weights) =
+        Aeson.toJSON $ M.fromList $ map (first show) $ FS.toList (getWeightVec weights)
+    toEncoding (Model weights) =
+        Aeson.pairs $ foldMap (\(f,x) -> T.pack (show f) Aeson..= x) (FS.toList (getWeightVec weights))
 instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
     parseJSON = Aeson.withObject "feature vector" $ \o -> do
       let parsePair :: (T.Text, Aeson.Value) -> Aeson.Parser (f, Double)
@@ -64,7 +63,7 @@ instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
       pairs <- mapM parsePair (HM.toList o)
       let fspace = FS.mkFeatureSpace $ map fst pairs
           weights = WeightVec $ FS.fromList fspace pairs
-      return $ Model weights fspace
+      return $ Model weights
 
 
 newtype FeatureName = FeatureName { getFeatureName :: T.Text }
@@ -142,7 +141,7 @@ augmentWithQrels qrel docFeatures rel=
                    ]
     in franking
 
-learnToRank :: forall f query docId. (Ord query, Show query, Show docId)
+learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
             => M.Map query [(docId, FeatureVec f Double, IsRelevant)]
             -> FeatureSpace f
             -> ScoringMetric IsRelevant query docId
@@ -161,7 +160,7 @@ learnToRank franking fspace metric gen0 =
         (evalScore, weights) = case convergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
            itersResult -> last itersResult
-    in (Model weights fspace, evalScore)
+    in (Model weights, evalScore)
 
 rerankRankings :: Model f
                -> M.Map Run.QueryId [(QRel.DocumentName, FeatureVec f Double)]

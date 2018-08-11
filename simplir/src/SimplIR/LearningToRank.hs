@@ -61,7 +61,7 @@ instance NFData IsRelevant
 
 stepFeature :: Step f -> WeightVec f -> WeightVec f
 stepFeature (Step dim delta) (WeightVec v) =
-    WeightVec $ unsafeFeatureVecFromVector
+    WeightVec $ unsafeFeatureVecFromVector (featureSpace v)
     $ VU.update (getFeatureVec v) (VU.fromList [(getFeatureIndex dim, v `FS.lookupIndex` dim + delta)])
 
 -- | A ranking of documents along with relevance annotations
@@ -97,7 +97,7 @@ scoreStepOracle w f = scoreFun
     !score0 = w `score` f
 
 coordAscent :: forall a f qid relevance gen.
-               (Random.RandomGen gen, Show qid, Show a)
+               (Random.RandomGen gen, Show qid, Show a, Show f)
             => gen
             -> ScoringMetric relevance qid a
             -> FeatureSpace f
