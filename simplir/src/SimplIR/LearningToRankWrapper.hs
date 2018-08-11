@@ -66,7 +66,7 @@ instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
 
 
 newtype FeatureName = FeatureName { getFeatureName :: T.Text }
-                    deriving (Ord, Eq, Show, Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey)
+                    deriving (Ord, Eq, Show, Read, Aeson.ToJSON, Aeson.FromJSON, Aeson.ToJSONKey, Aeson.FromJSONKey)
 
 runToDocFeatures :: Ord f
                  => M.Map f [Run.RankingEntry]
