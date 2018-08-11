@@ -23,6 +23,7 @@ module SimplIR.LearningToRankWrapper
 
 import GHC.Generics
 
+import Control.DeepSeq
 import Data.Bifunctor
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson (Parser)
@@ -42,6 +43,7 @@ data Model f = Model { modelWeights' :: !(WeightVec f)
                      , modelFeatures :: !(FeatureSpace f)
                      }
            deriving (Show, Generic)
+instance NFData (Model f) where rnf = (`seq` ())
 
 modelWeights :: Model f -> [(f, Double)]
 modelWeights (Model weights feats) = FS.toList feats (getWeightVec weights)
