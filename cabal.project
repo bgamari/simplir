@@ -3,7 +3,7 @@ allow-newer:
             pipes,
             aeson
 packages:
-    ./*.cabal
+    simplir/*.cabal
     simplir-*/*.cabal
     vendor/*/*.cabal
 

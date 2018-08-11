@@ -1,8 +1,9 @@
-{ nixpkgs ? (import <nixpkgs> {}) }:
+{ nixpkgs ? (import ./nixpkgs.nix {}) }:
 
 let
   inherit (nixpkgs.haskell.lib) dontCheck doJailbreak;
   inherit (nixpkgs.stdenv) lib;
+  inherit (nixpkgs) fetchFromGitHub;
 
   cabalFilter = path: type:
     let pathBaseName = baseNameOf path;
@@ -13,14 +14,12 @@ let
 
   localDir = builtins.filterSource cabalFilter;
 
-  cborgSrc = nixpkgs.fetchgit { url = https://github.com/well-typed/cborg.git; rev = "6c05de8e9490d32e80611e5b41773103ebe72ec3"; sha256 = "18cwgvk7gahab742hwj5257x6mpcf4yci076lsbkaf1fb70kwmjp"; };
-
   trec-eval = nixpkgs.enableDebugging (nixpkgs.callPackage ./trec-eval.nix {});
 
   haskellOverrides = self: super:
     let
       simplirPackages = {
-        simplir              = let base = self.callCabal2nix "simplir" (localDir ./.) {};
+        simplir              = let base = self.callCabal2nix "simplir" (localDir ./simplir) {};
                                in nixpkgs.haskell.lib.overrideCabal base (drv: { testDepends = [ trec-eval ]; });
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
@@ -36,17 +35,23 @@ let
         fork-map             = self.callCabal2nix "fork-map" ./vendor/fork-map {};
 
         lzma = dontCheck super.lzma;
+        ListLike = doJailbreak super.ListLike;
         text-icu   = dontCheck super.text-icu;
         pipes-zlib = doJailbreak super.pipes-zlib;
-        optparse-applicative = self.callHackage "optparse-applicative" "0.14.0.0" {};
-        cborg = self.callCabal2nix "cborg" (cborgSrc + /cborg) {};
-        cborg-json = self.callCabal2nix "cborg-json" (cborgSrc + /cborg-json) {};
-        serialise = self.callCabal2nix "serialise" (cborgSrc + /serialise) {};
-        binary-serialise-cbor = self.callCabal2nix "binary-serialise-cbor" (cborgSrc + /binary-serialise-cbor) {};
+        pipes-text = doJailbreak super.pipes-text;
+        pipes-lzma = doJailbreak super.pipes-lzma;
+        pipes-interleave = doJailbreak super.pipes-interleave;
+        b-tree = doJailbreak super.b-tree;
+        warc = self.callCabal2nix "warc" (fetchFromGitHub {
+          owner = "bgamari";
+          repo = "warc";
+          rev = "efee2bc4a71e054b65c20b90448ce05a34df09f4";
+          sha256 = null;
+        }) {};
       };
     in simplirPackages // { simplirPackages = simplirPackages; };
 
-  haskellPackages = nixpkgs.haskell.packages.ghc822.override {overrides = haskellOverrides;};
+  haskellPackages = nixpkgs.haskell.packages.ghc843.override {overrides = haskellOverrides;};
 in {
   inherit haskellPackages haskellOverrides;
   inherit trec-eval;

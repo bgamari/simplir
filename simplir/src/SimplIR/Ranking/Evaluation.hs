@@ -20,8 +20,10 @@ type TotalRel = Int
 
 meanAvgPrec :: (Ord rel)
             => (qid -> TotalRel) -> rel -> ScoringMetric rel qid a
-meanAvgPrec totalRel relThresh rankings =
-    mean (mapMaybe (\(qid, ranking) -> avgPrec relThresh (totalRel qid) ranking) (M.toList rankings))
+meanAvgPrec totalRel relThresh rankings
+  | null xs = error "SimplIR.Ranking.Evaluation.meanAvgPrec: no queries with relevant documents"
+  | otherwise = mean xs
+  where xs = mapMaybe (\(qid, ranking) -> avgPrec relThresh (totalRel qid) ranking) (M.toList rankings)
 
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
