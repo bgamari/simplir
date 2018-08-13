@@ -64,6 +64,7 @@ library
       SimplIR.WarcDocSource
       SimplIR.FeatureSpace
       SimplIR.FeatureSpace.Normalise
+      SimplIR.Intern
 
   if impl(ghc >= 8.2)
       build-depends: ghc-compact
