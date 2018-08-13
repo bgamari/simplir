@@ -22,6 +22,8 @@ module SimplIR.LearningToRank
       -- * Learning
     , FRanking
     , coordAscent
+    , miniBatched
+    , miniBatchedAndEvaluated
       -- * Helpers
     , IsRelevant(..)
     ) where
@@ -96,21 +98,79 @@ scoreStepOracle w f = scoreFun
     scoreTerm dim off = (off + getWeightVec w `FS.lookupIndex` dim) * (f `FS.lookupIndex` dim)
     !score0 = w `score` f
 
+miniBatchedAndEvaluated
+    :: forall a f qid relevance gen.
+       (Random.RandomGen gen, Show qid, Ord qid, Show a, Show f)
+    => Int  -- ^ iterations per mini-batch
+    -> Int  -- ^ mini-batch size
+    -> Int  -- ^ mini-batches per evaluation cycle
+    -> ScoringMetric relevance qid a
+            -- ^ evaluation metric
+    -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [(Score, WeightVec f)])
+       -- ^ optimiser (e.g. 'coordAscent')
+    -> gen
+    -> WeightVec f  -- ^ initial weights
+    -> M.Map qid (FRanking f relevance a)
+    -> [(Score, WeightVec f)]
+       -- ^ list of evaluation iterates with evaluation metric
+miniBatchedAndEvaluated batchSteps batchSize evalSteps evalMetric
+                        optimise gen00 w00 fRankings =
+    go $ miniBatched batchSteps batchSize optimise gen00 w00 fRankings
+  where
+    go :: [WeightVec f] -> [(Score, WeightVec f)]
+    go iters =
+        let w:rest = drop evalSteps iters
+            rankings :: M.Map qid (Ranking Score (a, relevance))
+            rankings = fmap (rerank w . map (\(doc,feats,rel) -> ((doc,rel),feats))) fRankings
+        in (evalMetric rankings, w) : go rest
+
+miniBatched :: forall a f qid relevance gen.
+               (Random.RandomGen gen, Show qid, Ord qid, Show a, Show f)
+            => Int  -- ^ iterations per mini-batch
+            -> Int  -- ^ mini-batch size
+            -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [(Score, WeightVec f)])
+                    -- ^ optimiser (e.g. 'coordAscent')
+            -> gen
+            -> WeightVec f  -- ^ initial weights
+            -> M.Map qid (FRanking f relevance a)
+            -> [WeightVec f]
+               -- ^ list of iterates, including all steps within a mini-batch;
+               -- doesn't expose 'Score' since it won't be comparable across batches
+miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
+  where
+    nQueries = M.size fRankings
+
+    mkBatch :: gen -> M.Map qid (FRanking f relevance a)
+    mkBatch gen =
+        M.fromList [ M.elemAt i fRankings
+                   | i <- indices
+                   ]
+      where
+        indices = map (`mod` nQueries) $ take batchSize $ Random.randoms gen
+
+    go gen0 w0 = steps ++ go gen4 w1
+      where
+        (gen1, gen2) = Random.split gen0
+        (gen3, gen4) = Random.split gen2
+        batch = mkBatch gen1
+        steps = map snd $ take batchSteps $ optimise gen3 w0 batch
+        w1 = last steps
+
 coordAscent :: forall a f qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
-            => gen
-            -> ScoringMetric relevance qid a
-            -> FeatureSpace f
+            => ScoringMetric relevance qid a
+            -> gen
             -> WeightVec f   -- ^ initial weights
             -> M.Map qid (FRanking f relevance a)
-            -> [(Score, WeightVec f)]
-coordAscent gen0 scoreRanking fspace w0 fRankings
+            -> [(Score, WeightVec f)] -- ^ list of iterates
+coordAscent scoreRanking gen0 w0 fRankings
   | isNaN score0  = error "coordAscent: Initial score is not a number"
   | Just msg <- badMsg       = error msg
   | otherwise = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
 
+    fspace = featureSpace $ getWeightVec w0
     dim = FS.featureDimension fspace
 
     zeroStep :: Step f

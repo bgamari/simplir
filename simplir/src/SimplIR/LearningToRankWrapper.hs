@@ -153,7 +153,7 @@ learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
 learnToRank franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = coordAscent gen0 metric fspace weights0
+        iters = coordAscent metric gen0 weights0
             (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
         errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
         hasConverged (a,_) (b,_)
