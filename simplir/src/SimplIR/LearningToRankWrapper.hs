@@ -153,8 +153,10 @@ learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
 learnToRank franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = coordAscent metric gen0 weights0
-            (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
+        iters = miniBatchedAndEvaluated 10 100 10
+            metric (coordAscent metric) gen0 weights0 franking
+        --iters = coordAscent metric gen0 weights0
+        --    (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
         errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
         hasConverged (a,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
