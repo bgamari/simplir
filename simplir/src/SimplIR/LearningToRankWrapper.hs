@@ -109,10 +109,12 @@ avgMetricQrel :: forall query doc. Ord query
               => [QRel.Entry query doc IsRelevant]
               -> ScoringMetric IsRelevant query doc
 avgMetricQrel qrel =
-    let totalRel = M.fromListWith (+) [ (qid, n)
-                                      | QRel.Entry qid _ rel <- qrel
-                                      , let n = case rel of Relevant -> 1
-                                                            NotRelevant -> 0 ]
+    let !totalRel = M.fromListWith (+)
+                      [ (qid, n)
+                      | QRel.Entry qid _ rel <- qrel
+                      , let n = case rel of Relevant -> 1
+                                            NotRelevant -> 0
+                      ]
         metric :: ScoringMetric IsRelevant query doc
         metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
     in metric
