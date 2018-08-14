@@ -6,12 +6,12 @@
 module SimplIR.FeatureSpace
     (
     -- * Feature Spaces
-      FeatureSpace, featureDimension, featureNames, mkFeatureSpace, concatSpace
+      FeatureSpace, featureDimension, featureNames, featureNameSet, mkFeatureSpace, concatSpace
     -- * Feature Vectors
     , FeatureVec, featureSpace, getFeatureVec, featureVecDimension
     , concatFeatureVec, projectFeatureVec
     , repeat, fromList, generate
-    , modify, toList, mapFeatureVec
+    , modify, toList, mapFeatureVec, modifyIndices
     -- ** Algebraic operations
     , l2Normalize, l2Norm
     , aggregateWith, scaleFeatureVec, dotFeatureVecs
@@ -29,12 +29,14 @@ module SimplIR.FeatureSpace
 
 import Control.DeepSeq
 import Control.Monad
+import Data.Coerce
 import Data.List hiding (repeat)
 import Data.Maybe
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 import GHC.Stack
 import Prelude hiding (repeat)
 import Linear.Epsilon
@@ -76,6 +78,9 @@ featureDimension (Space _ v _) = V.length v
 
 featureNames :: FeatureSpace f -> [f]
 featureNames (Space _ v _) = V.toList v
+
+featureNameSet :: FeatureSpace f -> S.Set f
+featureNameSet (Space _ _ m) = M.keysSet m
 
 featureIndexes :: FeatureSpace f -> [FeatureIndex f]
 featureIndexes s = map FeatureIndex [0..featureDimension s-1]
@@ -156,8 +161,8 @@ lookupIndex2Name (Space _ v _) (FeatureIndex i)
 lookupIndex :: (HasCallStack, VU.Unbox a) => FeatureVec f a -> FeatureIndex f -> a
 lookupIndex (FeatureVec _ v) (FeatureIndex i)
   | i >= VU.length v = error "lookupIndex: ugh!"
-  | otherwise = v VU.! i
-{-# INLINEABLE lookupIndex #-}
+  | otherwise = v `VU.unsafeIndex` i
+{-# INLINE lookupIndex #-}
 
 featureVecDimension :: VU.Unbox a => FeatureVec f a -> Int
 featureVecDimension (FeatureVec _ v) = VU.length v
@@ -169,7 +174,7 @@ mapFeatureVec f (FeatureVec s v) = FeatureVec s $ VU.map f v
 l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f a -> a
 l2Norm (FeatureVec _ xs) = sqrt $ VU.sum $ VU.map squared xs
   where squared x = x*x
-{-# INLINABLE l2Norm #-}
+{-# INLINE l2Norm #-}
 
 l2Normalize :: (VU.Unbox a, RealFloat a, Epsilon a, HasCallStack)
             => FeatureVec f a -> FeatureVec f a
@@ -177,7 +182,7 @@ l2Normalize f
   | nearZero norm = error "Preventing underflow in Model: L2 norm of near-null vector."
   | otherwise     = norm `scaleFeatureVec` f
   where norm = l2Norm f
-{-# INLINABLE l2Normalize #-}
+{-# INLINE l2Normalize #-}
 
 concatFeatureVec :: VU.Unbox a => FeatureSpace (Either f f') -> FeatureVec f a -> FeatureVec f' a -> FeatureVec (Either f f') a
 concatFeatureVec space (FeatureVec s v) (FeatureVec s' v') = FeatureVec space (v VU.++ v')
@@ -286,3 +291,8 @@ toList (FeatureVec space vals) =
 
 toVector :: FeatureVec f a -> VU.Vector a
 toVector (FeatureVec _ v) = v
+
+-- | Update the values at the given 'FeatureIndex's.
+modifyIndices :: VU.Unbox a => FeatureVec f a -> [(FeatureIndex f, a)] -> FeatureVec f a
+FeatureVec space v `modifyIndices` xs = FeatureVec space (v VU.// coerce xs)
+{-# INLINE modifyIndices #-}

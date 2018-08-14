@@ -36,7 +36,6 @@ import qualified System.Random as Random
 import System.Random.Shuffle
 import Data.Hashable
 import qualified Data.Map.Strict as M
-import qualified Data.Vector.Unboxed as VU
 import Linear.Epsilon
 
 import SimplIR.FeatureSpace as FS
@@ -63,8 +62,9 @@ instance NFData IsRelevant
 
 stepFeature :: Step f -> WeightVec f -> WeightVec f
 stepFeature (Step dim delta) (WeightVec v) =
-    WeightVec $ unsafeFeatureVecFromVector (featureSpace v)
-    $ VU.update (getFeatureVec v) (VU.fromList [(getFeatureIndex dim, v `FS.lookupIndex` dim + delta)])
+    let x = v `FS.lookupIndex` dim
+        !x' = x + delta
+    in WeightVec $ v `FS.modifyIndices` [(dim, x')]
 
 -- | A ranking of documents along with relevance annotations
 type FRanking f relevance a = [(a, FeatureVec f Double, relevance)]
