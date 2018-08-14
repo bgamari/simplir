@@ -4,8 +4,9 @@
 -- | A simple parser for the TREC run file format for retrieval result rankings.
 module SimplIR.Format.TrecRunFile where
 
-import Data.Semigroup
+import Data.Char
 import Data.Maybe
+import Data.Semigroup
 
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -41,8 +42,9 @@ readRunFile fname = do
                           , documentScore = readError "score" TL.Read.double score
                           , methodName = TL.toStrict methodName
                           }
+      | TL.all isSpace x = Nothing
 
-    parse _ = Nothing
+    parse x = error $ "readRunFile: Unrecognized line in "++fname++": "++TL.unpack x
 
     readError :: String -> TL.Read.Reader a -> TL.Text -> a
     readError place reader str =
