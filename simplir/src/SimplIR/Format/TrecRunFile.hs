@@ -6,15 +6,14 @@ module SimplIR.Format.TrecRunFile where
 
 import Data.Semigroup
 import Data.Maybe
-import Control.Monad
-import Control.Applicative
 
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.Text.Lazy.Builder.Int as TB
 import qualified Data.Text.Lazy.Builder.RealFloat as TB
+import qualified Data.Text.Lazy.Read as TL.Read
 import qualified Data.Text.Lazy.IO as TL
-import Text.Trifecta
 
 type QueryId = T.Text
 type DocumentName = T.Text
@@ -30,29 +29,27 @@ data RankingEntry = RankingEntry { queryId       :: !QueryId
                                  }
                   deriving (Show)
 
-parseRunFile :: Parser [RankingEntry]
-parseRunFile = runUnlined (catMaybes <$> many (fmap Just parseLine <|> whitespaceOnly))
-  where whitespaceOnly = spaces >> newline >> pure Nothing
-
-parseLine :: Unlined Parser RankingEntry
-parseLine = do
-    void $ many newline
-    let textField = fmap T.pack $ some $ noneOf " \t\n"
-    queryId <- textField
-    void space
-    void textField  -- reserved (Q1?)
-    void space
-    documentName <- textField
-    void space
-    documentRank <- fromIntegral <$> natural
-    documentScore <- either realToFrac id <$> integerOrDouble
-    methodName <- T.pack <$> many (noneOf "\n")
-    void (some newline) <|> eof
-    return $! RankingEntry {..}
-
 readRunFile :: FilePath -> IO [RankingEntry]
-readRunFile fname =
-    parseFromFile parseRunFile fname >>= maybe (fail "Failed to parse run file") pure
+readRunFile fname = do
+    mapMaybe parse . TL.lines <$> TL.readFile fname
+  where
+    parse x
+      | qid:_reserved:docName:rank:score:methodName:_ <- TL.words x
+      = Just RankingEntry { queryId = TL.toStrict qid
+                          , documentName = TL.toStrict docName
+                          , documentRank = readError "rank" TL.Read.decimal rank
+                          , documentScore = readError "score" TL.Read.double score
+                          , methodName = TL.toStrict methodName
+                          }
+
+    parse _ = Nothing
+
+    readError :: String -> TL.Read.Reader a -> TL.Text -> a
+    readError place reader str =
+      case reader str of
+        Left err -> error $ "readRunFile: "++fname++": Error parsing "++place++": "++err++": "++TL.unpack str
+        Right (x,_) -> x
+
 
 writeRunFile :: FilePath -> [RankingEntry] -> IO ()
 writeRunFile fname entries =
