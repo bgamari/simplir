@@ -33,6 +33,7 @@ import qualified Data.Map as M
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe
 import System.Random
+import Debug.Trace
 
 import SimplIR.LearningToRank
 import SimplIR.FeatureSpace
@@ -153,19 +154,28 @@ learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
 learnToRank franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = miniBatchedAndEvaluated 10 100 10
+        iters = miniBatchedAndEvaluated 4 25 10
             metric (coordAscent metric) gen0 weights0 franking
         --iters = coordAscent metric gen0 weights0
         --    (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
-        errorDiag = (show weights0) ++ ". Size training queries: "++ (show $ M.size (franking))++ "."
+        errorDiag = show weights0 ++ ". Size training queries: "++ show (M.size franking)++ "."
         hasConverged (a,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
-           | otherwise = (abs (a-b))/(abs b) < 1e-3
-        convergence = untilConverged hasConverged
+           | otherwise = relChange a b < 1e-3
+        convergence = untilConverged hasConverged . traceIters
         (evalScore, weights) = case convergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
            itersResult -> last itersResult
     in (Model weights, evalScore)
+
+traceIters :: [(Double, a)] -> [(Double, a)]
+traceIters xs = zipWith3 f [1..] xs (tail xs)
+  where
+    f i x@(a,_) (b,_) =
+        trace (concat ["iteration ", show i, ", score ", show a, " -> ", show b, "rel ", show (relChange a b)]) x
+
+relChange :: RealFrac a => a -> a -> a
+relChange a b = abs (a-b) / abs b
 
 rerankRankings :: Model f
                -> M.Map Run.QueryId [(QRel.DocumentName, FeatureVec f Double)]
