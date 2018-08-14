@@ -139,9 +139,9 @@ augmentWithQrels qrel docFeatures rel=
 
         franking :: M.Map queryId [(docId, FeatureVec f Double, IsRelevant)]
         franking = M.fromListWith (++)
-                   [ (qid, [(doc, features, rel)])
+                   [ (qid, [(doc, features, relDocs)])
                    | ((qid, doc), features) <- M.assocs docFeatures
-                   , let rel = M.findWithDefault NotRelevant (qid, doc) relevance
+                   , let relDocs = M.findWithDefault NotRelevant (qid, doc) relevance
                    ]
     in franking
 
