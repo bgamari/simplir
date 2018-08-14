@@ -161,7 +161,7 @@ learnToRank franking fspace metric gen0 =
         errorDiag = show weights0 ++ ". Size training queries: "++ show (M.size franking)++ "."
         hasConverged (a,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
-           | otherwise = relChange a b < 1e-3
+           | otherwise = relChange a b < 1e-2
         convergence = untilConverged hasConverged . traceIters
         (evalScore, weights) = case convergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
