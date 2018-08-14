@@ -123,6 +123,12 @@ projectFeatureVec fb convert va =
                               ]
             | Just idx <- g `M.lookup` src_map
             = lookupIndex va idx
+
+            | otherwise
+            = error $ unlines [ "projectFeatureVec: Feature not present in domain"
+                              , "Feature in range: " ++ show g
+                              , "Domain: " ++ show (featureNames fa)
+                              ]
     in FeatureVec fb $ V.convert $ V.map lookup (fsIndexToFeature fb)
   where
     fa = featureSpace va
