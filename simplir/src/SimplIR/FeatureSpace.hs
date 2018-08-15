@@ -275,12 +275,16 @@ aggregateWith :: (VU.Unbox a)
               -> [FeatureVec f a]
               -> FeatureVec f a
 aggregateWith _ [v] = v
-aggregateWith aggregator vecs =
-    FeatureVec space                    -- rewrao
-    $ foldl1' (VU.zipWith aggregator)   -- magic!
-    $ fmap (\(FeatureVec _ v) -> v) vecs  -- unwrap
+aggregateWith f (v0:vs) = FeatureVec fspace $ VU.create $ do
+    accum <- VU.thaw $ getFeatureVec v0
+    forM_ vs $ \(FeatureVec _ v) -> do
+        forM_ (featureIndexes fspace) $ \(FeatureIndex i) -> do
+            let y = v VU.! i
+            VUM.modify accum (`f` y) i
+    return accum
   where
-    space = featureSpace $ head vecs
+    fspace = featureSpace v0
+{-# INLINE aggregateWith #-}
 
 
 toList :: VU.Unbox a => FeatureVec f a -> [(f, a)]
