@@ -189,8 +189,7 @@ rerankRankings' :: Model f
          -> M.Map q [(docId, FeatureVec f Double, rel)]
          -> M.Map q (Ranking Score (docId, rel))
 rerankRankings' model featureData  =
-    fmap (rerank (modelWeights' model))
-    $ fmap rearrangeTuples featureData
+    fmap (rerank (modelWeights' model) . rearrangeTuples) featureData
   where rearrangeTuples = (fmap (\(d,f,r)-> ((d,r), f)))
 
 untilConverged :: (a -> a -> Bool) -> [a] -> [a]
