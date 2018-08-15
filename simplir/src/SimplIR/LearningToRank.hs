@@ -117,11 +117,14 @@ miniBatchedAndEvaluated batchSteps batchSize evalSteps evalMetric
                         optimise gen00 w00 fRankings =
     go $ miniBatched batchSteps batchSize optimise gen00 w00 fRankings
   where
+    -- shuffle tuples for 'rerank'
+    fRankings' = fmap (map (\(doc,feats,rel) -> ((doc,rel),feats))) fRankings
+
     go :: [WeightVec f] -> [(Score, WeightVec f)]
     go iters =
         let w:rest = drop evalSteps iters
             rankings :: M.Map qid (Ranking Score (a, relevance))
-            rankings = fmap (rerank w . map (\(doc,feats,rel) -> ((doc,rel),feats))) fRankings
+            rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
 miniBatched :: forall a f qid relevance gen.
@@ -153,6 +156,7 @@ miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
         (gen1, gen2) = Random.split gen0
         (gen3, gen4) = Random.split gen2
         batch = mkBatch gen1
+        steps :: [WeightVec f]
         steps = map snd $ take batchSteps $ optimise gen3 w0 batch
         w1 = last steps
 
@@ -164,8 +168,8 @@ coordAscent :: forall a f qid relevance gen.
             -> M.Map qid (FRanking f relevance a)
             -> [(Score, WeightVec f)] -- ^ list of iterates
 coordAscent scoreRanking gen0 w0 fRankings
-  | isNaN score0  = error "coordAscent: Initial score is not a number"
-  | Just msg <- badMsg       = error msg
+  | isNaN score0         = error "coordAscent: Initial score is not a number"
+  | Just msg <- badMsg   = error msg
   | otherwise = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
@@ -195,7 +199,7 @@ coordAscent scoreRanking gen0 w0 fRankings
     go :: gen -> (Score, WeightVec f) -> [(Score, WeightVec f)]
     go gen w = w' : go gen' w'
       where
-        w' = foldl' updateDim w dims
+        !w' = foldl' updateDim w dims
         dims = shuffle' (featureIndexes fspace) dim g
         (g, gen') = Random.split gen
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 module SimplIR.Ranking.Evaluation
     ( ScoringMetric
@@ -41,15 +42,20 @@ avgPrec relThresh totalRel ranking
         rels = map (snd . snd) (Ranking.toSortedList ranking)
 
         numRelevantAt :: Int -> rel -> (Int, Int)
-        numRelevantAt accum rel
-          | rel >= relThresh = (accum + 1, accum + 1)
+        numRelevantAt !accum rel
+          | rel >= relThresh = let !accum' = accum + 1 in (accum', accum')
           | otherwise        = (accum, accum)
 
         precAtR :: [(Double, rel)]
-        precAtR = zip (zipWith (\n k -> realToFrac n / k) relAtR [1..]) rels
+        precAtR = zipWith3
+                    (\n k rel -> let !prec = realToFrac n / realToFrac k
+                                 in (prec, rel))
+                    relAtR
+                    [1 :: Int ..]
+                    rels
 
         precAtRelevantRanks = [ prec
                               | (prec, rel) <- precAtR
                               , rel >= relThresh
                               ]
-    in Just $ sum precAtRelevantRanks / realToFrac totalRel
+    in Just $! sum precAtRelevantRanks / realToFrac totalRel
