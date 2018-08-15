@@ -156,7 +156,7 @@ learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
 learnToRank franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = miniBatchedAndEvaluated 4 25 10
+        iters = miniBatchedAndEvaluated 4 100 10
             metric (coordAscent metric) gen0 weights0 franking
         --iters = coordAscent metric gen0 weights0
         --    (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
@@ -174,7 +174,7 @@ traceIters :: [(Double, a)] -> [(Double, a)]
 traceIters xs = zipWith3 f [1..] xs (tail xs)
   where
     f i x@(a,_) (b,_) =
-        trace (concat ["iteration ", show i, ", score ", show a, " -> ", show b, "rel ", show (relChange a b)]) x
+        trace (concat ["iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
 
 relChange :: RealFrac a => a -> a -> a
 relChange a b = abs (a-b) / abs b
