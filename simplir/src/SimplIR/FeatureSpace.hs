@@ -189,13 +189,11 @@ concatFeatureVec space (FeatureVec s v) (FeatureVec s' v') = FeatureVec space (v
 
 scaleFeatureVec :: (Num a, VU.Unbox a) => a -> FeatureVec f a -> FeatureVec f a
 scaleFeatureVec x (FeatureVec s v) = FeatureVec s (VU.map (x*) v)
-{-# SPECIALISE scaleFeatureVec :: Double -> FeatureVec f Double -> FeatureVec f Double #-}
-{-# SPECIALISE scaleFeatureVec :: Float -> FeatureVec f Float -> FeatureVec f Float #-}
+{-# INLINE scaleFeatureVec #-}
 
 dotFeatureVecs :: (Num a, VU.Unbox a) => FeatureVec f a -> FeatureVec f a -> a
 dotFeatureVecs (FeatureVec _ u) (FeatureVec _ v) = VU.sum (VU.zipWith (*) u v)
-{-# SPECIALISE dotFeatureVecs :: FeatureVec f Double -> FeatureVec f Double -> Double #-}
-{-# SPECIALISE dotFeatureVecs :: FeatureVec f Float -> FeatureVec f Float -> Float #-}
+{-# INLINE dotFeatureVecs #-}
 
 (^+^), (^-^), (^*^)
     :: (VU.Unbox a, Num a)
