@@ -24,6 +24,7 @@ module SimplIR.LearningToRank
     , coordAscent
     , miniBatched
     , miniBatchedAndEvaluated
+    , defaultMiniBatchParams, MiniBatchParams(..)
       -- * Helpers
     , IsRelevant(..)
     ) where
@@ -98,12 +99,18 @@ scoreStepOracle w f = scoreFun
     scoreTerm dim off = (off + getWeightVec w `FS.lookupIndex` dim) * (f `FS.lookupIndex` dim)
     !score0 = w `score` f
 
+data MiniBatchParams = MiniBatchParams { miniBatchParamsBatchSteps :: Int   -- ^ iterations per mini-batch
+                                       , miniBatchParamsBatchSize :: Int    -- ^ mini-batch size
+                                       , miniBatchParamsEvalSteps :: Int    -- ^ mini-batches per evaluation cycle
+                                       }
+                                       deriving Show
+defaultMiniBatchParams :: MiniBatchParams
+defaultMiniBatchParams = MiniBatchParams 4 100 10
+
 miniBatchedAndEvaluated
     :: forall a f qid relevance gen.
        (Random.RandomGen gen, Show qid, Ord qid, Show a, Show f)
-    => Int  -- ^ iterations per mini-batch
-    -> Int  -- ^ mini-batch size
-    -> Int  -- ^ mini-batches per evaluation cycle
+    => MiniBatchParams
     -> ScoringMetric relevance qid a
             -- ^ evaluation metric
     -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [(Score, WeightVec f)])
@@ -113,7 +120,7 @@ miniBatchedAndEvaluated
     -> M.Map qid (FRanking f relevance a)
     -> [(Score, WeightVec f)]
        -- ^ list of evaluation iterates with evaluation metric
-miniBatchedAndEvaluated batchSteps batchSize evalSteps evalMetric
+miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMetric
                         optimise gen00 w00 fRankings =
     go $ miniBatched batchSteps batchSize optimise gen00 w00 fRankings
   where

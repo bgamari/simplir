@@ -147,16 +147,19 @@ augmentWithQrels qrel docFeatures rel=
                    ]
     in franking
 
+
+
 learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
-            => M.Map query [(docId, FeatureVec f Double, IsRelevant)]
+            => MiniBatchParams
+            -> M.Map query [(docId, FeatureVec f Double, IsRelevant)]
             -> FeatureSpace f
             -> ScoringMetric IsRelevant query docId
             -> StdGen
             -> (Model f, Double)
-learnToRank franking fspace metric gen0 =
+learnToRank miniBatchParams franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
-        iters = miniBatchedAndEvaluated 4 100 10
+        iters = miniBatchedAndEvaluated miniBatchParams
             metric (coordAscent metric) gen0 weights0 franking
         --iters = coordAscent metric gen0 weights0
         --    (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
