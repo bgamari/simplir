@@ -1,98 +1,49 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
-module SimplIR.TREC where
+-- | Utilities for parsing TREC XML-style input.
+module SimplIR.TREC
+    ( -- * Primitives
+      element
+    , text
+      -- * Parser type
+    , A.Parser
+    , parseMany
+      -- * Errors
+    , ParseError(..)
+    ) where
 
-import Control.Applicative
 import Control.Exception
-import Data.Monoid
+import Control.Monad
 
-import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Pipes
-import Pipes.Attoparsec as P.A
 import qualified Data.Attoparsec.Text as A
 import qualified Data.Attoparsec.Text.Lazy as AL
 
---import Text.HTML.Parser
-
-data Document = Document { docNo       :: Text
-                         , docHdr      :: Maybe Text
-                         , docDate     :: Maybe Text
-                         , docHeadline :: Maybe Text
-                         , docBody     :: Text
-                         }
-              deriving (Show)
-
-data TrecParseError = TrecParseError ParsingError
-                    deriving (Show)
-
-instance Exception TrecParseError
-
--- | Parse a stream of 'Document's. May throw a 'ParsingError'.
-trecDocuments' :: forall r m. (Monad m)
-               => Producer T.Text m r -> Producer Document m r
-trecDocuments' prod =
-    either (throw . TrecParseError . fst) id
-    <$> {-# SCC "trecDocuments'" #-}P.A.parsed document prod
-
-document :: A.Parser Document
-document = do
+-- | Parse a TREC XML-style element, using the given parser to parse the body.
+element :: T.Text      -- ^ tag name
+        -> A.Parser a  -- ^ parser for body
+        -> A.Parser a
+element name parseBody = (A.<?> description) $ do
     A.skipSpace
-    "<DOC>" >> A.skipSpace
-    docNo <- field "DOCNO"
-    parseDoc $ Document { docNo = docNo
-                        , docHdr = Nothing
-                        , docDate = Nothing
-                        , docHeadline = Nothing
-                        , docBody = error "no body"
-                        }
+    void $ A.string $ "<" <> name <> ">"
+    A.skipSpace
+    body <- scanUntil ("</" <> T.unpack name <> ">")
+    A.skipSpace
+    case A.parse parseBody $ T.dropEnd (3+T.length name) body of
+      A.Fail i _ctxts err -> fail $ "Error parsing body of <" <> T.unpack name <> ">: " <> err <> ": " <> show i
+      A.Done i r
+        | T.null i -> return r
+        | otherwise -> fail $ "Leftover input parsing body of <" <> T.unpack name <> ">: " <> show i
+      A.Partial f ->
+        case f T.empty of
+          A.Fail i _ctxts err -> fail $ "Error parsing body of <" <> T.unpack name <> ">: " <> err <> ": " <> show i
+          A.Done i r
+            | T.null i -> return r
+            | otherwise -> fail $ "Leftover input parsing body of <" <> T.unpack name <> ">: " <> show i
+          A.Partial _ -> fail "Impossible"
   where
-    parseDoc doc =
-            setDocHdr doc
-        <|> setDocDate doc
-        <|> setDocHeadline doc
-        <|> setDocBody doc
-
-    setDocHdr doc = do
-        val <- field "DOCHDR"
-        parseDoc $ doc { docHdr = Just val }
-
-    setDocDate doc = do
-        val <- field "DATE"
-        parseDoc $ doc { docDate = Just val }
-
-    setDocHeadline doc = do
-        val <- field "HEADLINE"
-        parseDoc $ doc { docHeadline = Just val }
-
-    setDocBody doc = do
-        body <- scanEndDoc
-        A.skipSpace
-        return $ doc { docBody = body }
-
-    field s = do
-      void $ A.string ("<" <> s <> ">")
-      val <- scanUntil ("</" <> T.unpack s <> ">")
-      A.skipSpace
-      return val
-
--- | This is a very common case and we need to scan a lot of text. Consequently
--- it's worth a special case.
-scanEndDoc :: A.Parser T.Text
-scanEndDoc = A.scan 0 f
-  where
-    f :: Int -> Char -> Maybe Int
-    f 0 '<' = Just 1
-    f 1 '/' = Just 2
-    f 2 'D' = Just 3
-    f 3 'O' = Just 4
-    f 4 'C' = Just 5
-    f 5 '>' = Just 6
-    f 6 _   = Nothing
-    f _ _   = Just 0
+    description = T.unpack name <> " element"
 
 scanUntil :: String -> A.Parser T.Text
 scanUntil s = A.scan s f
@@ -102,19 +53,24 @@ scanUntil s = A.scan s f
       | x == c    = Just xs
       | otherwise = Just s
 
+-- | Take the body
+text :: A.Parser T.Text
+text = A.skipSpace *> A.takeText <* A.skipSpace
+
 data ParseError = ParseError { parseErrorMsg :: String
                              , parseErrorRest :: TL.Text
                              }
-                deriving (Show)
+instance Show ParseError where
+    show x = parseErrorMsg x <> ": " <> TL.unpack (TL.take 200 $ parseErrorRest x)
 instance Exception ParseError
 
-trecDocuments :: TL.Text -> [Document]
-trecDocuments = go
+-- | Lazily parse many items back-to-back. Throws 'ParseError' on failure.
+parseMany :: A.Parser a -> TL.Text -> [a]
+parseMany parse = go
   where
-    go :: TL.Text -> [Document]
     go t
       | TL.null t = []
       | otherwise =
-          case AL.parse document t of
+          case AL.parse parse t of
             AL.Fail rest _ctxts err -> throw $ ParseError err rest
-            AL.Done rest doc -> doc : go rest
+            AL.Done rest x -> x : go rest

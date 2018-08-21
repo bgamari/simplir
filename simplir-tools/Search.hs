@@ -57,7 +57,7 @@ import qualified BTree.File as BTree
 import qualified SimplIR.DiskIndex.Posting as PostingIdx
 import qualified SimplIR.DiskIndex.Document as DocIdx
 import SimplIR.TopK
-import qualified SimplIR.TREC as Trec
+import qualified SimplIR.TREC.Robust as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import qualified SimplIR.TrecStreaming.FacAnnotations as Fac
 import SimplIR.RetrievalModels.QueryLikelihood

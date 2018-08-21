@@ -57,7 +57,7 @@ import SimplIR.BinaryFile as BinaryFile
 import qualified BTree.File as BTree
 import SimplIR.TopK
 import qualified SimplIR.TrecStreaming as Kba
-import qualified SimplIR.TREC as Robust
+import qualified SimplIR.TREC.Robust as Robust
 import SimplIR.RetrievalModels.QueryLikelihood as QL
 
 import ReadKba
