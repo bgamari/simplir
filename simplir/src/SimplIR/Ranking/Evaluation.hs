@@ -11,7 +11,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map.Strict as M
 
-import SimplIR.Ranking as Ranking
+import SimplIR.Ranking (Ranking)
+import qualified SimplIR.Ranking as Ranking
 
 -- | A scoring method, taking a set of queries and their rankings to a score.
 type ScoringMetric rel qid a = M.Map qid (Ranking Double (a,rel)) -> Double
