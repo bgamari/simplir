@@ -46,7 +46,7 @@ import SimplIR.Tokenise
 import SimplIR.DataSource
 import SimplIR.DataSource.Compression
 import SimplIR.StopWords
-import qualified SimplIR.KyotoIndex as KI
+import qualified SimplIR.LevelDbIndex as KI
 import qualified SimplIR.TREC.Robust as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import qualified SimplIR.HTML.Clean as HTML.Clean

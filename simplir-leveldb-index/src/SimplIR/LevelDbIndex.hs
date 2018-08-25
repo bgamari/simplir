@@ -12,6 +12,8 @@ module SimplIR.LevelDbIndex
     ( DiskIndexPath(..)
     , DiskIndex
     , indexPath
+      -- * Creation
+    , create
       -- * Adding documents
     , addDocuments
       -- * Opening
@@ -115,15 +117,27 @@ open :: forall term doc p.
 open indexPath = do
     docIndex <- LDB.open (docIndexPath indexPath) defaultOpts
     postingIndex <- LDB.open (postingIndexPath indexPath) defaultOpts
-    mNextDocId <- LDB.get docIndex LDB.defaultReadOptions "next-docid"
-    let !nextDocId'
-          | Just bs <- mNextDocId =
-                case B.decodeOrFail $ BSL.fromStrict bs of
+    Just nextDocId <- LDB.get docIndex LDB.defaultReadOptions "next-docid"
+    let !nextDocId' =
+                case B.decodeOrFail $ BSL.fromStrict nextDocId of
                   Right (_, _, nextDocId') -> nextDocId'
                   Left (_, _, err) -> error $ "Failed to deserialise next document ID: "++err
-          | otherwise = DocId 1
     nextDocId <- newMVar nextDocId'
     return DiskIndex {..}
+
+create :: FilePath -> IO (DiskIndexPath term doc p)
+create path = do
+    createDirectoryIfMissing True path
+    let indexPath = DiskIndexPath path
+    let createOpts = defaultOpts { LDB.createIfMissing = True
+                                 , LDB.errorIfExists = True }
+    docIndex <- LDB.open (docIndexPath indexPath) createOpts
+    postingIndex <- LDB.open (postingIndexPath indexPath) createOpts
+    LDB.put docIndex LDB.defaultWriteOptions "next-docid"
+        $ BSL.toStrict $ B.encode $ DocId 1
+    LDB.unsafeClose docIndex
+    LDB.unsafeClose postingIndex
+    pure indexPath
 
 withIndex :: (MonadMask m, MonadIO m, S.Serialise term, Hashable term)
           => DiskIndexPath term doc p
