@@ -78,18 +78,21 @@ optDocumentSource =
     parse "robust-html" = trecHtmlDocuments
     parse _             = fail "unknown document source type"
 
+optIndexDir :: Parser (KI.DiskIndexPath Term DocumentInfo Int)
+optIndexDir =
+    option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+
 indexMode :: Parser (IO ())
 indexMode =
-    f
-      <$> optDocumentSource
+    buildIndex
+      <$> optIndexDir
+      <*> optDocumentSource
       <*> inputFiles
-  where
-    f a b = void $ buildIndex a b
 
 queryMode :: Parser (IO ())
 queryMode =
     query
-      <$> option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+      <$> optIndexDir
       <*> argument str (help "query")
   where
     query :: KI.DiskIndexPath Term DocumentInfo Int -> T.Text -> IO ()
@@ -101,7 +104,7 @@ queryMode =
 compactMode :: Parser (IO ())
 compactMode =
     go
-      <$> option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+      <$> optIndexDir
   where
     go :: KI.DiskIndexPath Term DocumentInfo Int -> IO ()
     go indexPath = KI.withIndex indexPath $ \idx -> do
@@ -119,15 +122,16 @@ main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)]
-           -> IO (KI.DiskIndexPath Term DocumentInfo Int)
-buildIndex docSource readDocLocs = do
+buildIndex :: KI.DiskIndexPath Term DocumentInfo Int
+           -> DocumentSource -> IO [DataSource (SafeT IO)]
+           -> IO ()
+buildIndex (KI.DiskIndexPath path) docSource readDocLocs = do
     docs <- readDocLocs
-    indexPath <- KI.create "index"
+    indexPath <- KI.create path
     n <- getNumCapabilities
     KI.withIndex indexPath $ \idx -> KI.withCompactor idx $
         mapConcurrentlyL_ (n + n `div` 10) (run idx) (chunksOf 10 docs)
-    return indexPath
+    return ()
   where
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
