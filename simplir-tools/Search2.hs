@@ -98,10 +98,21 @@ queryMode =
             query' = map Term.fromText $ tokenise query
         print $ map (fmap length . KI.lookupPostings idx) query'
 
+compactMode :: Parser (IO ())
+compactMode =
+    go
+      <$> option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+  where
+    go :: KI.DiskIndexPath Term DocumentInfo Int -> IO ()
+    go indexPath = KI.withIndex indexPath $ \idx -> do
+        n <- getNumCapabilities
+        KI.compactPostingsPar idx n
+
 modes :: Parser (IO ())
 modes = subparser
     $ command "index" (info indexMode fullDesc)
    <> command "query" (info queryMode fullDesc)
+   <> command "compact" (info compactMode fullDesc)
 
 main :: IO ()
 main = do

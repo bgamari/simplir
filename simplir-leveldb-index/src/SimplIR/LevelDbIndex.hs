@@ -26,12 +26,14 @@ module SimplIR.LevelDbIndex
     , lookupDocument
       -- * Maintenance
     , compactPostings
+    , compactPostingsPar
     ) where
 
 import Debug.Trace
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM
+import Control.Concurrent.Map
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -195,16 +197,40 @@ documentKey = BSL.toStrict . B.encode
 
 compactPostings :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
                 => DiskIndex term doc p -> IO ()
-compactPostings idx = do
-    iter <- LDB.createIter (postingIndex idx) LDB.defaultReadOptions
-    LDB.iterFirst iter
-    goStart iter
-    LDB.releaseIter iter
+compactPostings idx = compactPostings' idx (Nothing, Nothing)
+
+compactPostingsPar :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
+                   => DiskIndex term doc p
+                   -> Int
+                   -> IO ()
+compactPostingsPar idx n = do
+    let buckets =
+            [ BSL.toStrict $ B.runPut $ B.putWord16le a <> B.putWord8 b
+            | a <- [1..100 :: Word16]
+            , b <- [0..maxBound :: Word8]
+            ]
+    mapConcurrentlyL_ n (compactPostings' idx)
+        $ [(Nothing, Just $ head buckets)]
+       ++ zipWith (\a b -> (Just a, Just b)) buckets (tail buckets)
+       ++ [(Just $ last buckets, Nothing)]
+
+compactPostings' :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
+                 => DiskIndex term doc p
+                 -> (Maybe BS.ByteString, Maybe BS.ByteString)
+                 -> IO ()
+compactPostings' idx (startKey, endKey) =
+    LDB.withIter (postingIndex idx) LDB.defaultReadOptions $ \iter -> do
+        maybe (LDB.iterFirst iter) (LDB.iterSeek iter) startKey
+        goStart iter
   where
+    goStart :: LDB.Iterator -> IO ()
     goStart iter = do
         ent <- LDB.iterEntry iter
         case ent of
-          Just (k,v) -> go iter (parseTermKey k) 0 []
+          Just (k,v)
+              | Just end <- endKey
+              , k >= end  -> return ()
+              | otherwise -> go iter (parseTermKey k) 0 []
           Nothing -> return ()
 
     go :: LDB.Iterator
@@ -233,7 +259,9 @@ compactPostings idx = do
 
     flush :: LDB.Iterator -> term -> [(BS.ByteString, ELC.EncodedList (Posting p))] -> IO ()
     flush iter term [] = goStart iter
+    flush iter term [_] = goStart iter
     flush iter term (reverse -> xs) = do
+        putStrLn $ "Flushing "++show (length xs)++": "++show (fst $ head xs)
         LDB.write (postingIndex idx) LDB.defaultWriteOptions
             $ [ LDB.Del k | (k,_) <- xs ]
            ++ [ let k = postingsKey term docId0
@@ -242,7 +270,7 @@ compactPostings idx = do
                 in LDB.Put k (BSL.toStrict $ S.serialise v) ]
         goStart iter
 
-    collapseThresh = 10*1024^2
+    collapseThresh = 1024^2
 
 addDocuments
     :: forall doc p term m.
