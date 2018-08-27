@@ -80,26 +80,43 @@ optDocumentSource =
 
 indexMode :: Parser (IO ())
 indexMode =
-    buildIndex
+    f
       <$> optDocumentSource
       <*> inputFiles
+  where
+    f a b = void $ buildIndex a b
+
+queryMode :: Parser (IO ())
+queryMode =
+    query
+      <$> option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+      <*> argument str (help "query")
+  where
+    query :: KI.DiskIndexPath Term DocumentInfo Int -> T.Text -> IO ()
+    query indexPath query = KI.withIndex indexPath $ \idx -> do
+        let query' :: [Term]
+            query' = map Term.fromText $ tokenise query
+        print $ map (fmap length . KI.lookupPostings idx) query'
 
 modes :: Parser (IO ())
 modes = subparser
     $ command "index" (info indexMode fullDesc)
+   <> command "query" (info queryMode fullDesc)
 
 main :: IO ()
 main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
+buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)]
+           -> IO (KI.DiskIndexPath Term DocumentInfo Int)
 buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     indexPath <- KI.create "index"
     n <- getNumCapabilities
     KI.withIndex indexPath $ \idx ->
         mapConcurrentlyL_ (n + n `div` 10) (run idx) (chunksOf 10 docs)
+    return indexPath
   where
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
