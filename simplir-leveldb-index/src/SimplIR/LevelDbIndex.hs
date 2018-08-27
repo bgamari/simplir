@@ -26,7 +26,7 @@ module SimplIR.LevelDbIndex
     , lookupDocument
       -- * Maintenance
     , compactPostings
-    , compactPostingsPar
+    , withCompactor
     ) where
 
 import Debug.Trace
@@ -195,15 +195,12 @@ postingsKeyDocId = B.runGet parse . BSL.fromStrict
 documentKey :: DocId -> BS.ByteString
 documentKey = BSL.toStrict . B.encode
 
+-- | Compact all postings using @n@ threads.
 compactPostings :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
-                => DiskIndex term doc p -> IO ()
-compactPostings idx = compactPostings' idx (Nothing, Nothing)
-
-compactPostingsPar :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
-                   => DiskIndex term doc p
-                   -> Int
-                   -> IO ()
-compactPostingsPar idx n = do
+                => DiskIndex term doc p
+                -> Int
+                -> IO ()
+compactPostings idx n = do
     let buckets =
             [ BSL.toStrict $ B.runPut $ B.putWord16le a <> B.putWord8 b
             | a <- [1..100 :: Word16]
@@ -214,6 +211,7 @@ compactPostingsPar idx n = do
        ++ zipWith (\a b -> (Just a, Just b)) buckets (tail buckets)
        ++ [(Just $ last buckets, Nothing)]
 
+-- | Compact short postings lists.
 compactPostings' :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
                  => DiskIndex term doc p
                  -> (Maybe BS.ByteString, Maybe BS.ByteString)
@@ -271,6 +269,26 @@ compactPostings' idx (startKey, endKey) =
         goStart iter
 
     collapseThresh = 1024^2
+
+-- | Run an action with a continuous compaction thread.
+withCompactor :: (S.Serialise term, Eq term, S.Serialise p)
+              => DiskIndex term doc p -> IO a -> IO a
+withCompactor idx = bracket startCompactor stopCompactor . const
+  where
+    startCompactor = do
+        stopRef <- newTVarIO False
+        compactor <- async $ compactor stopRef
+        return (stopRef, compactor)
+
+    stopCompactor (stopRef, compactor) = do
+        atomically $ writeTVar stopRef True
+        wait compactor
+
+    compactor stopRef = do
+        stop <- atomically $ readTVar stopRef
+        unless stop $ do
+            compactPostings' idx (Nothing, Nothing)
+            compactor stopRef
 
 addDocuments
     :: forall doc p term m.

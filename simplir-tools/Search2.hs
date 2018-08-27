@@ -106,7 +106,7 @@ compactMode =
     go :: KI.DiskIndexPath Term DocumentInfo Int -> IO ()
     go indexPath = KI.withIndex indexPath $ \idx -> do
         n <- getNumCapabilities
-        KI.compactPostingsPar idx n
+        KI.compactPostings idx n
 
 modes :: Parser (IO ())
 modes = subparser
@@ -125,7 +125,7 @@ buildIndex docSource readDocLocs = do
     docs <- readDocLocs
     indexPath <- KI.create "index"
     n <- getNumCapabilities
-    KI.withIndex indexPath $ \idx ->
+    KI.withIndex indexPath $ \idx -> KI.withCompactor idx $
         mapConcurrentlyL_ (n + n `div` 10) (run idx) (chunksOf 10 docs)
     return indexPath
   where
