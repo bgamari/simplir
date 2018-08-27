@@ -208,9 +208,11 @@ normalizationPipeline =
       -- >-> P.P.chain (liftIO . print . fst)
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
-    normTerms = map (first Term.fromText) . filterTerms . caseNorm
+    normTerms = map (first Term.fromText) . filterTerms . caseNorm . filter goodLen
       where
-        filterTerms = killStopwords' enInquery fst . filter ((>2) . T.length . fst)
+        filterTerms = killStopwords' enInquery fst
+        goodLen (t,_) = len > 2 && len < 100
+          where len = T.length t
         caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     killPunctuation c
