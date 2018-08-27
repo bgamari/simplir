@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
@@ -23,6 +24,8 @@ module SimplIR.LevelDbIndex
     , Posting(..)
     , lookupPostings'
     , lookupDocument
+      -- * Maintenance
+    , compactPostings
     ) where
 
 import Debug.Trace
@@ -139,7 +142,8 @@ create path = do
     LDB.unsafeClose postingIndex
     pure indexPath
 
-withIndex :: (MonadMask m, MonadIO m, S.Serialise term, Hashable term)
+withIndex :: forall term doc p m a.
+             (MonadMask m, MonadIO m, S.Serialise term, Hashable term)
           => DiskIndexPath term doc p
           -> (DiskIndex term doc p -> m a)
           -> m a
@@ -165,6 +169,19 @@ termKey term = BSL.toStrict $ B.runPut $
     B.putWord16le (fromIntegral $ BSL.length t') <> B.putLazyByteString t'
   where t' = S.serialise term
 
+parseTermKey :: S.Serialise term => BS.ByteString -> term
+parseTermKey key =
+    case B.runGetOrFail getTermKey (BSL.fromStrict key) of
+      Right (_,_,bs) ->
+          case S.deserialiseOrFail (BSL.fromStrict bs) of
+            Right term -> term
+            Left err -> error $ "LevelDbIndex.parseTermKey: Error deserialising term: "++show err
+      Left (_,_,err) -> error $ "LevelDbIndex.parseTermKey: Error decoding key: "++show err
+  where
+    getTermKey = do
+        len <- B.getWord16le
+        B.getByteString (fromIntegral len)
+
 postingsKeyDocId :: BS.ByteString -> DocId
 postingsKeyDocId = B.runGet parse . BSL.fromStrict
   where
@@ -175,6 +192,57 @@ postingsKeyDocId = B.runGet parse . BSL.fromStrict
 
 documentKey :: DocId -> BS.ByteString
 documentKey = BSL.toStrict . B.encode
+
+compactPostings :: forall term doc p. (S.Serialise term, Eq term, S.Serialise p)
+                => DiskIndex term doc p -> IO ()
+compactPostings idx = do
+    iter <- LDB.createIter (postingIndex idx) LDB.defaultReadOptions
+    LDB.iterFirst iter
+    goStart iter
+    LDB.releaseIter iter
+  where
+    goStart iter = do
+        ent <- LDB.iterEntry iter
+        case ent of
+          Just (k,v) -> go iter (parseTermKey k) 0 []
+          Nothing -> return ()
+
+    go :: LDB.Iterator
+       -> term
+       -> Int   -- size of accumulated chunks in bytes
+       -> [(BS.ByteString, ELC.EncodedList (Posting p))]  -- chunks
+       -> IO ()
+    go iter term len xs
+      | len > collapseThresh = flush iter term xs
+      | otherwise = do
+        ent <- LDB.iterEntry iter
+        case ent of
+          Just (k,v)
+              -- If the chunk is already "large" then don't bother compacting
+              | BS.length v > collapseThresh -> do
+                    LDB.iterNext iter
+                    flush iter term xs
+              | otherwise ->
+                  let term' = parseTermKey k
+                  in if term /= term'
+                     then flush iter term xs
+                     else do
+                       LDB.iterNext iter
+                       go iter term (len + BS.length v) ((k, S.deserialise $ BSL.fromStrict v):xs)
+          Nothing -> flush iter term xs
+
+    flush :: LDB.Iterator -> term -> [(BS.ByteString, ELC.EncodedList (Posting p))] -> IO ()
+    flush iter term [] = goStart iter
+    flush iter term (reverse -> xs) = do
+        LDB.write (postingIndex idx) LDB.defaultWriteOptions
+            $ [ LDB.Del k | (k,_) <- xs ]
+           ++ [ let k = postingsKey term docId0
+                    v = foldMap snd xs
+                    (Posting docId0 _) : _ = ELC.toList $ snd $ head xs
+                in LDB.Put k (BSL.toStrict $ S.serialise v) ]
+        goStart iter
+
+    collapseThresh = 10*1024^2
 
 addDocuments
     :: forall doc p term m.
