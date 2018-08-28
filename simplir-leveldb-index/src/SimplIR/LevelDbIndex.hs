@@ -152,7 +152,8 @@ withIndex :: forall term doc p m a.
 withIndex indexPath = bracket (liftIO $ open indexPath) (liftIO . close)
 
 defaultOpts :: LDB.Options
-defaultOpts = LDB.defaultOptions
+defaultOpts = LDB.defaultOptions { LDB.writeBufferSize = 256*1024*1024
+                                 }
 
 close :: DiskIndex term doc p -> IO ()
 close DiskIndex{..} = do
