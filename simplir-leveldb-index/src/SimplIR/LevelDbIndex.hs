@@ -372,6 +372,7 @@ lookupPostings' idx@DiskIndex{..} term = unsafePerformIO $ do
         case mEnt of
           Just (k,v)
             | termPrefix `BS.isPrefixOf` k -> do
+                  LDB.iterNext cur
                   let p = ELC.toList $ S.deserialise $ BSL.fromStrict v
                   rest <- unsafeInterleaveIO $ go cur
                   return (p ++ rest)
