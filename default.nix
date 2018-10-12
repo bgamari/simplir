@@ -47,7 +47,7 @@ let
           owner = "bgamari";
           repo = "warc";
           rev = "efee2bc4a71e054b65c20b90448ce05a34df09f4";
-          sha256 = null;
+          sha256 = "01yclyrq88zjsf6pk0nd6hqwrzgm3z4c00h80nbmxsq4npjgljh1";
         }) {};
       };
     in simplirPackages // { simplirPackages = simplirPackages; };
