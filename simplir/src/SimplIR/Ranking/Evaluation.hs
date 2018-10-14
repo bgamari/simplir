@@ -5,6 +5,7 @@ module SimplIR.Ranking.Evaluation
     ( ScoringMetric
     , TotalRel
     , meanAvgPrec
+    , avgPrec
     ) where
 
 import Data.List

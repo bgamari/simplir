@@ -44,6 +44,7 @@ let
         simplir-kyoto-index  = self.callCabal2nix "simplir-kyoto-index" (localDir ./simplir-kyoto-index) {};
         simplir-leveldb-index = self.callCabal2nix "simplir-leveldb-index" (localDir ./simplir-leveldb-index) {};
         simplir-disk-index   = self.callCabal2nix "simplir-disk-index" (localDir ./simplir-disk-index) {};
+        simplir-eval         = self.callCabal2nix "simplir-eval" (localDir ./simplir-eval) {};
         http-parsers         = self.callCabal2nix "http-parsers" ./vendor/http-parsers {};
         indexed-vector       = self.callCabal2nix "indexed-vector" ./vendor/indexed-vector {};
         fork-map             = self.callCabal2nix "fork-map" ./vendor/fork-map {};
