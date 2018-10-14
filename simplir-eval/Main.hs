@@ -44,11 +44,12 @@ main = do
     -- Compute metrics
     let metrics :: M.Map Run.MethodName (Stats.Mean Double)
         metrics = M.fromListWith (<>)
-            [ (method, score)
+            [ (method, Stats.one score)
             | queryEntries@(e0:_) <- queries
             , let qid = Run.queryId e0
                   method = Run.methodName e0
-                  Just (totalRel, relDocs) = M.lookup qid rels
+              -- Ignore queries for which we have no judgments
+            , Just (totalRel, relDocs) <- pure $ M.lookup qid rels
 
             , let ranking :: Ranking Double (Run.DocumentName, Bool)
                   ranking = Ranking.fromSortedList
@@ -57,8 +58,8 @@ main = do
                       , let rel = Run.documentName e `S.member` relDocs
                       ]
 
-                  score :: Stats.Mean Double
-                  Just score = Stats.one <$> avgPrec True totalRel ranking
+              -- Ignore queries for which there are no relevant documents
+            , Just score <- pure $ avgPrec True totalRel ranking
             ]
     print $ fmap Stats.getMean metrics
     return ()
