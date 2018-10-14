@@ -30,10 +30,10 @@ meanAvgPrec totalRel relThresh rankings
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
-avgPrec :: forall rel doc. (Ord rel)
+avgPrec :: forall rel doc score. (Ord rel)
         => rel       -- ^ threshold of relevance
         -> TotalRel  -- ^ total number of relevant documents
-        -> Ranking Double (doc, rel)  -- ^ ranking
+        -> Ranking score (doc, rel)  -- ^ ranking
         -> Maybe Double
 avgPrec relThresh totalRel ranking
   | totalRel == 0 = Nothing
