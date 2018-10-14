@@ -25,7 +25,11 @@ let
           configureFlags =
             #["--profiling-detail=toplevel-functions"] ++
             (args.configureFlags or []) ++
-            [ "--ghc-options=-g3" "--disable-executable-stripping" "--disable-library-stripping" ];
+            [ "--ghc-options=-g3"
+              "--disable-executable-stripping"
+              "--disable-library-stripping"
+              #"--ghc-options=-eventlog"
+            ];
         });
 
         simplir              = let base = self.callCabal2nix "simplir" (localDir ./simplir) {};
@@ -34,7 +38,7 @@ let
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
         simplir-trec         = self.callCabal2nix "simplir-trec" (localDir ./simplir-trec) {};
         simplir-galago       = self.callCabal2nix "simplir-galago" (localDir ./simplir-galago) {};
-        simplir-tools        = enableExecutableProfiling (self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {});
+        simplir-tools        = self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {};
         simplir-word-embedding = self.callCabal2nix "simplir-word-embedding" (localDir ./simplir-word-embedding) {};
         simplir-trec-streaming = self.callCabal2nix "simplir-trec-streaming" (localDir ./simplir-trec-streaming) {};
         simplir-kyoto-index  = self.callCabal2nix "simplir-kyoto-index" (localDir ./simplir-kyoto-index) {};
