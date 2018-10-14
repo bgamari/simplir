@@ -1,7 +1,8 @@
 { nixpkgs ? (import ./nixpkgs.nix {}) }:
 
 let
-  inherit (nixpkgs.haskell.lib) dontCheck doJailbreak;
+  inherit (nixpkgs.haskell.lib) dontCheck doJailbreak
+                                enableDWARFDebugging enableExecutableProfiling;
   inherit (nixpkgs.stdenv) lib;
   inherit (nixpkgs) fetchFromGitHub;
 
@@ -19,13 +20,21 @@ let
   haskellOverrides = self: super:
     let
       simplirPackages = {
+        mkDerivation         = args: super.mkDerivation (args // {
+          dontStrip = true;
+          configureFlags =
+            #["--profiling-detail=toplevel-functions"] ++
+            (args.configureFlags or []) ++
+            [ "--ghc-options=-g3" "--disable-executable-stripping" "--disable-library-stripping" ];
+        });
+
         simplir              = let base = self.callCabal2nix "simplir" (localDir ./simplir) {};
                                in nixpkgs.haskell.lib.overrideCabal base (drv: { testDepends = [ trec-eval ]; });
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
         simplir-trec         = self.callCabal2nix "simplir-trec" (localDir ./simplir-trec) {};
         simplir-galago       = self.callCabal2nix "simplir-galago" (localDir ./simplir-galago) {};
-        simplir-tools        = self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {};
+        simplir-tools        = enableExecutableProfiling (self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {});
         simplir-word-embedding = self.callCabal2nix "simplir-word-embedding" (localDir ./simplir-word-embedding) {};
         simplir-trec-streaming = self.callCabal2nix "simplir-trec-streaming" (localDir ./simplir-trec-streaming) {};
         simplir-kyoto-index  = self.callCabal2nix "simplir-kyoto-index" (localDir ./simplir-kyoto-index) {};

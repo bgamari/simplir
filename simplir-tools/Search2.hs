@@ -46,7 +46,7 @@ import SimplIR.Tokenise
 import SimplIR.DataSource
 import SimplIR.DataSource.Compression
 import SimplIR.StopWords
-import qualified SimplIR.KyotoIndex as KI
+import qualified SimplIR.LevelDbIndex as KI
 import qualified SimplIR.TREC.Robust as Trec
 import qualified SimplIR.TrecStreaming as Kba
 import qualified SimplIR.HTML.Clean as HTML.Clean
@@ -78,28 +78,60 @@ optDocumentSource =
     parse "robust-html" = trecHtmlDocuments
     parse _             = fail "unknown document source type"
 
+optIndexDir :: Parser (KI.DiskIndexPath Term DocumentInfo Int)
+optIndexDir =
+    option (KI.DiskIndexPath <$> str) (long "index" <> short 'i' <> help "index directory")
+
 indexMode :: Parser (IO ())
 indexMode =
     buildIndex
-      <$> optDocumentSource
+      <$> optIndexDir
+      <*> optDocumentSource
       <*> inputFiles
+
+queryMode :: Parser (IO ())
+queryMode =
+    query
+      <$> optIndexDir
+      <*> argument str (help "query")
+  where
+    query :: KI.DiskIndexPath Term DocumentInfo Int -> T.Text -> IO ()
+    query indexPath query = KI.withIndex indexPath $ \idx -> do
+        let query' :: [Term]
+            query' = map Term.fromText $ tokenise query
+        print $ map (fmap length . KI.lookupPostings idx) query'
+
+compactMode :: Parser (IO ())
+compactMode =
+    go
+      <$> optIndexDir
+  where
+    go :: KI.DiskIndexPath Term DocumentInfo Int -> IO ()
+    go indexPath = KI.withIndex indexPath $ \idx -> do
+        n <- getNumCapabilities
+        KI.compactPostings idx n
 
 modes :: Parser (IO ())
 modes = subparser
     $ command "index" (info indexMode fullDesc)
+   <> command "query" (info queryMode fullDesc)
+   <> command "compact" (info compactMode fullDesc)
 
 main :: IO ()
 main = do
     mode <- execParser $ info (helper <*> modes) fullDesc
     mode
 
-buildIndex :: DocumentSource -> IO [DataSource (SafeT IO)] -> IO ()
-buildIndex docSource readDocLocs = do
+buildIndex :: KI.DiskIndexPath Term DocumentInfo Int
+           -> DocumentSource -> IO [DataSource (SafeT IO)]
+           -> IO ()
+buildIndex (KI.DiskIndexPath path) docSource readDocLocs = do
     docs <- readDocLocs
-    indexPath <- KI.create "index"
+    indexPath <- KI.create path
     n <- getNumCapabilities
-    KI.withIndex indexPath $ \idx ->
+    KI.withIndex indexPath $ \idx -> KI.withCompactor idx $
         mapConcurrentlyL_ (n + n `div` 10) (run idx) (chunksOf 10 docs)
+    return ()
   where
     run idx docs = runSafeT $ do
         let --foldCorpusStats = Foldl.generalize documentTermStats
@@ -191,9 +223,11 @@ normalizationPipeline =
       -- >-> P.P.chain (liftIO . print . fst)
   where
     normTerms :: [(T.Text, p)] -> [(Term, p)]
-    normTerms = map (first Term.fromText) . filterTerms . caseNorm
+    normTerms = map (first Term.fromText) . filterTerms . caseNorm . filter goodLen
       where
-        filterTerms = killStopwords' enInquery fst . filter ((>2) . T.length . fst)
+        filterTerms = killStopwords' enInquery fst
+        goodLen (t,_) = len > 2 && len < 100
+          where len = T.length t
         caseNorm = map (first $ T.filter isAlpha . T.toCaseFold)
 
     killPunctuation c
