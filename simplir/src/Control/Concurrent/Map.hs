@@ -51,6 +51,7 @@ withTSem sem g =
 concurrencyLimited :: (MonadIO n, MonadIO m, MonadMask m)
                    => Int -> n (m a -> m a)
 concurrencyLimited n = do
-    sem <- liftIO $ atomically $ newTSem n
+    -- N.B. fromIntegral for support for stm >= 2.6
+    sem <- liftIO $ atomically $ newTSem $ fromIntegral n
     return $ withTSem sem
 {-# INLINEABLE concurrencyLimited #-}
