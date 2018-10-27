@@ -70,7 +70,7 @@ library
       build-depends: ghc-compact
 
   build-depends:
-      base >=4.8 && <4.12,
+      base >=4.8 && <4.13,
       template-haskell,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
