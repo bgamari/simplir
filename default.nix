@@ -19,7 +19,7 @@ let
 
   haskellOverrides = self: super:
     let
-      simplirPackages = {
+      otherOverrides = {
         mkDerivation         = args: super.mkDerivation (args // {
           dontStrip = true;
           configureFlags =
@@ -31,7 +31,9 @@ let
               #"--ghc-options=-eventlog"
             ];
         });
+      };
 
+      simplirPackages = {
         simplir              = let base = self.callCabal2nix "simplir" (localDir ./simplir) {};
                                in nixpkgs.haskell.lib.overrideCabal base (drv: { testDepends = [ trec-eval ]; });
         simplir-data-source  = self.callCabal2nix "simplir-data-source" (localDir ./simplir-data-source) {};
@@ -64,7 +66,7 @@ let
           sha256 = "01yclyrq88zjsf6pk0nd6hqwrzgm3z4c00h80nbmxsq4npjgljh1";
         }) {};
       };
-    in simplirPackages // { simplirPackages = simplirPackages; };
+    in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 
   haskellPackages = nixpkgs.haskell.packages.ghc843.override {overrides = haskellOverrides;};
 in {
