@@ -16,7 +16,7 @@ import Control.Concurrent.STM.TSem
 
 -- | Map concurrently with a limit to the number of concurrent workers.
 mapConcurrentlyL_ :: forall m f a b.
-                     (MonadBaseControl IO m, MonadIO m, MonadMask m, Traversable f)
+                     (MonadBaseControl IO m, MonadIO m, MonadMask m, Foldable f)
                   => Int -> (a -> m b) -> f a -> m ()
 mapConcurrentlyL_ n f xs = do
     withLimit <- concurrencyLimited n
