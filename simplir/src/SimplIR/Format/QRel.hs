@@ -30,7 +30,6 @@ import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM.Lazy
-
 import SimplIR.LearningToRank
 
 type QueryId = T.Text

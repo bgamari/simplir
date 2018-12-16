@@ -18,6 +18,7 @@ module SimplIR.LearningToRankWrapper
     , rerankRankings
     , rerankRankings'
     , untilConverged
+    , defaultConvergence, relChangeBelow, dropIterations, maxIterations, ConvergenceCriterion
 
     -- * Convenience
     , FeatureName(..)
@@ -41,6 +42,8 @@ import SimplIR.FeatureSpace
 import qualified SimplIR.FeatureSpace as FS
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
+
+type ConvergenceCriterion f = ([(Double, WeightVec f)] -> [(Double, WeightVec f)])
 
 newtype Model f = Model { modelWeights' :: WeightVec f }
                 deriving (Show, Generic)
@@ -150,35 +153,41 @@ augmentWithQrels qrel docFeatures rel=
 
 
 
-learnToRank :: forall f query docId. (Ord query, Show query, Show docId, Show f)
+learnToRank :: forall f query docId . (Ord query, Show query, Show docId, Show f)
             => MiniBatchParams
+            -> ConvergenceCriterion f
             -> M.Map query [(docId, FeatureVec f Double, IsRelevant)]
             -> FeatureSpace f
             -> ScoringMetric IsRelevant query docId
             -> StdGen
             -> (Model f, Double)
-learnToRank miniBatchParams franking fspace metric gen0 =
+learnToRank miniBatchParams convergence franking fspace metric gen0 =
     let weights0 :: WeightVec f
-        weights0 = WeightVec $ FS.repeat fspace 1 --  $ VU.replicate (length featureNames) 1
+        weights0 = WeightVec $ FS.repeat fspace 1
         iters = miniBatchedAndEvaluated miniBatchParams
             metric (coordAscent metric) gen0 weights0 franking
-        --iters = coordAscent metric gen0 weights0
-        --    (fmap (\xs -> [(a, b, c) | (a, b, c) <- xs]) franking)
         errorDiag = show weights0 ++ ". Size training queries: "++ show (M.size franking)++ "."
-        hasConverged (a,_) (b,_)
+        checkNans (_,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
-           | otherwise = relChange a b < 1e-2
-        convergence = untilConverged hasConverged . traceIters
-        (evalScore, weights) = case convergence iters of
+           | otherwise = True
+        checkedConvergence :: [(Double, WeightVec f)] -> [(Double, WeightVec f)]
+        checkedConvergence = untilConverged checkNans . convergence
+        (evalScore, weights) = case checkedConvergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
            itersResult -> last itersResult
     in (Model weights, evalScore)
 
-traceIters :: [(Double, a)] -> [(Double, a)]
-traceIters xs = zipWith3 f [1..] xs (tail xs)
+traceIters :: String -> [(Double, a)] -> [(Double, a)]
+traceIters info xs = zipWith3 g [1..] xs (tail xs)
   where
-    f i x@(a,_) (b,_) =
-        trace (concat ["iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
+    g i x@(a,_) (b,_) =
+        trace (concat [info, " iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
+
+defaultConvergence :: String -> Double -> Int -> Int -> [(Double, WeightVec f)] -> [(Double, WeightVec f)]
+defaultConvergence info threshold maxIter dropIter =
+    relChangeBelow threshold . maxIterations maxIter . dropIterations dropIter . traceIters info
+
+
 
 relChange :: RealFrac a => a -> a -> a
 relChange a b = abs (a-b) / abs b
@@ -197,9 +206,18 @@ rerankRankings' model featureData  =
   where rearrangeTuples = (fmap (\(d,f,r)-> ((d,r), f)))
 
 untilConverged :: (a -> a -> Bool) -> [a] -> [a]
-untilConverged eq xs0 = go xs0
+untilConverged conv xs0 = go xs0
   where
     go (x:y:_)
-      | x `eq` y  = x : y : []
-    go (x:rest)   = x : go rest
-    go []         = []
+      | x `conv` y  = [x, y]
+    go (x:rest)     = x : go rest
+    go []           = []
+
+maxIterations :: Int -> [a] -> [a]
+maxIterations = take
+dropIterations :: Int -> [a] -> [a]
+dropIterations = drop
+
+relChangeBelow :: Double -> [(Double, b)] -> [(Double, b)]
+relChangeBelow threshold xs =
+    untilConverged (\(x,_) (y,_) -> relChange x y < threshold) xs
