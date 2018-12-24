@@ -4,8 +4,8 @@ let
     nixpkgs.fetchFromGitHub {
       owner = "nixos";
       repo = "nixpkgs";
-      rev = "2428f5dda13475afba2dee93f4beb2bd97086930";
-      sha256 = "1iwl5yaz36lf7v4hps3z9dl3zyq363jmr5m7y4anf0lpn4lczh18";
+      rev = "9592e380c5ce1b0a437186feead82878fed77efc";
+      sha256 = "13x8szfy3l15m0iwl59bnn52cwhbkb2fkd91nn85yd6brh2dg8jb";
     };
 in
   import src
