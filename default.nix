@@ -68,7 +68,7 @@ let
       };
     in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 
-  haskellPackages = nixpkgs.haskell.packages.ghc843.override {overrides = haskellOverrides;};
+  haskellPackages = nixpkgs.haskell.packages.ghc863.override {overrides = haskellOverrides;};
 in {
   inherit haskellPackages haskellOverrides;
   inherit trec-eval;
