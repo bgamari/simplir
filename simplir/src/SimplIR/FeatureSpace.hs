@@ -40,6 +40,9 @@ import qualified Data.Set as S
 import GHC.Stack
 import Prelude hiding (repeat)
 import Linear.Epsilon
+import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty( NonEmpty( (:|) ) )
+
 
 
 -- TODO Should be opaque
@@ -272,10 +275,10 @@ modify (FeatureVec space def) xs =
 
 aggregateWith :: (VU.Unbox a)
               => (a -> a -> a)
-              -> [FeatureVec f a]
+              -> NE.NonEmpty (FeatureVec f a) -- ^ used to be [FeatureVec f a]
               -> FeatureVec f a
-aggregateWith _ [v] = v
-aggregateWith f (v0:vs) = FeatureVec fspace $ VU.create $ do
+aggregateWith _ (v :| []) = v   -- (v :| []) means (v: []) for nonempty lists
+aggregateWith f (v0 :| vs) = FeatureVec fspace $ VU.create $ do
     accum <- VU.thaw $ getFeatureVec v0
     forM_ vs $ \(FeatureVec _ v) -> do
         forM_ (featureIndexes fspace) $ \(FeatureIndex i) -> do
