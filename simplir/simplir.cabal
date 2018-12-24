@@ -88,7 +88,7 @@ library
       text >=1.2 && <1.3,
       aeson,
       trifecta >= 1.5,
-      containers >=0.5 && <0.6,
+      containers >=0.5 && <0.7,
       case-insensitive >=1.2 && <1.3,
       pipes-zlib >= 0.4.4.2 && <0.5,
       pipes-lzma,
@@ -131,7 +131,7 @@ library
       cborg >= 0.2,
       indexed-vector,
 
-      QuickCheck >=2.8 && <2.12,
+      QuickCheck >=2.8 && <2.13,
       tasty,
       tasty-quickcheck,
       temporary
@@ -150,7 +150,7 @@ executable simplir-learn2rank
       aeson,
       vector,
       text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
+      containers,
       optparse-applicative >= 0.12,
       log-domain,
       simplir

@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     SimplIR.LevelDbIndex
   other-extensions:    RecordWildCards, DataKinds, OverloadedStrings
-  build-depends:       base >=4.10 && <4.12,
+  build-depends:       base >=4.10 && <5,
                        array >= 0.5,
                        containers >= 0.5,
                        filepath >= 1.4,

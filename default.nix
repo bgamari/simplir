@@ -62,9 +62,18 @@ let
         warc = self.callCabal2nix "warc" (fetchFromGitHub {
           owner = "bgamari";
           repo = "warc";
-          rev = "efee2bc4a71e054b65c20b90448ce05a34df09f4";
-          sha256 = "01yclyrq88zjsf6pk0nd6hqwrzgm3z4c00h80nbmxsq4npjgljh1";
+          rev = "725d9d1265fda5fe3cb8cc11eff7d9bf2f714356";
+          sha256 = "006k5brxxr023i62pq8q4v6sn1svgyg1lyv4b1nll5n5l3bj9jvw";
         }) {};
+        monoidal-containers = self.callCabal2nix "warc" (fetchFromGitHub {
+          owner = "bgamari";
+          repo = "monoidal-containers";
+          rev = "a34c9fbe191725ef9a9c7783e103c24796bd91e3";
+          sha256 = "1ar2w4rx0mh4nvwzpc125l3hj9xslargl43vnssmh9l6ynhi8ksv";
+        }) {};
+
+        pinch = doJailbreak (self.callHackage "pinch" "0.3.4.0" {});
+        pipes-safe = self.callHackage "pipes-safe" "2.3.1" {};
       };
     in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 

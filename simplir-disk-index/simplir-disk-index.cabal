@@ -46,7 +46,7 @@ library
       SimplIR.SimpleIndex.Models.BM25
 
   build-depends:
-      base >=4.8 && <4.12,
+      base >=4.8 && <5,
       pipes-bytestring >=2.1 && <2.2,
       pipes,
       bytestring >=0.10 && <0.11,
@@ -55,7 +55,7 @@ library
       dlist,
       binary >= 0.7 && < 0.10,
       exceptions >= 0.8,
-      containers >=0.5 && <0.6,
+      containers >=0.5 && <0.7,
       pipes-safe,
       filepath >=1.4 && <1.5,
       directory,
@@ -79,7 +79,7 @@ library
       serialise,
       cborg,
 
-      QuickCheck >=2.8 && <2.12,
+      QuickCheck >=2.8 && <2.13,
       tasty,
       tasty-quickcheck,
       temporary
@@ -104,7 +104,7 @@ executable dump-postings
       profunctors,
       exceptions >= 0.8,
       text >=1.2 && <1.3,
-      containers >=0.5 && <0.6,
+      containers,
       warc,
       b-tree,
       simplir,

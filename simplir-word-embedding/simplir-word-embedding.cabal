@@ -17,7 +17,7 @@ library
   exposed-modules:     SimplIR.WordEmbedding,
                        SimplIR.WordEmbedding.Parse
   other-extensions:    GeneralizedNewtypeDeriving, BangPatterns, DataKinds, PolyKinds, ScopedTypeVariables, KindSignatures, TypeApplications, GADTs
-  build-depends:       base >=4.9 && <4.12,
+  build-depends:       base >=4.9 && <5,
                        deepseq >= 1.4 && < 1.5,
                        text >=1.2 && <1.3,
                        unordered-containers >=0.2 && <0.3,
