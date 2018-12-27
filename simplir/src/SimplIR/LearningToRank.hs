@@ -33,6 +33,7 @@ import GHC.Generics
 import Control.DeepSeq
 import Data.Ord
 import Data.List
+import Data.Maybe
 import qualified System.Random as Random
 import System.Random.Shuffle
 import Data.Hashable
@@ -67,8 +68,21 @@ stepFeature (Step dim delta) (WeightVec v) =
         !x' = x + delta
     in WeightVec $ v `FS.modifyIndices` [(dim, x')]
 
--- | A ranking of documents along with relevance annotations
+-- | All necessary data to produce a ranking of documents (along with relevance annotations), given the weight parameter
 type FRanking f relevance a = [(a, FeatureVec f Double, relevance)]
+
+
+---
+-- type FRanking f relevance a = [(a, relevance) , (FeatureVec f Double)]
+-- type FRanking f relevance a = collection (a, relevance)  (FeatureVec f Double)
+
+-- M.Map a (FeatureVec f Double, relevance)
+--
+-- rerank :: WeightVec f -> M.Map a (FeatureVec f Double) -> Ranking Score a
+-- rerank :: WeightVec f -> Graph a (FeatureVec f Double) -> Ranking Score a
+-- rerank :: WeightVec f -> collection a (FeatureVec f Double) -> Ranking Score a
+--
+---
 
 score :: WeightVec f -> FeatureVec f Double -> Score
 score (WeightVec w) f = w `FS.dotFeatureVecs` f
