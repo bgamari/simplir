@@ -33,7 +33,6 @@ import GHC.Generics
 import Control.DeepSeq
 import Data.Ord
 import Data.List
-import Data.Maybe
 import qualified System.Random as Random
 import System.Random.Shuffle
 import Data.Hashable
@@ -43,6 +42,7 @@ import Linear.Epsilon
 import SimplIR.FeatureSpace as FS
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
+import SimplIR.TrainUtils
 
 type Score = Double
 
@@ -126,8 +126,8 @@ miniBatchedAndEvaluated
        (Random.RandomGen gen, Show qid, Ord qid, Show a, Show relevance, Show f)
     => MiniBatchParams
     -> ScoringMetric relevance qid a
-            -- ^ evaluation metric
-    -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [(Score, WeightVec f)])
+       -- ^ evaluation metric
+    -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [WeightVec f])
        -- ^ optimiser (e.g. 'coordAscent')
     -> gen
     -> WeightVec f  -- ^ initial weights
@@ -148,39 +148,6 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
             rankings :: M.Map qid (Ranking Score (a, relevance))
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
-
-miniBatched :: forall d f qid relevance gen.
-               (Random.RandomGen gen, Show qid, Ord qid, Show d, Show f)
-            => Int  -- ^ iterations per mini-batch
-            -> Int  -- ^ mini-batch size
-            -> (gen -> WeightVec f -> M.Map qid d -> [(Score, WeightVec f)])
-                    -- ^ optimiser (e.g. 'coordAscent')
-            -> gen  -- ^ random generator to use to split batches
-            -> WeightVec f  -- ^ initial weights
-            -> M.Map qid d  -- ^ training data
-            -> [WeightVec f]
-               -- ^ list of iterates, including all steps within a mini-batch;
-               -- doesn't expose 'Score' since it won't be comparable across batches
-miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
-  where
-    nQueries = M.size fRankings
-
-    mkBatch :: gen -> M.Map qid d
-    mkBatch gen =
-        M.fromList [ M.elemAt i fRankings
-                   | i <- indices
-                   ]
-      where
-        indices = map (`mod` nQueries) $ take batchSize $ Random.randoms gen
-
-    go gen0 w0 = steps ++ go gen4 w1
-      where
-        (gen1, gen2) = Random.split gen0
-        (gen3, gen4) = Random.split gen2
-        batch = mkBatch gen1
-        steps :: [WeightVec f]
-        steps = map snd $ take batchSteps $ optimise gen3 w0 batch
-        w1 = last steps
 
 coordAscent :: forall a f qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)

@@ -164,8 +164,11 @@ learnToRank :: forall f query docId . (Ord query, Show query, Show docId, Show f
 learnToRank miniBatchParams convergence franking fspace metric gen0 =
     let weights0 :: WeightVec f
         weights0 = WeightVec $ FS.repeat fspace 1
-        iters = miniBatchedAndEvaluated miniBatchParams
-            metric (coordAscent metric) gen0 weights0 franking
+        iters =
+            let optimise gen w trainData =
+                    map snd $ coordAscent metric gen w trainData
+            in miniBatchedAndEvaluated miniBatchParams
+                 metric optimise gen0 weights0 franking
         errorDiag = show weights0 ++ ". Size training queries: "++ show (M.size franking)++ "."
         checkNans (_,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
