@@ -3,6 +3,7 @@
 *.dyn_hi
 *.dyn_o
 *.dump-*
+*.iml
 dist
 dist-newstyle
 .cabal-sandbox
