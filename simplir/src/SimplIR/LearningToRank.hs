@@ -123,7 +123,7 @@ defaultMiniBatchParams = MiniBatchParams 4 100 10
 
 miniBatchedAndEvaluated
     :: forall a f qid relevance gen.
-       (Random.RandomGen gen, Show qid, Ord qid, Show a, Show f)
+       (Random.RandomGen gen, Show qid, Ord qid, Show a, Show relevance, Show f)
     => MiniBatchParams
     -> ScoringMetric relevance qid a
             -- ^ evaluation metric
@@ -144,19 +144,20 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
     go :: [WeightVec f] -> [(Score, WeightVec f)]
     go iters =
         let w:rest = drop evalSteps iters
+
             rankings :: M.Map qid (Ranking Score (a, relevance))
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
-miniBatched :: forall a f qid relevance gen.
-               (Random.RandomGen gen, Show qid, Ord qid, Show a, Show f)
+miniBatched :: forall d f qid relevance gen.
+               (Random.RandomGen gen, Show qid, Ord qid, Show d, Show f)
             => Int  -- ^ iterations per mini-batch
             -> Int  -- ^ mini-batch size
-            -> (gen -> WeightVec f -> M.Map qid (FRanking f relevance a) -> [(Score, WeightVec f)])
+            -> (gen -> WeightVec f -> M.Map qid d -> [(Score, WeightVec f)])
                     -- ^ optimiser (e.g. 'coordAscent')
-            -> gen
+            -> gen  -- ^ random generator to use to split batches
             -> WeightVec f  -- ^ initial weights
-            -> M.Map qid (FRanking f relevance a)
+            -> M.Map qid d  -- ^ training data
             -> [WeightVec f]
                -- ^ list of iterates, including all steps within a mini-batch;
                -- doesn't expose 'Score' since it won't be comparable across batches
@@ -164,7 +165,7 @@ miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
   where
     nQueries = M.size fRankings
 
-    mkBatch :: gen -> M.Map qid (FRanking f relevance a)
+    mkBatch :: gen -> M.Map qid d
     mkBatch gen =
         M.fromList [ M.elemAt i fRankings
                    | i <- indices
