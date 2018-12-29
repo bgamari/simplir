@@ -21,6 +21,7 @@ module SimplIR.LearningToRank
     , meanAvgPrec
       -- * Learning
     , FRanking
+    , naiveCoordAscent
     , coordAscent
     , miniBatched
     , miniBatchedAndEvaluated
@@ -149,6 +150,50 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
+naiveCoordAscent
+    :: forall a f qid d gen relevance.
+       (Random.RandomGen gen, Show qid, Show a, Show f)
+    => ScoringMetric relevance qid a
+    -> (d -> WeightVec f -> Ranking Double (a,relevance))
+       -- ^ re-ranking function
+    -> gen
+    -> WeightVec f             -- ^ initial weights
+    -> M.Map qid d             -- ^ training data
+    -> [(Score, WeightVec f)]  -- ^ list of iterates
+naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
+    let score0 = scoreRanking $ fmap (\d -> rerank d w0) fRankings
+    in go gen0 (score0, w0)
+  where
+    fspace = featureSpace $ getWeightVec w0
+    dim = FS.featureDimension fspace
+
+    deltas = [ f x
+             | x <- [0.0001 * 2^n | n <- [1..25::Int]]
+             , f <- [id, negate]
+             ] ++ [0]
+
+    go :: gen -> (Score, WeightVec f) -> [(Score, WeightVec f)]
+    go gen w = w' : go gen' w'
+      where
+        !w' = foldl' updateDim w dims
+        dims = shuffle' (featureIndexes fspace) dim g
+        (g, gen') = Random.split gen
+
+    updateDim :: (Score, WeightVec f) -> FeatureIndex f -> (Score, WeightVec f)
+    updateDim (score0, w0) dim
+      | null steps = (score0, w0)
+      | otherwise  = maximumBy (comparing fst) steps
+      where
+        steps :: [(Score, WeightVec f)]
+        steps =
+            [ (score, w')
+            | delta <- deltas
+            , let step = Step dim delta
+            , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
+            , let score = scoreRanking $ fmap (\d -> rerank d w') fRankings
+            , not $ isNaN score
+            ]
+
 coordAscent :: forall a f qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
             => ScoringMetric relevance qid a
@@ -159,7 +204,7 @@ coordAscent :: forall a f qid relevance gen.
 coordAscent scoreRanking gen0 w0 fRankings
   | isNaN score0         = error "coordAscent: Initial score is not a number"
   | Just msg <- badMsg   = error msg
-  | otherwise = go gen0 (score0, w0)
+  | otherwise            = go gen0 (score0, w0)
   where
     score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
 
