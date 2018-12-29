@@ -34,7 +34,9 @@ main = do
             fmap (\relDocs -> (S.size relDocs, relDocs))
             $ M.fromListWith (<>)
             [ (QRel.queryId e, S.singleton $ QRel.documentName e)
-            | e <- qrels ]
+            | e <- qrels
+            , QRel.isPositive (QRel.relevance e)
+            ]
 
     -- Read (lazily) run file
     run <- Run.readRunFile runPath

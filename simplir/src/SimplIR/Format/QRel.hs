@@ -43,10 +43,12 @@ data Entry query doc rel = Entry { queryId      :: !query
 class RelevanceScale rel where
     parseRelevance :: T.Text -> rel
     formatRelevance :: rel -> T.Text
+    isPositive :: rel -> Bool
 
 instance RelevanceScale T.Text where
     parseRelevance = id
     formatRelevance = id
+    isPositive _ = True
 
 instance RelevanceScale IsRelevant where
     parseRelevance "0" = NotRelevant
@@ -55,6 +57,7 @@ instance RelevanceScale IsRelevant where
 
     formatRelevance NotRelevant = "0"
     formatRelevance Relevant    = "1"
+    isPositive r = (r == Relevant)
 
 newtype GradedRelevance = GradedRelevance {unGradedRelevance:: Int}
                         deriving (Eq, Ord, Show, Hashable)
@@ -65,6 +68,7 @@ instance RelevanceScale GradedRelevance where
             Right (n, _) -> GradedRelevance n
             Left e       -> error $ "gradedRelevance: invalid integer: "++show e++": "++show s
     formatRelevance (GradedRelevance rel) = T.pack $ show rel
+    isPositive (GradedRelevance r) = r > 0
 
 readQRel :: forall rel. RelevanceScale rel => FilePath -> IO [Entry QueryId DocumentName rel]
 readQRel fname =
