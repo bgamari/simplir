@@ -143,7 +143,8 @@ miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
       where
         indices = map (`mod` nQueries) $ take batchSize $ Random.randoms gen
 
-    go gen0 w0 = steps ++ go gen4 w1
+    go gen0 w0 =
+        steps ++ go gen4 w1
       where
         (gen1, gen2) = Random.split gen0
         (gen3, gen4) = Random.split gen2
