@@ -50,6 +50,10 @@ data FeatureVec f a = FeatureVec { featureSpace :: !(FeatureSpace f)
                                  , getFeatureVec :: !(VU.Vector a) }
   deriving (Show)
 
+-- | Vector addition
+instance (Num a, VU.Unbox a) => Semigroup (FeatureVec f a) where
+    (<>) = (^+^)
+
 instance NFData (FeatureVec f a) where
     rnf = (`seq` ())
 
