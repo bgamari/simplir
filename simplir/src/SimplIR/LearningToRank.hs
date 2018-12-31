@@ -98,6 +98,7 @@ rerank weight fRanking =
     ]
 
 data Step f = Step !(FeatureIndex f) Double
+     deriving Show
 
 isZeroStep :: Step f -> Bool
 isZeroStep (Step _ d) = d == 0
@@ -184,7 +185,8 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
     updateDim :: (Score, WeightVec f) -> FeatureIndex f -> (Score, WeightVec f)
     updateDim (score0, w0) dim
       | null steps = Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": No valid steps in ") $ (score0, w0)
-      | otherwise  = trShow ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": Found max: ")  $ maximumBy (comparing fst) steps
+      | otherwise  = trShow ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": Found max: ")
+                    $ maximumBy (comparing fst) steps
       where
         steps :: [(Score, WeightVec f)]
         steps =
@@ -192,7 +194,7 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
             | delta <- deltas
             , let step = Step dim delta
             , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
-            , let score = scoreRanking $ fmap (\d -> rerank d w') fRankings
+            , let score = trShow ("- coord dim "<> show dim <> " step "<> show step <> " will get score ") $ scoreRanking $ fmap (\d -> rerank d w') fRankings
             , not $ isNaN score
             ]
     trShow y x = Debug.trace (show y <> " " <> show x) x
