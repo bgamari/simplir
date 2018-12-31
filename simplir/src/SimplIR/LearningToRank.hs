@@ -44,6 +44,7 @@ import SimplIR.FeatureSpace as FS
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
 import SimplIR.TrainUtils
+import Debug.Trace as Debug
 
 type Score = Double
 
@@ -150,6 +151,7 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
+
 naiveCoordAscent
     :: forall a f qid d gen relevance.
        (Random.RandomGen gen, Show qid, Show a, Show f)
@@ -173,16 +175,16 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
              ] ++ [0]
 
     go :: gen -> (Score, WeightVec f) -> [(Score, WeightVec f)]
-    go gen w = w' : go gen' w'
+    go gen (s,w) = (s',w') : go gen' (s',w')
       where
-        !w' = foldl' updateDim w dims
+        !(s', w') = foldl' updateDim (s,w) dims
         dims = shuffle' (featureIndexes fspace) dim g
         (g, gen') = Random.split gen
 
     updateDim :: (Score, WeightVec f) -> FeatureIndex f -> (Score, WeightVec f)
     updateDim (score0, w0) dim
-      | null steps = (score0, w0)
-      | otherwise  = maximumBy (comparing fst) steps
+      | null steps = Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": No valid steps in ") $ (score0, w0)
+      | otherwise  = trShow ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": Found max: ")  $ maximumBy (comparing fst) steps
       where
         steps :: [(Score, WeightVec f)]
         steps =
@@ -193,6 +195,7 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
             , let score = scoreRanking $ fmap (\d -> rerank d w') fRankings
             , not $ isNaN score
             ]
+    trShow y x = Debug.trace (show y <> " " <> show x) x
 
 coordAscent :: forall a f qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
