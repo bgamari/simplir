@@ -48,7 +48,9 @@ import Data.List.NonEmpty( NonEmpty( (:|) ) )
 -- TODO Should be opaque
 data FeatureVec f a = FeatureVec { featureSpace :: !(FeatureSpace f)
                                  , getFeatureVec :: !(VU.Vector a) }
-  deriving (Show)
+instance (Show f, Show a, VU.Unbox a) => Show (FeatureVec f a) where
+    show fvec =  show $ toList fvec
+
 
 -- | Vector addition
 instance (Num a, VU.Unbox a) => Semigroup (FeatureVec f a) where
