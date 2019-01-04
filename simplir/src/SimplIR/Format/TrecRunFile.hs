@@ -4,6 +4,7 @@
 -- | A simple parser for the TREC run file format for retrieval result rankings.
 module SimplIR.Format.TrecRunFile where
 
+import Control.DeepSeq
 import Data.Char
 import Data.Maybe
 import Data.Semigroup
@@ -29,6 +30,9 @@ data RankingEntry = RankingEntry { queryId       :: !QueryId
                                  , methodName    :: !MethodName
                                  }
                   deriving (Show)
+
+instance NFData RankingEntry where
+    rnf r = r `seq` ()
 
 readRunFile :: FilePath -> IO [RankingEntry]
 readRunFile fname = do
