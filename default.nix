@@ -78,9 +78,10 @@ let
       };
     in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 
-  haskellPackages = nixpkgs.haskell.packages.ghc863.override {overrides = haskellOverrides;};
+  ghcVersion = "ghc863";
+  haskellPackages = nixpkgs.haskell.packages."${ghcVersion}".override {overrides = haskellOverrides;};
 in {
-  inherit haskellPackages haskellOverrides;
+  inherit ghcVersion haskellPackages haskellOverrides;
   inherit trec-eval;
   inherit (haskellPackages) simplirPackages;
   env = haskellPackages.ghcWithHoogle (pkgs: builtins.attrValues haskellPackages.simplirPackages);
