@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -194,6 +196,34 @@ project (Space _ s1) s2 =
       case coerce $ M.lookup f s1 of
         Just i -> pure i
         Nothing -> throwE $ "project: Feature not present"
+
+data FeatureSpaceStack f ss where
+    SpaceStack :: FeatureSpace f s -> FeatureSpaceStack f ss -> FeatureSpaceStack f (s ': ss)
+    SpaceStackNil :: FeatureSpaceStack f '[]
+
+data FeatureStack f ss a where
+    Stack :: FeatureVec f s a -> FeatureStack f ss a -> FeatureStack f (s ': ss) a
+    StackNil :: FeatureStack f '[] a
+
+stackFeatures :: forall f s ss a. (Ord f, VU.Unbox a)
+              => FeatureSpaceStack f ss -> FeatureSpace f s
+              -> Maybe (FeatureStack f ss a -> FeatureVec f s a)
+stackFeatures spaces destSpace
+    -- TODO: Make this more efficient
+  | srcFeatures == featureNameSet destSpace =
+      Just $ \vecs -> fromList destSpace (allFeatures vecs)
+  | otherwise = Nothing
+  where
+    srcFeatures = S.fromList (allFeatureNames spaces)
+
+    allFeatureNames :: forall ss. FeatureSpaceStack f ss -> [f]
+    allFeatureNames (SpaceStack fs rest) = featureNames fs ++ allFeatureNames rest
+    allFeatureNames SpaceStackNil = []
+
+    allFeatures :: forall ss. FeatureStack f ss a -> [(f, a)]
+    allFeatures (Stack fv rest) = toList fv ++ allFeatures rest
+    allFeatures StackNil = []
+
 
 equivSpace :: (VU.Unbox a, Eq f)
            => FeatureSpace f s -> FeatureSpace f s'
