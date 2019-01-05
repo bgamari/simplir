@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 
 module SimplIR.LearningToRankWrapper
     ( Model(..)
+    , SomeModel(..)
     , WeightVec(..)
     , modelWeights
     , modelFeatures
@@ -32,36 +34,40 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson (Parser)
 import qualified Data.Text as T
 import qualified Data.Map as M
+import qualified Data.Set as S
 import qualified Data.HashMap.Strict as HM
 import Data.Maybe
 import System.Random
 import Debug.Trace
 
 import SimplIR.LearningToRank
-import SimplIR.FeatureSpace
+import SimplIR.FeatureSpace (FeatureSpace, FeatureVec)
 import qualified SimplIR.FeatureSpace as FS
 import qualified SimplIR.Format.TrecRunFile as Run
 import qualified SimplIR.Format.QRel as QRel
 
-type ConvergenceCriterion f = ([(Double, WeightVec f)] -> [(Double, WeightVec f)])
+type ConvergenceCriterion f s = ([(Double, WeightVec f s)] -> [(Double, WeightVec f s)])
 
-newtype Model f = Model { modelWeights' :: WeightVec f }
-                deriving (Show, Generic)
-instance NFData (Model f) where rnf = (`seq` ())
+data SomeModel f where
+    SomeModel :: Model f s -> SomeModel f
 
-modelWeights :: Model f -> [(f, Double)]
+newtype Model f s = Model { modelWeights' :: WeightVec f s }
+                  deriving (Show, Generic)
+instance NFData (Model f s) where rnf = (`seq` ())
+
+modelWeights :: Model f s -> [(f, Double)]
 modelWeights (Model weights) = FS.toList (getWeightVec weights)
 
-modelFeatures :: Model f -> FeatureSpace f
-modelFeatures = featureSpace . getWeightVec . modelWeights'
+modelFeatures :: Model f s -> FeatureSpace f s
+modelFeatures = FS.featureSpace . getWeightVec . modelWeights'
 
 -- TODO also save feature space to ensure features idx don't change semantics
-instance (Ord f, Show f) => Aeson.ToJSON (Model f) where
+instance (Ord f, Show f) => Aeson.ToJSON (Model f s) where
     toJSON (Model weights) =
         Aeson.toJSON $ M.fromList $ map (first show) $ FS.toList (getWeightVec weights)
     toEncoding (Model weights) =
         Aeson.pairs $ foldMap (\(f,x) -> T.pack (show f) Aeson..= x) (FS.toList (getWeightVec weights))
-instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
+instance (Ord f, Show f, Read f) => Aeson.FromJSON (SomeModel f) where
     parseJSON = Aeson.withObject "feature vector" $ \o -> do
       let parsePair :: (T.Text, Aeson.Value) -> Aeson.Parser (f, Double)
           parsePair (k,v)
@@ -69,9 +75,9 @@ instance (Ord f, Show f, Read f) => Aeson.FromJSON (Model f) where
                   (,) <$> pure k' <*> Aeson.parseJSON v
             | otherwise = fail $ "Failed to parse feature name: "++show k
       pairs <- mapM parsePair (HM.toList o)
-      let fspace = FS.mkFeatureSpace $ map fst pairs
+      let FS.SomeFeatureSpace fspace = FS.mkFeatureSpace $ S.fromList $ map fst pairs
           weights = WeightVec $ FS.fromList fspace pairs
-      return $ Model weights
+      return $ SomeModel $ Model weights
 
 
 newtype FeatureName = FeatureName { getFeatureName :: T.Text }
@@ -98,15 +104,15 @@ runToDocFeatures runFiles = M.fromListWith M.union
 
 
 toDocFeatures' :: (Show f, Ord f)
-               => FeatureSpace f
+               => FeatureSpace f s
                -> M.Map f [Run.RankingEntry]
-               -> M.Map (Run.QueryId, QRel.DocumentName) (FeatureVec f Double)
+               -> M.Map (Run.QueryId, QRel.DocumentName) (FeatureVec f s Double)
 toDocFeatures' fspace runFiles =
     fmap (toFeatures' fspace) (runToDocFeatures runFiles)
 
-toFeatures' :: (Show f, Ord f) => FeatureSpace f -> M.Map f Double -> FeatureVec f Double
+toFeatures' :: (Show f, Ord f) => FeatureSpace f s -> M.Map f Double -> FeatureVec f s Double
 toFeatures' fspace features =
-    FS.fromList fspace [ (f, features M.! f) | f <- featureNames fspace ]
+    FS.fromList fspace [ (f, features M.! f) | f <- FS.featureNames fspace ]
 
 
 avgMetricQrel :: forall query doc. Ord query
@@ -124,8 +130,8 @@ avgMetricQrel qrel =
     in metric
 
 
-avgMetricData :: forall query doc f. (Ord query)
-              => M.Map query [(doc, FeatureVec f Double, IsRelevant)]
+avgMetricData :: forall query doc f s. (Ord query)
+              => M.Map query [(doc, FeatureVec f s Double, IsRelevant)]
               -> ScoringMetric IsRelevant query doc
 avgMetricData traindata =
     let totalRel = fmap (length . filter (\(_,_, rel)-> (rel == Relevant)) )  traindata
@@ -133,17 +139,17 @@ avgMetricData traindata =
         metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
     in metric
 
-augmentWithQrels :: forall docId queryId f.
+augmentWithQrels :: forall docId queryId f s.
                     (Ord queryId, Ord docId)
                  => [QRel.Entry queryId docId IsRelevant]
-                 -> M.Map (queryId, docId) (FeatureVec f Double)
+                 -> M.Map (queryId, docId) (FeatureVec f s Double)
                  -> IsRelevant
-                 -> M.Map queryId [(docId, FeatureVec f Double, IsRelevant)]
+                 -> M.Map queryId [(docId, FeatureVec f s Double, IsRelevant)]
 augmentWithQrels qrel docFeatures rel=
     let relevance :: M.Map (queryId, docId) IsRelevant
         relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]
 
-        franking :: M.Map queryId [(docId, FeatureVec f Double, IsRelevant)]
+        franking :: M.Map queryId [(docId, FeatureVec f s Double, IsRelevant)]
         franking = M.fromListWith (++)
                    [ (qid, [(doc, features, relDocs)])
                    | ((qid, doc), features) <- M.assocs docFeatures
@@ -153,16 +159,16 @@ augmentWithQrels qrel docFeatures rel=
 
 
 
-learnToRank :: forall f query docId . (Ord query, Show query, Show docId, Show f)
+learnToRank :: forall f s query docId. (Ord query, Show query, Show docId, Show f)
             => MiniBatchParams
-            -> ConvergenceCriterion f
-            -> M.Map query [(docId, FeatureVec f Double, IsRelevant)]
-            -> FeatureSpace f
+            -> ConvergenceCriterion f s
+            -> M.Map query [(docId, FeatureVec f s Double, IsRelevant)]
+            -> FeatureSpace f s
             -> ScoringMetric IsRelevant query docId
             -> StdGen
-            -> (Model f, Double)
+            -> (Model f s, Double)
 learnToRank miniBatchParams convergence franking fspace metric gen0 =
-    let weights0 :: WeightVec f
+    let weights0 :: WeightVec f s
         weights0 = WeightVec $ FS.repeat fspace 1
         iters =
             let optimise gen w trainData =
@@ -173,7 +179,7 @@ learnToRank miniBatchParams convergence franking fspace metric gen0 =
         checkNans (_,_) (b,_)
            | isNaN b = error $ "Metric score is NaN. initial weights " ++ errorDiag
            | otherwise = True
-        checkedConvergence :: [(Double, WeightVec f)] -> [(Double, WeightVec f)]
+        checkedConvergence :: [(Double, WeightVec f s)] -> [(Double, WeightVec f s)]
         checkedConvergence = untilConverged checkNans . convergence
         (evalScore, weights) = case checkedConvergence iters of
            []          -> error $ "learning converged immediately. "++errorDiag
@@ -186,7 +192,7 @@ traceIters info xs = zipWith3 g [1..] xs (tail xs)
     g i x@(a,_) (b,_) =
         trace (concat [info, " iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
 
-defaultConvergence :: String -> Double -> Int -> Int -> [(Double, WeightVec f)] -> [(Double, WeightVec f)]
+defaultConvergence :: String -> Double -> Int -> Int -> [(Double, WeightVec f s)] -> [(Double, WeightVec f s)]
 defaultConvergence info threshold maxIter dropIter =
     relChangeBelow threshold . maxIterations maxIter . dropIterations dropIter . traceIters info
 
@@ -195,14 +201,14 @@ defaultConvergence info threshold maxIter dropIter =
 relChange :: RealFrac a => a -> a -> a
 relChange a b = abs (a-b) / abs b
 
-rerankRankings :: Model f
-               -> M.Map Run.QueryId [(QRel.DocumentName, FeatureVec f Double)]
+rerankRankings :: Model f s
+               -> M.Map Run.QueryId [(QRel.DocumentName, FeatureVec f s Double)]
                -> M.Map Run.QueryId (Ranking Score QRel.DocumentName)
 rerankRankings model featureData  =
     fmap (rerank (modelWeights' model)) featureData
 
-rerankRankings' :: Model f
-         -> M.Map q [(docId, FeatureVec f Double, rel)]
+rerankRankings' :: Model f s
+         -> M.Map q [(docId, FeatureVec f s Double, rel)]
          -> M.Map q (Ranking Score (docId, rel))
 rerankRankings' model featureData  =
     fmap (rerank (modelWeights' model) . rearrangeTuples) featureData
