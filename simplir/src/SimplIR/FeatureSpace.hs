@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE BangPatterns #-}
@@ -17,7 +18,11 @@ module SimplIR.FeatureSpace
     -- * Feature spaces
     , SomeFeatureSpace(..)
     , FeatureSpace
+    -- ** Construction
     , mkFeatureSpace
+    , eitherSpaces
+    , concatSpaces
+    -- ** Queries
     , dimension
     , featureNames
     , featureNameSet
@@ -25,6 +30,8 @@ module SimplIR.FeatureSpace
     , featureIndexes
     , lookupFeatureIndex
     , lookupFeatureName
+    -- ** Manipulating feature spaces
+    , mapFeatureNames
     -- * Feature vectors
     , FeatureVec
     , featureSpace
@@ -32,6 +39,11 @@ module SimplIR.FeatureSpace
     , generate
     , repeat
     , fromList
+    , aggregateWith
+    -- *** Stacking
+    , Stack
+    , FeatureStack(..)
+    , stack
     -- ** Destruction
     , toList
     -- ** Lookups
@@ -39,6 +51,9 @@ module SimplIR.FeatureSpace
     -- ** Mapping and zipping
     , map
     , zipWith
+    -- *** Generalized mapping
+    , FeatureMapping(..)
+    , mapFeatures
     -- ** Updates
     , modifyIndices
     , modify
@@ -60,7 +75,10 @@ import Control.Monad.ST
 import Data.Bifunctor
 import Data.Coerce
 import Data.Foldable (forM_)
+import Data.Kind
 import Data.Ix
+import qualified Data.List.NonEmpty as NE
+import Data.Tuple
 import Data.Maybe
 import GHC.Stack
 import qualified Data.Map.Strict as M
@@ -85,6 +103,28 @@ data FeatureSpace f s where
              }
           -> FeatureSpace f s
     deriving (Show)
+
+data Stack (ss :: [Type])
+
+mapFeatureNames :: Ord g => (f -> g) -> FeatureSpace f s -> FeatureSpace g s
+mapFeatureNames f (Space a b) =
+    Space { fsIndexToFeature = VI.map f a
+          , fsFeatureToIndex = M.fromList $ fmap (first f) $ M.toList b
+          }
+
+eitherSpaces :: (Ord g, Ord f)
+             => FeatureSpace f s -> FeatureSpace g s' -> FeatureSpace (Either f g) (Stack '[s, s'])
+eitherSpaces s1 s2 = concatSpaces (mapFeatureNames Left s1) (mapFeatureNames Right s2)
+
+concatSpaces :: Ord f => FeatureSpace f s -> FeatureSpace f s' -> FeatureSpace f (Stack '[s, s'])
+concatSpaces s1 s2 =
+    Space { fsIndexToFeature = VI.fromList bnds
+                               $ coerce (VI.elems $ fsIndexToFeature s1) <> coerce (VI.elems $ fsIndexToFeature s2)
+          , fsFeatureToIndex = coerce (fsFeatureToIndex s1) <> fmap bump (fsFeatureToIndex s2)
+          }
+  where
+    bump (FeatureIndex i) = FeatureIndex (i + dimension s1)
+    bnds = coerce (fst $ featureIndexBounds s1, snd $ featureIndexBounds s2)
 
 dimension :: FeatureSpace f s -> Int
 dimension (Space v _) = rangeSize $ VI.bounds v
@@ -127,13 +167,13 @@ data FeatureVec f s a = FeatureVec { featureSpace  :: !(FeatureSpace f s)
 instance NFData (FeatureVec f s a) where
     rnf x = x `seq` ()
 
-data SomeFeatureVec f a where
-    SomeFeatureVec :: (forall s. FeatureVec f s a) -> SomeFeatureVec f a
-
 lookupIndex :: (HasCallStack, VU.Unbox a)
             => FeatureVec f s a -> FeatureIndex s -> a
 lookupIndex (FeatureVec _ v) = (v VI.!)
 {-# INLINE lookupIndex #-}
+
+aggregateWith :: (Ord f, VU.Unbox a) => (a -> a -> a) -> NE.NonEmpty (FeatureVec f s a) -> FeatureVec f s a
+aggregateWith f xs@(x NE.:| _) = FeatureVec (featureSpace x) $ VI.zipManyWith f (fmap getFeatureVec xs)
 
 accum :: (Ord f, VU.Unbox a) => (a -> a -> a) -> FeatureVec f s a -> [(f, a)] -> FeatureVec f s a
 accum f v = accumIndex f v . fmap (first $ fromMaybe err . lookupFeatureIndex (featureSpace v))
@@ -173,11 +213,29 @@ generate fspace f = FeatureVec fspace $ VI.generate (featureIndexBounds fspace) 
 
 data FeatureMapping f s g where
     FeatureMapping :: FeatureSpace g s'
-                   -> (forall a. FeatureVec f s a -> FeatureVec g s' a)
+                   -> (forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a)
                    -> FeatureMapping f s g
 
---mapFeatures :: FeatureSpace f s -> (f -> g) -> FeatureMapping f s g
---mapFeatures (FeatureVec fspace _) = FeatureVec fspace
+mapFeatures :: forall f g s. (Show g, Ord g, Ord f)
+            => FeatureSpace f s
+            -> (f -> Maybe g)
+            -> FeatureMapping f s g
+mapFeatures srcSpace f =
+    case mkFeatureSpace $ S.fromList $ fmap snd pairs of
+      SomeFeatureSpace (destSpace :: FeatureSpace g s') ->
+        let mapVec :: forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a
+            mapVec v = map (\i -> v `lookupIndex` FeatureIndex i) mapIdxs
+
+            --mapIdxs :: FeatureVec g s' (FeatureIndex s)
+            mapIdxs :: FeatureVec g s' Int
+            mapIdxs = fromList destSpace [ (y, i)
+                                         | (x, y) <- pairs
+                                         , Just (FeatureIndex i) <- pure $ lookupFeatureIndex srcSpace x
+                                         ]
+        in FeatureMapping destSpace mapVec
+  where
+    pairs :: [(f, g)]
+    pairs = mapMaybe (\x -> fmap (x,) (f x)) $ featureNames srcSpace
 
 map :: (VU.Unbox a, VU.Unbox b)
     => (a -> b) -> FeatureVec f s a -> FeatureVec f s b
@@ -191,39 +249,25 @@ project (Space _ s1) s2 =
     Right x  -> Just $ \v -> map (lookupIndex v . coerce) x
     Left _err -> Nothing
   where
+    --mapping :: Either String (FeatureVec f s' (FeatureIndex s))
     mapping :: Either String (FeatureVec f s' Int)
     !mapping = runST $ runExceptT $ generateM s2 $ \f ->
       case coerce $ M.lookup f s1 of
         Just i -> pure i
         Nothing -> throwE $ "project: Feature not present"
 
-data FeatureSpaceStack f ss where
-    SpaceStack :: FeatureSpace f s -> FeatureSpaceStack f ss -> FeatureSpaceStack f (s ': ss)
-    SpaceStackNil :: FeatureSpaceStack f '[]
-
 data FeatureStack f ss a where
     Stack :: FeatureVec f s a -> FeatureStack f ss a -> FeatureStack f (s ': ss) a
     StackNil :: FeatureStack f '[] a
 
-stackFeatures :: forall f s ss a. (Ord f, VU.Unbox a)
-              => FeatureSpaceStack f ss -> FeatureSpace f s
-              -> Maybe (FeatureStack f ss a -> FeatureVec f s a)
-stackFeatures spaces destSpace
-    -- TODO: Make this more efficient
-  | srcFeatures == featureNameSet destSpace =
-      Just $ \vecs -> fromList destSpace (allFeatures vecs)
-  | otherwise = Nothing
+stack :: forall f ss a. (Ord f, VU.Unbox a)
+      => FeatureSpace f (Stack ss) -> FeatureStack f ss a -> FeatureVec f (Stack ss) a
+stack fspace vecs =
+    FeatureVec fspace $ VI.fromVector (featureIndexBounds fspace) (VU.concat $ featVecs vecs)
   where
-    srcFeatures = S.fromList (allFeatureNames spaces)
-
-    allFeatureNames :: forall ss. FeatureSpaceStack f ss -> [f]
-    allFeatureNames (SpaceStack fs rest) = featureNames fs ++ allFeatureNames rest
-    allFeatureNames SpaceStackNil = []
-
-    allFeatures :: forall ss. FeatureStack f ss a -> [(f, a)]
-    allFeatures (Stack fv rest) = toList fv ++ allFeatures rest
-    allFeatures StackNil = []
-
+    featVecs :: forall ss'. FeatureStack f ss' a -> [VU.Vector a]
+    featVecs (Stack f rest) = VI.vector (getFeatureVec f) : featVecs rest
+    featVecs StackNil = []
 
 equivSpace :: (VU.Unbox a, Eq f)
            => FeatureSpace f s -> FeatureSpace f s'

@@ -34,6 +34,7 @@ module SimplIR.WordEmbedding
     ) where
 
 import Control.DeepSeq
+import Data.Coerce
 import Data.Proxy
 import Data.Bifunctor
 import Data.Ix
@@ -41,6 +42,7 @@ import Data.Foldable
 import Data.Semigroup
 import qualified Data.Trie as Trie
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.HashMap.Strict as HM
@@ -88,8 +90,7 @@ bounds = (minBound, maxBound)
 
 -- | The sum of a set of word-vectors.
 sumWordVecs :: forall n. KnownNat n => [WordVec n] -> WordVec n
-sumWordVecs [] = mempty
-sumWordVecs xs = WordVec $ VI.zipManyWith (+) $ map unWordVec xs
+sumWordVecs = maybe mempty (WordVec . VI.zipManyWith (+) . coerce) . NE.nonEmpty
 
 dotWordVecs :: WordVec n -> WordVec n -> Double
 dotWordVecs (WordVec a) (WordVec b) =

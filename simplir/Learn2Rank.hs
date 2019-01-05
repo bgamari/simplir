@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -62,8 +63,8 @@ learnMode =
         runFiles <- traverse Run.readRunFile $ M.fromListWith (error "Duplicate feature") featureFiles
         qrel <- QRel.readQRel qrelFile
         gen0 <- newStdGen
-        let fspace = FS.mkFeatureSpace $ M.keys runFiles
-            docFeatures = toDocFeatures' fspace runFiles
+        SomeFeatureSpace fspace <- pure $ FS.mkFeatureSpace $ M.keysSet runFiles
+        let docFeatures = toDocFeatures' fspace runFiles
             franking =  augmentWithQrels qrel docFeatures Relevant
 
             !metric = avgMetricQrel qrel
@@ -82,11 +83,11 @@ predictMode =
     run :: FilePath -> [(FeatureName, FilePath)] -> IO ()
     run modelFile featureFiles = do
         runFiles <- traverse Run.readRunFile $ M.fromList featureFiles
-        Just model <- Aeson.decode <$> BSL.readFile modelFile
+        Just (SomeModel (model :: Model FeatureName s)) <- Aeson.decode <$> BSL.readFile modelFile
         when (not $ S.null $ S.fromList (featureNames $ modelFeatures model) `S.difference` M.keysSet runFiles) $
             fail "bad features"
         let features = toDocFeatures' (modelFeatures model) runFiles
-            featureData :: M.Map Run.QueryId [(QRel.DocumentName, FeatureVec FeatureName Double)]
+            featureData :: M.Map Run.QueryId [(QRel.DocumentName, FeatureVec FeatureName s Double)]
             featureData = M.fromListWith (<>)
                       [ (queryId, [(doc, fs)])
                       | ((queryId, doc), fs) <- M.assocs features
