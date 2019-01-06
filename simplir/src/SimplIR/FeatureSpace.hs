@@ -70,7 +70,8 @@ module SimplIR.FeatureSpace
     ) where
 
 import Control.DeepSeq
-import Control.Monad
+import Control.Monad hiding (fail)
+import Control.Monad.Fail
 import Control.Monad.Primitive
 import Control.Monad.Trans.Except
 import Control.Monad.ST
@@ -90,7 +91,7 @@ import qualified Data.Vector.Indexed.Mutable as VIM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector as V
 
-import Prelude hiding (map, zipWith, repeat, sum)
+import Prelude hiding (map, zipWith, repeat, sum, fail)
 
 newtype FeatureIndex s = FeatureIndex { getFeatureIndex :: Int }
                        deriving (Show, Ord, Eq, Enum, Ix)
@@ -288,13 +289,13 @@ map :: (VU.Unbox a, VU.Unbox b)
     => (a -> b) -> FeatureVec f s a -> FeatureVec f s b
 map f (FeatureVec fspace x) = FeatureVec fspace $ VI.map f x
 
-project :: forall f s s' a. (VU.Unbox a, Ord f)
+project :: forall m f s s' a. (VU.Unbox a, Ord f, MonadFail m)
         => FeatureSpace f s -> FeatureSpace f s'
-        -> Maybe (FeatureVec f s a -> FeatureVec f s' a)
+        -> m (FeatureVec f s a -> FeatureVec f s' a)
 project (Space _ s1) s2 =
   case mapping of
-    Right x  -> Just $ \v -> map (lookupIndex v . coerce) x
-    Left _err -> Nothing
+    Right x  -> pure $ \v -> map (lookupIndex v . coerce) x
+    Left err -> fail err
   where
     --mapping :: Either String (FeatureVec f s' (FeatureIndex s))
     mapping :: Either String (FeatureVec f s' Int)
