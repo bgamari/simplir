@@ -167,6 +167,10 @@ data FeatureVec f s a = FeatureVec { featureSpace  :: !(FeatureSpace f s)
 instance NFData (FeatureVec f s a) where
     rnf x = x `seq` ()
 
+-- | Vector addition.
+instance (Num a, VU.Unbox a) => Semigroup (FeatureVec f s a) where
+    (<>) = (^+^)
+
 lookupIndex :: (HasCallStack, VU.Unbox a)
             => FeatureVec f s a -> FeatureIndex s -> a
 lookupIndex (FeatureVec _ v) = (v VI.!)
