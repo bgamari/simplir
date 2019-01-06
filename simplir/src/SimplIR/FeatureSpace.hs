@@ -192,8 +192,20 @@ accumIndex f (FeatureVec space v) = FeatureVec space . VI.accum f v
 modify :: (Ord f, VU.Unbox a) => FeatureVec f s a -> [(f, a)] -> FeatureVec f s a
 modify = accum (const id)
 
-fromList :: (Ord f, VU.Unbox a) => FeatureSpace f s -> [(f, a)] -> FeatureVec f s a
-fromList fspace xs = FeatureVec fspace $ VI.create $ do
+fromList :: (Show f, Ord f, VU.Unbox a)
+         => FeatureSpace f s
+         -> [(f, a)]
+         -> FeatureVec f s a
+fromList fspace xs = either err id $ fromList' fspace xs
+  where
+    err missingFeatures =
+        error $ "SimplIR.FeatureSpace.fromList: Missing features: "++show missingFeatures
+
+fromList' :: (Ord f, VU.Unbox a)
+          => FeatureSpace f s
+          -> [(f, a)]
+          -> Either (S.Set f) (FeatureVec f s a)
+fromList' fspace xs = runST $ do
     acc <- VIM.new (featureIndexBounds fspace)
     flag <- VIM.replicate (featureIndexBounds fspace) False
     forM_ xs $ \(f, x) -> do
@@ -201,9 +213,10 @@ fromList fspace xs = FeatureVec fspace $ VI.create $ do
         VIM.write acc i x
         VIM.write flag i True
 
-    flag' <- VI.freeze flag
-    when (VU.or $ VI.vector flag') $ fail "failed to set all features"
-    pure acc
+    flag' <- VI.unsafeFreeze flag
+    if VU.or $ VI.vector flag'
+        then return $ Left $ S.fromList [ lookupFeatureName fspace fIdx | (fIdx, False) <- VI.assocs flag' ]
+        else Right . FeatureVec fspace <$> VI.unsafeFreeze acc
 
 toList :: (VU.Unbox a) => FeatureVec f s a -> [(f, a)]
 toList (FeatureVec fspace v) = zip (featureNames fspace) (VI.elems v)
