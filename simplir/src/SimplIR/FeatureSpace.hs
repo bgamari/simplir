@@ -54,6 +54,8 @@ module SimplIR.FeatureSpace
     -- *** Generalized mapping
     , FeatureMapping(..)
     , mapFeatures
+    , FeatureMappingInto(..)
+    , mapFeaturesInto
     -- ** Updates
     , modifyIndices
     , modify
@@ -237,6 +239,32 @@ mapFeatures srcSpace f =
                                          , Just (FeatureIndex i) <- pure $ lookupFeatureIndex srcSpace x
                                          ]
         in FeatureMapping destSpace mapVec
+  where
+    pairs :: [(f, g)]
+    pairs = mapMaybe (\x -> fmap (x,) (f x)) $ featureNames srcSpace
+
+data FeatureMappingInto f s g s' where
+    FeatureMappingInto :: (forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a) -> FeatureMappingInto f s g s'
+
+mapFeaturesInto :: forall f g s s'. (Show g, Ord g, Ord f)
+                => FeatureSpace f s
+                -> FeatureSpace g s'
+                -> (f -> Maybe g)
+                -> Maybe (FeatureMappingInto f s g s')
+mapFeaturesInto srcSpace destSpace f
+  | notPresent <- featureNameSet destSpace `S.difference` S.fromList (fmap snd pairs)
+  , S.null notPresent =
+      let mapVec :: forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a
+          mapVec v = map (\i -> v `lookupIndex` FeatureIndex i) mapIdxs
+
+          --mapIdxs :: FeatureVec g s' (FeatureIndex s)
+          mapIdxs :: FeatureVec g s' Int
+          mapIdxs = fromList destSpace [ (y, i)
+                                        | (x, y) <- pairs
+                                        , Just (FeatureIndex i) <- pure $ lookupFeatureIndex srcSpace x
+                                        ]
+      in Just $ FeatureMappingInto mapVec
+  | otherwise = Nothing
   where
     pairs :: [(f, g)]
     pairs = mapMaybe (\x -> fmap (x,) (f x)) $ featureNames srcSpace
