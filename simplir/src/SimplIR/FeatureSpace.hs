@@ -210,10 +210,12 @@ fromList' :: (Ord f, VU.Unbox a)
 fromList' fspace xs = runST $ do
     acc <- VIM.new (featureIndexBounds fspace)
     flag <- VIM.replicate (featureIndexBounds fspace) False
-    forM_ xs $ \(f, x) -> do
-        let Just i = lookupFeatureIndex fspace f
-        VIM.write acc i x
-        VIM.write flag i True
+    forM_ xs $ \(f, x) ->
+        case lookupFeatureIndex fspace f of
+          Just i -> do
+            VIM.write acc i x
+            VIM.write flag i True
+          Nothing -> return ()
 
     flag' <- VI.unsafeFreeze flag
     if VU.or $ VI.vector flag'
