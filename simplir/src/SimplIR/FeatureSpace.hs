@@ -243,17 +243,19 @@ mapFeatures srcSpace f =
     pairs :: [(f, g)]
     pairs = mapMaybe (\x -> fmap (x,) (f x)) $ featureNames srcSpace
 
-data FeatureMappingInto f s g s' where
-    FeatureMappingInto :: (forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a) -> FeatureMappingInto f s g s'
+data FeatureMappingInto f s g s'
+  where
+    FeatureMappingInto :: (forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a)
+                       -> FeatureMappingInto f s g s'
 
 mapFeaturesInto :: forall f g s s'. (Show g, Ord g, Ord f)
                 => FeatureSpace f s
                 -> FeatureSpace g s'
                 -> (f -> Maybe g)
                 -> Maybe (FeatureMappingInto f s g s')
-mapFeaturesInto srcSpace destSpace f
-  | notPresent <- featureNameSet destSpace `S.difference` S.fromList (fmap snd pairs)
-  , S.null notPresent =
+mapFeaturesInto srcSpace destSpace featProj
+  | missingFeaturesInSourceSpace <- featureNameSet destSpace `S.difference` S.fromList (fmap snd pairs)
+  , S.null missingFeaturesInSourceSpace =
       let mapVec :: forall a. VU.Unbox a => FeatureVec f s a -> FeatureVec g s' a
           mapVec v = map (\i -> v `lookupIndex` FeatureIndex i) mapIdxs
 
@@ -267,7 +269,7 @@ mapFeaturesInto srcSpace destSpace f
   | otherwise = Nothing
   where
     pairs :: [(f, g)]
-    pairs = mapMaybe (\x -> fmap (x,) (f x)) $ featureNames srcSpace
+    pairs = mapMaybe (\x -> fmap (x,) (featProj x)) $ featureNames srcSpace
 
 map :: (VU.Unbox a, VU.Unbox b)
     => (a -> b) -> FeatureVec f s a -> FeatureVec f s b
