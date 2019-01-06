@@ -264,6 +264,8 @@ data FeatureStack f ss a where
     Stack :: FeatureVec f s a -> FeatureStack f ss a -> FeatureStack f (s ': ss) a
     StackNil :: FeatureStack f '[] a
 
+infixr 5 `Stack`
+
 stack :: forall f ss a. (Ord f, VU.Unbox a)
       => FeatureSpace f (Stack ss) -> FeatureStack f ss a -> FeatureVec f (Stack ss) a
 stack fspace vecs =
