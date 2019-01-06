@@ -22,6 +22,7 @@ module SimplIR.LearningToRank
       -- * Learning
     , FRanking
     , coordAscent
+    , naiveCoordAscent
     , miniBatched
     , miniBatchedAndEvaluated
     , defaultMiniBatchParams, MiniBatchParams(..)
