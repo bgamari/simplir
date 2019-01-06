@@ -121,13 +121,14 @@ eitherSpaces s1 s2 = concatSpaces (mapFeatureNames Left s1) (mapFeatureNames Rig
 
 concatSpaces :: Ord f => FeatureSpace f s -> FeatureSpace f s' -> FeatureSpace f (Stack '[s, s'])
 concatSpaces s1 s2 =
-    Space { fsIndexToFeature = VI.fromList bnds
-                               $ coerce (VI.elems $ fsIndexToFeature s1) <> coerce (VI.elems $ fsIndexToFeature s2)
+    Space { fsIndexToFeature = VI.fromVector bnds
+                               $ coerce (VI.vector $ fsIndexToFeature s1) <> coerce (VI.vector $ fsIndexToFeature s2)
           , fsFeatureToIndex = coerce (fsFeatureToIndex s1) <> fmap bump (fsFeatureToIndex s2)
           }
   where
     bump (FeatureIndex i) = FeatureIndex (i + dimension s1)
-    bnds = coerce (fst $ featureIndexBounds s1, snd $ featureIndexBounds s2)
+    dim = dimension s1 + dimension s2
+    bnds = (FeatureIndex 0, FeatureIndex (dim - 1))
 
 dimension :: FeatureSpace f s -> Int
 dimension (Space v _) = rangeSize $ VI.bounds v
