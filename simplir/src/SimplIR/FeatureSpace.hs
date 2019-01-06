@@ -218,9 +218,9 @@ fromList' fspace xs = runST $ do
           Nothing -> return ()
 
     flag' <- VI.unsafeFreeze flag
-    if VU.or $ VI.vector flag'
-        then return $ Left $ S.fromList [ lookupFeatureName fspace fIdx | (fIdx, False) <- VI.assocs flag' ]
-        else Right . FeatureVec fspace <$> VI.unsafeFreeze acc
+    if VU.and $ VI.vector flag'
+        then Right . FeatureVec fspace <$> VI.unsafeFreeze acc
+        else return $ Left $ S.fromList [ lookupFeatureName fspace fIdx | (fIdx, False) <- VI.assocs flag' ]
 
 toList :: (VU.Unbox a) => FeatureVec f s a -> [(f, a)]
 toList (FeatureVec fspace v) = zip (featureNames fspace) (VI.elems v)
