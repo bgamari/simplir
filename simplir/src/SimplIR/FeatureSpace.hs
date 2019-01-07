@@ -47,6 +47,7 @@ module SimplIR.FeatureSpace
     -- ** Destruction
     , toList
     -- ** Lookups
+    , lookup
     , lookupIndex
     -- ** Mapping and zipping
     , map
@@ -91,7 +92,7 @@ import qualified Data.Vector.Indexed.Mutable as VIM
 import qualified Data.Vector.Unboxed as VU
 import qualified Data.Vector as V
 
-import Prelude hiding (map, zipWith, repeat, sum, fail)
+import Prelude hiding (map, zipWith, repeat, sum, lookup, fail)
 
 newtype FeatureIndex s = FeatureIndex { getFeatureIndex :: Int }
                        deriving (Show, Ord, Eq, Enum, Ix)
@@ -174,6 +175,11 @@ instance NFData (FeatureVec f s a) where
 -- | Vector addition.
 instance (Num a, VU.Unbox a) => Semigroup (FeatureVec f s a) where
     (<>) = (^+^)
+
+lookup :: (HasCallStack, VU.Unbox a, Ord f)
+       => FeatureVec f s a -> f -> Maybe a
+lookup v f = lookupIndex v <$> lookupFeatureIndex (featureSpace v) f
+{-# INLINE lookup #-}
 
 lookupIndex :: (HasCallStack, VU.Unbox a)
             => FeatureVec f s a -> FeatureIndex s -> a
