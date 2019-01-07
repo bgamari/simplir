@@ -227,9 +227,10 @@ coordAscent :: forall a f s qid relevance gen.
             -> [(Score, WeightVec f s)] -- ^ list of iterates
 coordAscent scoreRanking gen0 w0 fRankings
   | isNaN score0         = error "coordAscent: Initial score is not a number"
-  | otherwise = go gen0 (score0, w0)
+  | otherwise = go gen0 (score0, w0')
   where
-    score0 = scoreRanking $ fmap (rerank w0 . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
+    Just w0' = l2NormalizeWeightVec w0
+    score0 = scoreRanking $ fmap (rerank w0' . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
 
     fspace = FS.featureSpace $ getWeightVec w0
     dim = FS.dimension fspace
