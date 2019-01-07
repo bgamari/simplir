@@ -32,7 +32,7 @@ mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
 avgPrec :: forall rel doc score. (Ord rel)
-        => rel       -- ^ threshold of relevance
+        => rel       -- ^ threshold of relevance (inclusive)
         -> TotalRel  -- ^ total number of relevant documents
         -> Ranking score (doc, rel)  -- ^ ranking
         -> Maybe Double
