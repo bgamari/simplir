@@ -171,6 +171,13 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
 showWeights :: WeightVec f s -> String
 showWeights (WeightVec x) = show $ map snd $ FS.toList x
 
+
+deltas :: RealFrac a => [a]
+deltas = [ f x
+         | x <- [0.0001 * 2^n | n <- [1..20::Int]]
+         , f <- [id, negate]
+         ] ++ [0]
+
 -- | Maximization via coordinate ascent.
 naiveCoordAscent'
     :: forall f s gen relevance.
@@ -186,11 +193,6 @@ naiveCoordAscent' normalise obj gen0 w0 =
   where
     fspace = FS.featureSpace $ getWeightVec w0
     dim = FS.dimension fspace
-
-    deltas = [ f x
-             | x <- [0.0001 * 2^n | n <- [1..20::Int]]
-             , f <- [id, negate]
-             ] ++ [0]
 
     go :: gen -> (Score, WeightVec f s) -> [(Score, WeightVec f s)]
     go gen (s,w) = (s',w') : go gen' (s',w')
@@ -234,12 +236,6 @@ coordAscent scoreRanking gen0 w0 fRankings
 
     zeroStep :: Step s
     zeroStep = Step (head $ FS.featureIndexes fspace) 0
-
-    -- lightweight checking of inputs
-    deltas = [ f x
-             | x <- [0.0001 * 2^n | n <- [1..25::Int]]
-             , f <- [id, negate]
-             ] ++ [0]
 
     go :: gen -> (Score, WeightVec f s) -> [(Score, WeightVec f s)]
     go gen w = w' : go gen' w'
