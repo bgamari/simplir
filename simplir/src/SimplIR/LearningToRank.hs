@@ -22,7 +22,7 @@ module SimplIR.LearningToRank
       -- * Learning
     , FRanking
     , coordAscent
-    , naiveCoordAscent
+    , naiveCoordAscent, naiveCoordAscent'
     , miniBatched
     , miniBatchedAndEvaluated
     , defaultMiniBatchParams, MiniBatchParams(..)
@@ -153,7 +153,6 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
-
 naiveCoordAscent
     :: forall a f s qid d gen relevance.
        (Random.RandomGen gen, Show qid, Show a, Show f)
@@ -165,14 +164,31 @@ naiveCoordAscent
     -> M.Map qid d             -- ^ training data
     -> [(Score, WeightVec f s)]  -- ^ list of iterates
 naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
-    let score0 = scoreRanking $ fmap (\d -> rerank d w0) fRankings
-    in go gen0 (score0, w0)
+    naiveCoordAscent' l2NormalizeWeightVec obj gen0 w0
+  where
+    obj w = scoreRanking $ fmap (\d -> rerank d w) fRankings
+
+showWeights :: WeightVec f s -> String
+showWeights (WeightVec x) = show $ map snd $ FS.toList x
+
+-- | Maximization via coordinate ascent.
+naiveCoordAscent'
+    :: forall f s gen relevance.
+       (Random.RandomGen gen, Show f)
+    => (WeightVec f s -> Maybe (WeightVec f s)) -- ^ normalization
+    -> (WeightVec f s -> Double)                -- ^ objective
+    -> gen
+    -> WeightVec f s                            -- ^ initial weights
+    -> [(Double, WeightVec f s)]                -- ^ list of iterates
+naiveCoordAscent' normalise obj gen0 w0 =
+    let Just w0' = normalise w0
+    in go gen0 (obj w0', w0')
   where
     fspace = FS.featureSpace $ getWeightVec w0
     dim = FS.dimension fspace
 
     deltas = [ f x
-             | x <- [0.0001 * 2^n | n <- [1..25::Int]]
+             | x <- [0.0001 * 2^n | n <- [1..20::Int]]
              , f <- [id, negate]
              ] ++ [0]
 
@@ -194,8 +210,8 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
             [ (score, w')
             | delta <- deltas
             , let step = Step dim delta
-            , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
-            , let score = scoreRanking $ fmap (\d -> rerank d w') fRankings
+            , Just w' <- pure $ normalise $ stepFeature step w0
+            , let score = obj w'
             , not $ isNaN score
             ]
     trShow y x = Debug.trace (show y <> " " <> show x) x
