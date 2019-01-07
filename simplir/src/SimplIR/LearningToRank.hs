@@ -168,10 +168,6 @@ naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
   where
     obj w = scoreRanking $ fmap (\d -> rerank d w) fRankings
 
-showWeights :: WeightVec f s -> String
-showWeights (WeightVec x) = show $ map snd $ FS.toList x
-
-
 deltas :: RealFrac a => [a]
 deltas = [ f x
          | x <- [0.0001 * 2^n | n <- [1..20::Int]]
@@ -180,7 +176,7 @@ deltas = [ f x
 
 -- | Maximization via coordinate ascent.
 naiveCoordAscent'
-    :: forall f s gen relevance.
+    :: forall f s gen.
        (Random.RandomGen gen, Show f)
     => (WeightVec f s -> Maybe (WeightVec f s)) -- ^ normalization
     -> (WeightVec f s -> Double)                -- ^ objective
@@ -203,9 +199,10 @@ naiveCoordAscent' normalise obj gen0 w0 =
 
     updateDim :: (Score, WeightVec f s) -> FS.FeatureIndex s -> (Score, WeightVec f s)
     updateDim (score0, w0) dim
-      | null steps = Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": No valid steps in ") $ (score0, w0)
-      | otherwise  = Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": Found max: ")
-                    $ maximumBy (comparing fst) steps
+      | null steps = --Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": No valid steps in ") $
+                     (score0, w0)
+      | otherwise  = --Debug.trace ("coord dim "<> show dim<> " show score0 "<> show score0 <> ": Found max: ") $
+                    maximumBy (comparing fst) steps
       where
         steps :: [(Score, WeightVec f s)]
         steps =
@@ -216,7 +213,6 @@ naiveCoordAscent' normalise obj gen0 w0 =
             , let score = obj w'
             , not $ isNaN score
             ]
-    trShow y x = Debug.trace (show y <> " " <> show x) x
 
 coordAscent :: forall a f s qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
