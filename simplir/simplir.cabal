@@ -84,6 +84,7 @@ library
       async,
       stm,
       split,
+      parallel,
       binary >= 0.7 && < 0.10,
       errors >=2.0 && <2.4,
       exceptions >= 0.8,

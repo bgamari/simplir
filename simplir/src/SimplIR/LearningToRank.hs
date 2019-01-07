@@ -32,6 +32,7 @@ module SimplIR.LearningToRank
 
 import GHC.Generics
 import Control.DeepSeq
+import Control.Parallel.Strategies
 import Data.Ord
 import Data.List
 import qualified System.Random as Random
@@ -153,6 +154,7 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
             rankings = fmap (rerank w) fRankings'
         in (evalMetric rankings, w) : go rest
 
+
 naiveCoordAscent
     :: forall a f s qid d gen relevance.
        (Random.RandomGen gen, Show qid, Show a, Show f)
@@ -166,7 +168,7 @@ naiveCoordAscent
 naiveCoordAscent scoreRanking rerank gen0 w0 fRankings =
     naiveCoordAscent' l2NormalizeWeightVec obj gen0 w0
   where
-    obj w = scoreRanking $ fmap (\d -> rerank d w) fRankings
+    obj w = scoreRanking $ withStrategy (parTraversable $ evalTraversable rseq) $ fmap (\d -> rerank d w) fRankings
 
 deltas :: RealFrac a => [a]
 deltas = [ f x

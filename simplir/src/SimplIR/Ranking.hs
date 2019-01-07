@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module SimplIR.Ranking
     ( -- * Rankings
@@ -14,6 +15,7 @@ module SimplIR.Ranking
     , filter
     ) where
 
+import Control.DeepSeq
 import qualified Data.Maybe as Maybe
 import qualified Data.List as List
 import Data.Ord
@@ -22,7 +24,7 @@ import Prelude hiding (filter)
 
 -- | A sorted list of items and their scores
 newtype Ranking score a = Ranking [(score, a)]
-                        deriving (Show, Read, Eq, Functor, Foldable, Traversable)
+                        deriving (Show, Read, Eq, Functor, Foldable, Traversable, NFData)
 
 instance Bifunctor Ranking where
     bimap f g (Ranking xs) = Ranking $ map (\(x,y) -> (f x, g y)) xs
