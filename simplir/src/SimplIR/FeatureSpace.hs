@@ -363,8 +363,11 @@ sum (FeatureVec _ v) = VI.sum v
 dot :: (VU.Unbox a, Num a) => FeatureVec f s a -> FeatureVec f s a -> a
 dot a b = sum $ a ^*^ b
 
-l2Norm :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
-l2Norm = sum . map (\x -> x*x)
+quadrance :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
+quadrance = sum . map (\x -> x*x)
+
+l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f s a -> a
+l2Norm = sqrt . quadrance
 
 -- | Update the values at the given 'FeatureIndex's.
 modifyIndices :: VU.Unbox a => FeatureVec f s a -> [(FeatureIndex s, a)] -> FeatureVec f s a
