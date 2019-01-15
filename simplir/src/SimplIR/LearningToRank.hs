@@ -185,7 +185,9 @@ naiveCoordAscent'
     -> gen
     -> WeightVec f s                            -- ^ initial weights
     -> [(Double, WeightVec f s)]                -- ^ list of iterates
-naiveCoordAscent' normalise obj gen0 w0 =
+naiveCoordAscent' normalise obj gen0 w0
+ | null (FS.featureIndexes fspace)  = error "naiveCoordAscent': Empty feature space"
+ | otherwise =
     let Just w0' = normalise w0
     in go gen0 (obj w0', w0')
   where
@@ -225,6 +227,7 @@ coordAscent :: forall a f s qid relevance gen.
             -> [(Score, WeightVec f s)] -- ^ list of iterates
 coordAscent scoreRanking gen0 w0 fRankings
   | isNaN score0         = error "coordAscent: Initial score is not a number"
+  | null (FS.featureIndexes fspace)  = error "coordAscent: Empty feature space"
   | otherwise = go gen0 (score0, w0')
   where
     Just w0' = l2NormalizeWeightVec w0
