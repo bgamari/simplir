@@ -168,7 +168,10 @@ mkFeatureSpace fs = SomeFeatureSpace $ unsafeFeatureSpaceFromSorted $ S.toAscLis
 data FeatureVec f s a = FeatureVec { featureSpace  :: !(FeatureSpace f s)
                                    , getFeatureVec :: !(VI.Vector VU.Vector (FeatureIndex s) a)
                                    }
-                      deriving (Show)
+instance (Show f, Show a, VU.Unbox a) => Show (FeatureVec f s a) where
+    show fvec =
+        show $ toList fvec
+
 instance NFData (FeatureVec f s a) where
     rnf x = x `seq` ()
 
