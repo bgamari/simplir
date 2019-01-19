@@ -40,6 +40,7 @@ module SimplIR.FeatureSpace
     , repeat
     , fromList
     , aggregateWith
+    , mkFeaturesF
     -- *** Stacking
     , Stack
     , FeatureStack(..)
@@ -79,6 +80,7 @@ import Control.Monad.ST
 import Data.Bifunctor
 import Data.Coerce
 import Data.Foldable (forM_)
+import qualified Control.Foldl as F
 import Data.Kind
 import Data.Ix
 import qualified Data.List.NonEmpty as NE
@@ -90,6 +92,7 @@ import qualified Data.Set as S
 import qualified Data.Vector.Indexed as VI
 import qualified Data.Vector.Indexed.Mutable as VIM
 import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Vector as V
 
 import Prelude hiding (map, zipWith, repeat, sum, lookup, fail)
@@ -203,6 +206,9 @@ accumIndex f (FeatureVec space v) = FeatureVec space . VI.accum f v
 modify :: (Ord f, VU.Unbox a) => FeatureVec f s a -> [(f, a)] -> FeatureVec f s a
 modify = accum (const id)
 
+-- | Create a 'FeatureVec' from a list of feature/value associations. Ignores
+-- features not in the 'FeatureSpace'. Throws an error if some features are not
+-- covered by the association list.
 fromList :: (Show f, Ord f, VU.Unbox a)
          => FeatureSpace f s
          -> [(f, a)]
@@ -212,6 +218,8 @@ fromList fspace xs = either err id $ fromList' fspace xs
     err missingFeatures =
         error $ "SimplIR.FeatureSpace.fromList: Missing features: "++show missingFeatures
 
+-- | Create a 'FeatureVec' from a list of feature/value associations. Ignores
+-- features not in the 'FeatureSpace'.
 fromList' :: (Ord f, VU.Unbox a)
           => FeatureSpace f s
           -> [(f, a)]
@@ -382,3 +390,62 @@ l2Norm = sqrt . quadrance
 modifyIndices :: VU.Unbox a => FeatureVec f s a -> [(FeatureIndex s, a)] -> FeatureVec f s a
 FeatureVec space v `modifyIndices` xs = FeatureVec space (v VI.// coerce xs)
 {-# INLINE modifyIndices #-}
+
+-- | 'F.FoldM' for bulk creation of 'FeatureVec's.
+mkFeaturesF :: forall f s a m i. (PrimMonad m, Ord f, Ord i, VU.Unbox a)
+           => FeatureSpace f s
+           -> (f -> a)         -- ^ default feature value
+           -> (a -> a -> a)    -- ^ accumulation function
+           -> F.FoldM m (i, f, a) (M.Map i (FeatureVec f s a))
+-- mkFeatures :: FeatureSpace feature s
+--             -> S.Set node   -- set that will get feature vectors
+--             -> (value -> value -> value)
+--             -> [(node, feature, value)]
+--             -> M.Map node (FeatureVec feature s value)
+mkFeaturesF fspace def plus = F.FoldM step initial finish
+  where
+    mkEmptyVec :: m (RawFeatureVecM m s a, RawFeatureVecM m s Bool)
+    mkEmptyVec = do
+        vals <- VIM.new (featureIndexBounds fspace)
+        sets <- VIM.replicate (featureIndexBounds fspace) False
+        return (vals, sets)
+
+    initial = pure mempty
+
+    step :: M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool)
+         -> (i, f, a)
+         -> m (M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool))
+    step accum (x, f, v)
+      | Just fIdx <- lookupFeatureIndex fspace f = do
+            (accum', (fVec, setVec)) <-
+                case M.lookup x accum of
+                  Just y   -> return (accum, y)
+                  Nothing  -> do pair <- mkEmptyVec
+                                 return (M.insert x pair accum, pair)
+
+            isFeatureSet <- VIM.read setVec fIdx
+            v' <- if isFeatureSet
+                  then do v0 <- VIM.read fVec fIdx
+                          return $! v0 `plus` v
+                  else return v
+
+            VIM.write fVec fIdx v'
+            VIM.write setVec fIdx True
+            return accum'
+
+      | otherwise = return accum
+
+    finish :: M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool)
+           -> m (M.Map i (FeatureVec f s a))
+    finish accum =
+        forM accum $ \(fVec, setVec) -> do
+            setVec' <- VI.unsafeFreeze setVec
+            VI.imapM_ (setUnsetFeatures fVec) setVec'
+            FeatureVec fspace <$> VI.unsafeFreeze fVec
+      where
+        setUnsetFeatures :: RawFeatureVecM m s a -> FeatureIndex s -> Bool -> m ()
+        setUnsetFeatures _fVec _fIdx True  = return ()
+        setUnsetFeatures fVec  fIdx  False =
+            VIM.write fVec fIdx $ def (lookupFeatureName fspace fIdx)
+
+type RawFeatureVecM m s = VIM.MVector VUM.MVector (PrimState m) (FeatureIndex s)
