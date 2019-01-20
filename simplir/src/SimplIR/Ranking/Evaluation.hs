@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 
 module SimplIR.Ranking.Evaluation
     ( ScoringMetric
@@ -19,13 +20,13 @@ import SimplIR.Types.Relevance
 import qualified SimplIR.Ranking as Ranking
 
 -- | A scoring method, taking a set of queries and their rankings to a score.
-type ScoringMetric rel qid a = M.Map qid (Ranking Double (a,rel)) -> Double
+type ScoringMetric rel qid = forall a. M.Map qid (Ranking Double (a,rel)) -> Double
 
 -- | The total number of relevant documents for a query.
 type TotalRel = Int
 
 meanAvgPrec :: (Ord rel)
-            => (qid -> TotalRel) -> rel -> ScoringMetric rel qid a
+            => (qid -> TotalRel) -> rel -> ScoringMetric rel qid
 meanAvgPrec totalRel relThresh rankings
   | null xs = error "SimplIR.Ranking.Evaluation.meanAvgPrec: no queries with relevant documents"
   | otherwise = mean xs

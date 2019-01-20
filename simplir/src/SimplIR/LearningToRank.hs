@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE RankNTypes #-}
 
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
@@ -126,7 +127,7 @@ miniBatchedAndEvaluated
     :: forall a f s qid relevance gen.
        (Random.RandomGen gen, Show qid, Ord qid, Show a, Show relevance, Show f)
     => MiniBatchParams
-    -> ScoringMetric relevance qid a
+    -> ScoringMetric relevance qid
        -- ^ evaluation metric
     -> (gen -> WeightVec f s -> M.Map qid (FRanking f s relevance a) -> [WeightVec f s])
        -- ^ optimiser (e.g. 'coordAscent')
@@ -154,7 +155,7 @@ miniBatchedAndEvaluated (MiniBatchParams batchSteps batchSize evalSteps) evalMet
 naiveCoordAscent
     :: forall a f s qid d gen relevance.
        (Random.RandomGen gen, Show qid, Show a, Show f)
-    => ScoringMetric relevance qid a
+    => ScoringMetric relevance qid
     -> (d -> WeightVec f s -> Ranking Double (a,relevance))
        -- ^ re-ranking function
     -> gen
@@ -216,7 +217,7 @@ naiveCoordAscent' normalise obj gen0 w0
 
 coordAscent :: forall a f s qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
-            => ScoringMetric relevance qid a
+            => ScoringMetric relevance qid
             -> gen
             -> WeightVec f s            -- ^ initial weights
             -> M.Map qid (FRanking f s relevance a)

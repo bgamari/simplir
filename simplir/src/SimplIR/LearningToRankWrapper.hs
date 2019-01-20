@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -13,8 +14,8 @@ module SimplIR.LearningToRankWrapper
     , modelFeatures
     , toFeatures'
     , toDocFeatures'
-    , avgMetricQrel
-    , avgMetricData
+    , totalRelevantFromQRels
+    , totalRelevantFromData
     , augmentWithQrels
     , learnToRank
     , rerankRankings
@@ -114,30 +115,30 @@ toFeatures' :: (Show f, Ord f) => FeatureSpace f s -> M.Map f Double -> FeatureV
 toFeatures' fspace features =
     FS.fromList fspace [ (f, features M.! f) | f <- FS.featureNames fspace ]
 
-
-avgMetricQrel :: forall query doc. Ord query
+-- | Compute a function for the total number of relevant documents for a set of
+-- queries.
+totalRelevantFromQRels :: Ord query
               => [QRel.Entry query doc IsRelevant]
-              -> ScoringMetric IsRelevant query doc
-avgMetricQrel qrel =
-    let !totalRel = M.fromListWith (+)
-                      [ (qid, n)
-                      | QRel.Entry qid _ rel <- qrel
-                      , let n = case rel of Relevant -> 1
-                                            NotRelevant -> 0
-                      ]
-        metric :: ScoringMetric IsRelevant query doc
-        metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
-    in metric
+              -> query -> TotalRel
+totalRelevantFromQRels qrel =
+    fromMaybe 0 . (`M.lookup` totalRel)
+  where
+    totalRel =
+        M.fromListWith (+)
+        [ (qid, n)
+        | QRel.Entry qid _ rel <- qrel
+        , let n = case rel of Relevant -> 1
+                              NotRelevant -> 0
+        ]
 
-
-avgMetricData :: forall query doc f s. (Ord query)
-              => M.Map query [(doc, FeatureVec f s Double, IsRelevant)]
-              -> ScoringMetric IsRelevant query doc
-avgMetricData traindata =
-    let totalRel = fmap (length . filter (\(_,_, rel)-> (rel == Relevant)) )  traindata
-        metric :: ScoringMetric IsRelevant query doc
-        metric = meanAvgPrec (fromMaybe 0 . (`M.lookup` totalRel)) Relevant
-    in metric
+totalRelevantFromData
+    :: forall query doc f s. (Ord query)
+    => M.Map query [(doc, FeatureVec f s Double, IsRelevant)]
+    -> query -> TotalRel
+totalRelevantFromData trainData =
+    fromMaybe 0 . (`M.lookup` totalRel)
+  where
+    totalRel = fmap (length . filter (\(_,_, rel)-> (rel == Relevant))) trainData
 
 augmentWithQrels :: forall docId queryId f s.
                     (Ord queryId, Ord docId)
@@ -145,7 +146,7 @@ augmentWithQrels :: forall docId queryId f s.
                  -> M.Map (queryId, docId) (FeatureVec f s Double)
                  -> IsRelevant
                  -> M.Map queryId [(docId, FeatureVec f s Double, IsRelevant)]
-augmentWithQrels qrel docFeatures rel=
+augmentWithQrels qrel docFeatures rel =
     let relevance :: M.Map (queryId, docId) IsRelevant
         relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]
 
@@ -164,7 +165,7 @@ learnToRank :: forall f s query docId. (Ord query, Show query, Show docId, Show 
             -> ConvergenceCriterion f s
             -> M.Map query [(docId, FeatureVec f s Double, IsRelevant)]
             -> FeatureSpace f s
-            -> ScoringMetric IsRelevant query docId
+            -> ScoringMetric IsRelevant query
             -> StdGen
             -> (Model f s, Double)
 learnToRank miniBatchParams convergence franking fspace metric gen0 =
