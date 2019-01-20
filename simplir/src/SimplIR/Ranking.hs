@@ -139,6 +139,10 @@ mapRanking :: (VU.Unbox score, VU.Unbox score', Ord score')
            -> Ranking score  a
            -> Ranking score' b
 mapRanking f (Ranking xs) = Ranking $ sort $ VH.map (uncurry f) xs
+{-# SPECIALISE mapRanking :: (Double -> a -> (Double, b))
+                          -> Ranking Double a -> Ranking Double b #-}
+{-# SPECIALISE mapRanking :: (Float -> a -> (Float, b))
+                          -> Ranking Float a -> Ranking Float b #-}
 
 -- | Recompute a 'Ranking'\'s scores.
 rescore :: (VU.Unbox score, VU.Unbox score', Ord score')
@@ -146,3 +150,4 @@ rescore :: (VU.Unbox score, VU.Unbox score', Ord score')
         -> Ranking score  a
         -> Ranking score' b
 rescore f = mapRanking (const f)
+{-# INLINE rescore #-}
