@@ -308,6 +308,7 @@ mapFeaturesInto srcSpace destSpace featProj
 map :: (VU.Unbox a, VU.Unbox b)
     => (a -> b) -> FeatureVec f s a -> FeatureVec f s b
 map f (FeatureVec fspace x) = FeatureVec fspace $ VI.map f x
+{-# INLINE map #-}
 
 project :: forall m f s s' a. (VU.Unbox a, Ord f, MonadFail m)
         => FeatureSpace f s -> FeatureSpace f s'
@@ -349,11 +350,12 @@ equivSpace (Space s1 _) fs2@(Space s2 _)
 zipWith :: (VU.Unbox a, VU.Unbox b, VU.Unbox c)
         => (a -> b -> c) -> FeatureVec f s a -> FeatureVec f s b -> FeatureVec f s c
 zipWith f (FeatureVec fspace v1) (FeatureVec _ v2) = FeatureVec fspace $ VI.zipWith f v1 v2
-
+{-# INLINE zipWith #-}
 
 scale :: (VU.Unbox a, Num a)
       => a -> FeatureVec f s a -> FeatureVec f s a
 scale x = map (*x)
+{-# SPECIALISE scale :: Double -> FeatureVec f s Double -> FeatureVec f s Double #-}
 
 (^+^), (^-^), (^*^)
     :: (VU.Unbox a, Num a)
@@ -376,15 +378,21 @@ scale x = map (*x)
 
 sum :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
 sum (FeatureVec _ v) = VI.sum v
+{-# INLINEABLE sum #-}
 
 dot :: (VU.Unbox a, Num a) => FeatureVec f s a -> FeatureVec f s a -> a
 dot a b = sum $ a ^*^ b
+{-# SPECIALISE dot :: FeatureVec f s Double -> FeatureVec f s Double -> Double #-}
+{-# SPECIALISE dot :: FeatureVec f s Float -> FeatureVec f s Float -> Float #-}
 
 quadrance :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
 quadrance = sum . map (\x -> x*x)
+{-# SPECIALISE quadrance :: FeatureVec f s Double -> Double #-}
+{-# SPECIALISE quadrance :: FeatureVec f s Float -> Float #-}
 
 l2Norm :: (VU.Unbox a, RealFloat a) => FeatureVec f s a -> a
 l2Norm = sqrt . quadrance
+{-# INLINE l2Norm #-}
 
 -- | Update the values at the given 'FeatureIndex's.
 modifyIndices :: VU.Unbox a => FeatureVec f s a -> [(FeatureIndex s, a)] -> FeatureVec f s a
