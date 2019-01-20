@@ -423,13 +423,13 @@ mkFeaturesF fspace def plus = F.FoldM step initial finish
     step :: M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool)
          -> (i, f, a)
          -> m (M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool))
-    step accum (x, f, v)
+    step acc (x, f, v)
       | Just fIdx <- lookupFeatureIndex fspace f = do
             (accum', (fVec, setVec)) <-
-                case M.lookup x accum of
-                  Just y   -> return (accum, y)
+                case M.lookup x acc of
+                  Just y   -> return (acc, y)
                   Nothing  -> do pair <- mkEmptyVec
-                                 return (M.insert x pair accum, pair)
+                                 return (M.insert x pair acc, pair)
 
             isFeatureSet <- VIM.read setVec fIdx
             v' <- if isFeatureSet
@@ -441,12 +441,12 @@ mkFeaturesF fspace def plus = F.FoldM step initial finish
             VIM.write setVec fIdx True
             return accum'
 
-      | otherwise = return accum
+      | otherwise = return acc
 
     finish :: M.Map i (RawFeatureVecM m s a, RawFeatureVecM m s Bool)
            -> m (M.Map i (FeatureVec f s a))
-    finish accum =
-        forM accum $ \(fVec, setVec) -> do
+    finish acc =
+        forM acc $ \(fVec, setVec) -> do
             setVec' <- VI.unsafeFreeze setVec
             VI.imapM_ (setUnsetFeatures fVec) setVec'
             FeatureVec fspace <$> VI.unsafeFreeze fVec
