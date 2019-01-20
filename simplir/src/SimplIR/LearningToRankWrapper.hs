@@ -164,17 +164,18 @@ augmentWithQrels qrel docFeatures =
 learnToRank :: forall f s query docId. (Ord query, Show query, Show docId, Show f)
             => MiniBatchParams
             -> ConvergenceCriterion f s
+            -> EvalCutoff
             -> M.Map query [(docId, FeatureVec f s Double, IsRelevant)]
             -> FeatureSpace f s
             -> ScoringMetric IsRelevant query
             -> StdGen
             -> (Model f s, Double)
-learnToRank miniBatchParams convergence franking fspace metric gen0 =
+learnToRank miniBatchParams convergence evalCutoff franking fspace metric gen0 =
     let weights0 :: WeightVec f s
         weights0 = WeightVec $ FS.repeat fspace 1
         iters =
             let optimise gen w trainData =
-                    map snd $ coordAscent metric gen w trainData
+                    map snd $ coordAscent evalCutoff metric gen w trainData
             in miniBatchedAndEvaluated miniBatchParams
                  metric optimise gen0 weights0 franking
         errorDiag = show weights0 ++ ". Size training queries: "++ show (M.size franking)++ "."

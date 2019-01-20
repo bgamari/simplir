@@ -68,7 +68,10 @@ learnMode =
             franking =  augmentWithQrels qrel docFeatures
 
             !metric = meanAvgPrec (totalRelevantFromQRels qrel) Relevant
-            (model, evalScore) = learnToRank defaultMiniBatchParams (defaultConvergence "" 1e-2 100 2) franking fspace metric gen0
+            (model, evalScore) = learnToRank defaultMiniBatchParams
+                                             (defaultConvergence "" 1e-2 100 2)
+                                             EvalNoCutoff
+                                             franking fspace metric gen0
         print evalScore
         BSL.writeFile modelFile $ Aeson.encode $ model
 

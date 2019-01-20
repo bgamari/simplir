@@ -62,7 +62,7 @@ testCoordAscent = do
             , ("doc4", feat (-1) (-1), NotRelevant)
             ]
         w0 = WeightVec $ feat 0 10
-        iters = coordAscent metric gen0 w0 frankings
+        iters = coordAscent EvalNoCutoff metric gen0 w0 frankings
 
     let (_, WeightVec iter):_ = drop 30 iters
         m = M.fromList $ F.toList iter

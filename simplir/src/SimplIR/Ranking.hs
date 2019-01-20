@@ -20,6 +20,7 @@ module SimplIR.Ranking
     , toSortedItems
       -- ** Transformation
     , mapRanking
+    , mapRankingK
     , takeTop
     , mapMaybe
     , filter
@@ -82,7 +83,7 @@ fromVectorK :: (VU.Unbox score, Ord score)
             => Int
             -> VH.Vector VU.Vector V.Vector (score, a)
             -> Ranking score a
-fromVectorK k = Ranking . partialSort k
+fromVectorK k = Ranking . VH.take k . partialSort k
 {-# SPECIALISE fromVectorK :: Int -> V (Double, a) -> Ranking Double a #-}
 {-# SPECIALISE fromVectorK :: Int -> V (Float, a) -> Ranking Float a #-}
 
@@ -122,11 +123,9 @@ toSortedVector (Ranking xs) = xs
 toSortedItems :: Ranking score a -> V.Vector a
 toSortedItems (Ranking xs) = VH.projectSnd xs
 
-
 -- | 'takeTop k xs' truncates 'Ranking' @xs@ at rank \(k\).
 takeTop :: (VU.Unbox score) => Int -> Ranking score a -> Ranking score a
-takeTop k (Ranking ranking) =
-    Ranking (VH.take k ranking)
+takeTop k (Ranking ranking) = Ranking (VH.take k ranking)
 
 -- | Filter a ranking.
 filter :: (VU.Unbox score) => (a -> Bool) -> Ranking score a -> Ranking score a
@@ -147,6 +146,17 @@ mapRanking f (Ranking xs) = Ranking $ sort $ VH.map (uncurry f) xs
                           -> Ranking Double a -> Ranking Double b #-}
 {-# SPECIALISE mapRanking :: (Float -> a -> (Float, b))
                           -> Ranking Float a -> Ranking Float b #-}
+
+mapRankingK :: (VU.Unbox score, VU.Unbox score', Ord score')
+            => Int
+            -> (score -> a -> (score', b))
+            -> Ranking score  a
+            -> Ranking score' b
+mapRankingK k f (Ranking xs) = Ranking $ VH.take k $ partialSort k $ VH.map (uncurry f) xs
+{-# SPECIALISE mapRankingK :: Int -> (Double -> a -> (Double, b))
+                           -> Ranking Double a -> Ranking Double b #-}
+{-# SPECIALISE mapRankingK :: Int -> (Float -> a -> (Float, b))
+                           -> Ranking Float a -> Ranking Float b #-}
 
 -- | Recompute a 'Ranking'\'s scores.
 rescore :: (VU.Unbox score, VU.Unbox score', Ord score')

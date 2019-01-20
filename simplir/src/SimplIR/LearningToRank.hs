@@ -23,8 +23,11 @@ module SimplIR.LearningToRank
     , meanAvgPrec
       -- * Learning
     , FRanking
+      -- ** Coordinate ascent optimisation
     , coordAscent
+    , EvalCutoff(..)
     , naiveCoordAscent, naiveCoordAscent'
+      -- ** Mini-batching
     , miniBatched
     , miniBatchedAndEvaluated
     , defaultMiniBatchParams, MiniBatchParams(..)
@@ -40,6 +43,7 @@ import Data.List
 import qualified System.Random as Random
 import System.Random.Shuffle
 import qualified Data.Map.Strict as M
+import qualified Data.Vector.Unboxed as VU
 import Linear.Epsilon
 
 import qualified SimplIR.FeatureSpace as FS
@@ -213,14 +217,20 @@ naiveCoordAscent' normalise obj gen0 w0
             , not $ isNaN score
             ]
 
+-- | 'coordAscent' can optionally truncate rankings during evaluation. This
+-- improves runtime complexity at the cost of a slight approximation.
+data EvalCutoff = EvalNoCutoff
+                | EvalCutoffAt !Int
+
 coordAscent :: forall a f s qid relevance gen.
                (Random.RandomGen gen, Show qid, Show a, Show f)
-            => ScoringMetric relevance qid
+            => EvalCutoff               -- ^ ranking truncation point for scoring
+            -> ScoringMetric relevance qid
             -> gen
             -> WeightVec f s            -- ^ initial weights
             -> M.Map qid (FRanking f s relevance a)
             -> [(Score, WeightVec f s)] -- ^ list of iterates
-coordAscent scoreRanking gen0 w0
+coordAscent evalCutoff scoreRanking gen0 w0
   | null (FS.featureIndexes fspace)  = error "coordAscent: Empty feature space"
   | otherwise = \fRankings ->
       let Just w0' = l2NormalizeWeightVec w0
@@ -250,42 +260,53 @@ coordAscent scoreRanking gen0 w0
               -> (Score, WeightVec f s, M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance)))
     updateDim (score0, w0, fRankings) dim
       | null steps = (score0, w0, fRankings)
-      | otherwise  = maximumBy (comparing $ \(score,_,_) -> score) steps
+      | otherwise  =
+          let (score, step) = maximumBy (comparing fst) steps
+              Just w = l2NormalizeWeightVec $ stepFeature step w0
+          in (score, w, updateRankings (stepScorerRankings EvalNoCutoff) step)
       where
-        steps :: [( Score
-                  , WeightVec f s
-                  , M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance))
-                  )]
+        steps :: [(Score, Step s)]
         steps =
             [ if isNaN score
               then error "coordAscent: Score is NaN"
-              else (score, w', rankings)
+              else (score, step)
               -- possibly l2Normalize requires to invalidate scoredRaking caches
               -- and a full recomputation of the scores
             | delta <- deltas
             , let step = Step dim delta
-            , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
-            , let !rankings = updateRankings step
+            , Just _ <- pure $ l2NormalizeWeightVec $ stepFeature step w0
+            , let !rankings = updateRankings cachedScoredRankings step
             , let score = scoreRanking rankings
             ]
 
-        updateRankings :: Step s
+        updateRankings :: M.Map qid (Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance)))
+                       -> Step s
                        -> M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance))
-        updateRankings step =
-            fmap (\ranking -> rescore scoreDoc ranking) cachedScoredRankings
+        updateRankings rankings step =
+            fmap (\ranking -> rescore scoreDoc ranking) rankings
           where
             scoreDoc :: (Step s -> Score, ((a, FeatureVec f s Double), relevance))
                      -> (Score, ((a, FeatureVec f s Double), relevance))
             scoreDoc (stepScorer, item) = (stepScorer step, item)
 
-        cachedScoredRankings :: M.Map qid (Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance)))
-        !cachedScoredRankings =
+        !cachedScoredRankings = stepScorerRankings evalCutoff
+
+        mapEvalRanking :: forall a b a' b'. (VU.Unbox a, VU.Unbox a', Ord a')
+                       => EvalCutoff
+                       -> (a -> b -> (a', b'))
+                       -> Ranking a b -> Ranking a' b'
+        mapEvalRanking EvalNoCutoff = mapRanking
+        mapEvalRanking (EvalCutoffAt k) = mapRankingK k
+
+        stepScorerRankings :: EvalCutoff
+                           -> M.Map qid (Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance)))
+        stepScorerRankings cutoff =
             fmap augment fRankings
           where
             -- Attach a step-scorer to each document in a ranking.
             augment :: Ranking Score ((a, FeatureVec f s Double), relevance)
                     -> Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance))
-            augment = mapRanking updateScorer
+            augment = mapEvalRanking cutoff updateScorer
               where
                 -- Recompute the scoreFun and the document's current score.
                 updateScorer :: Score
