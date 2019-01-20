@@ -274,7 +274,7 @@ coordAscent scoreRanking gen0 w0 fRankings
             newScorer :: FRanking f s relevance a -> [(a, Step s -> Score, relevance)]
             newScorer = docSorted . fmap (middle (\f -> scoreStepOracle w0 f))
 
-            docSorted = sortBy (flip $ comparing $ \(_,scoreFun,_) -> scoreFun zeroStep)
+            docSorted = sortBy (comparing $ \(_,scoreFun,_) -> Down $ scoreFun zeroStep)
 
 middle :: (b->b') -> (a, b, c) -> (a,b',c)
 middle fun (a, b, c) = (a, fun b, c)
