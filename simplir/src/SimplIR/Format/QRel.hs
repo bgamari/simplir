@@ -30,7 +30,8 @@ import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Text.Lazy.Builder as TB
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashMap.Lazy as HM.Lazy
-import SimplIR.LearningToRank
+
+import SimplIR.Types.Relevance
 
 type QueryId = T.Text
 type DocumentName = T.Text
@@ -58,9 +59,6 @@ instance RelevanceScale IsRelevant where
     formatRelevance NotRelevant = "0"
     formatRelevance Relevant    = "1"
     isPositive r = (r == Relevant)
-
-newtype GradedRelevance = GradedRelevance {unGradedRelevance:: Int}
-                        deriving (Eq, Ord, Show, Hashable)
 
 instance RelevanceScale GradedRelevance where
     parseRelevance s =

@@ -15,6 +15,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
 
 import SimplIR.Ranking (Ranking)
+import SimplIR.Types.Relevance
 import qualified SimplIR.Ranking as Ranking
 
 -- | A scoring method, taking a set of queries and their rankings to a score.
@@ -83,5 +84,11 @@ avgPrec relThresh totalRel ranking
             => rel
             -> TotalRel
             -> Ranking Double (doc, rel)
+            -> Maybe Double
+    #-}
+{-# SPECIALISE
+    avgPrec :: IsRelevant
+            -> TotalRel
+            -> Ranking Double (doc, IsRelevant)
             -> Maybe Double
     #-}

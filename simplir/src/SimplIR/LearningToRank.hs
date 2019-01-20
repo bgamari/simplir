@@ -1,10 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DerivingStrategies #-}
+
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module SimplIR.LearningToRank
     ( -- * Basic types
@@ -43,6 +44,7 @@ import Linear.Epsilon
 
 import qualified SimplIR.FeatureSpace as FS
 import SimplIR.FeatureSpace (FeatureVec)
+import SimplIR.Types.Relevance
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
 import SimplIR.TrainUtils
@@ -59,12 +61,6 @@ l2NormalizeWeightVec (WeightVec w)
   | nearZero norm = Nothing
   | otherwise     = Just $ WeightVec $ recip norm `FS.scale` w
   where norm = FS.l2Norm w
-
--- | Binary relevance judgement
-data IsRelevant = NotRelevant | Relevant
-                deriving (Ord, Eq, Show, Generic)
-instance Hashable IsRelevant
-instance NFData IsRelevant
 
 stepFeature :: Step s -> WeightVec f s -> WeightVec f s
 stepFeature (Step dim delta) (WeightVec v) =
