@@ -68,30 +68,45 @@ mapMatchesTrecEval :: AssessedRanking DocName -> Property
 mapMatchesTrecEval assessed = monadicIO $ do
     score <- runTrecEval TrecEval.meanAvgPrec assessed
     monitor $ counterexample ("trec_eval="++show score++", us="++show score'')
-    let relDiff = abs ((score'' - score) / score)
-        noRel = S.null $ relevant assessed
+    let noRel = S.null $ relevant assessed
     return $ or [ noRel && score == 0
                 , score'' < 1e-5 && score == 0
-                , relDiff < 1e-2
+                , relDiff score score'' < 1e-2
                 ]
   where
-    getRelevance docName
-      | docName `S.member` relevant assessed = Relevant
-      | otherwise = NotRelevant
-
     -- trec_eval's treatment of NaNs is a bit questionable
     score''
       | isNaN score' = 0
       | otherwise    = score'
 
     score' = Eval.meanAvgPrec (const $ S.size $ relevant assessed) Relevant
-        $ M.singleton ("query" :: String) $ Ranking.fromSortedList
-        [ (score, (docName, rel))
-        | (score, docName) <- ranking assessed
-        , let rel = getRelevance docName
-        ]
+        $ M.singleton ("query" :: String)
+        $ assessedRankingToRanking assessed
+
+relDiff :: RealFrac a => a -> a -> a
+relDiff x y = abs ((x - y) / x)
+
+assessedRankingToRanking :: Ord doc => AssessedRanking doc -> Ranking Double (doc, IsRelevant)
+assessedRankingToRanking assessed =
+    Ranking.fromSortedList
+    [ (score, (docName, rel))
+    | (score, docName) <- ranking assessed
+    , let rel = getRelevance docName
+    ]
+  where
+    getRelevance docName
+      | docName `S.member` relevant assessed = Relevant
+      | otherwise = NotRelevant
+
+naiveAvgPrecMatchesAvgPrec :: AssessedRanking DocName -> Property
+naiveAvgPrecMatchesAvgPrec assessed =
+    naiveAvgPrec Relevant totalRel ranking === avgPrec Relevant totalRel ranking
+  where
+    totalRel = S.size $ relevant assessed
+    ranking = assessedRankingToRanking assessed
 
 tests :: TestTree
 tests = testGroup "Ranking evaluation"
     [ testProperty "MAP matches trec-eval" mapMatchesTrecEval
+    , testProperty "Naive average prec matches optimised average prec" naiveAvgPrecMatchesAvgPrec
     ]

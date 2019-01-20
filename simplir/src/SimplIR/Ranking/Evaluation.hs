@@ -6,6 +6,7 @@ module SimplIR.Ranking.Evaluation
     , TotalRel
     , meanAvgPrec
     , avgPrec
+    , naiveAvgPrec
     ) where
 
 import Data.List
@@ -31,15 +32,16 @@ meanAvgPrec totalRel relThresh rankings
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
-avgPrec :: forall rel doc score. (Ord rel)
-        => rel       -- ^ threshold of relevance (inclusive)
-        -> TotalRel  -- ^ total number of relevant documents
-        -> Ranking score (doc, rel)  -- ^ ranking
-        -> Maybe Double
-avgPrec relThresh totalRel ranking
+naiveAvgPrec :: forall rel doc score. (Ord rel)
+             => rel       -- ^ threshold of relevance (inclusive)
+             -> TotalRel  -- ^ total number of relevant documents
+             -> Ranking score (doc, rel)  -- ^ ranking
+             -> Maybe Double  -- ^ 'Nothing' if no relevant documents
+naiveAvgPrec relThresh totalRel ranking
   | totalRel == 0 = Nothing
   | otherwise =
     let (_, relAtR) = mapAccumL numRelevantAt 0 rels
+
         rels :: [rel]
         rels = map (snd . snd) (Ranking.toSortedList ranking)
 
@@ -61,3 +63,17 @@ avgPrec relThresh totalRel ranking
                               , rel >= relThresh
                               ]
     in Just $! sum precAtRelevantRanks / realToFrac totalRel
+
+avgPrec :: forall rel doc score. (Ord rel)
+        => rel       -- ^ threshold of relevance (inclusive)
+        -> TotalRel  -- ^ total number of relevant documents
+        -> Ranking score (doc, rel)  -- ^ ranking
+        -> Maybe Double  -- ^ 'Nothing' if no relevant documents
+avgPrec relThresh totalRel ranking
+  | totalRel == 0 = Nothing
+  | otherwise =
+    let precsAtR = zipWith (\(r, _) i -> realToFrac i / realToFrac r) relevantEnts [1 :: Int ..]
+        relevantEnts = filter (\(_, (_, (_, rel))) -> rel >= relThresh)
+                       $ zip [1 :: Int ..]
+                       $ Ranking.toSortedList ranking
+    in Just $ sum precsAtR / realToFrac totalRel
