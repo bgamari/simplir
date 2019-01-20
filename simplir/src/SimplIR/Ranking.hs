@@ -17,6 +17,7 @@ module SimplIR.Ranking
       -- ** Destruction
     , toSortedList
     , toSortedVector
+    , toSortedItems
       -- ** Transformation
     , mapRanking
     , takeTop
@@ -117,6 +118,9 @@ toSortedList (Ranking xs) = VH.toList xs
 
 toSortedVector :: (VU.Unbox score) => Ranking score a -> VH.Vector VU.Vector V.Vector (score, a)
 toSortedVector (Ranking xs) = xs
+
+toSortedItems :: Ranking score a -> V.Vector a
+toSortedItems (Ranking xs) = VH.projectSnd xs
 
 
 -- | 'takeTop k xs' truncates 'Ranking' @xs@ at rank \(k\).

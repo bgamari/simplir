@@ -14,6 +14,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.Map.Strict as M
 import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Generic as VG
 
 import SimplIR.Ranking (Ranking)
 import SimplIR.Types.Relevance
@@ -75,11 +76,11 @@ avgPrec :: forall rel doc score. (Ord rel, VU.Unbox score)
 avgPrec relThresh totalRel ranking
   | totalRel == 0 = Nothing
   | otherwise =
-    let precsAtR = zipWith (\(r, _) i -> realToFrac i / realToFrac r) relevantEnts [1 :: Int ..]
-        relevantEnts = filter (\(_, (_, (_, rel))) -> rel >= relThresh)
-                       $ zip [1 :: Int ..]
-                       $ Ranking.toSortedList ranking
-    in Just $ sum precsAtR / realToFrac totalRel
+    let -- N.B. VG.indexed is zero-based but ranks should be one-based
+        precsAtR = VG.imap (\i (r, _) -> realToFrac (i+1) / realToFrac (r+1)) relevantEnts
+        relevantEnts = VG.filter (\(_r, (_, rel)) -> rel >= relThresh)
+                       $ VG.indexed (Ranking.toSortedItems ranking)
+    in Just $ VG.sum precsAtR / realToFrac totalRel
 {-# SPECIALISE
     avgPrec :: forall rel doc. (Ord rel)
             => rel
