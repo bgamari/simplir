@@ -12,6 +12,7 @@ module SimplIR.Ranking.Evaluation
 import Data.List
 import Data.Maybe
 import qualified Data.Map.Strict as M
+import qualified Data.Vector.Unboxed as VU
 
 import SimplIR.Ranking (Ranking)
 import qualified SimplIR.Ranking as Ranking
@@ -32,7 +33,7 @@ meanAvgPrec totalRel relThresh rankings
 mean :: (RealFrac a) => [a] -> a
 mean xs = sum xs / realToFrac (length xs)
 
-naiveAvgPrec :: forall rel doc score. (Ord rel)
+naiveAvgPrec :: forall rel doc score. (Ord rel, VU.Unbox score)
              => rel       -- ^ threshold of relevance (inclusive)
              -> TotalRel  -- ^ total number of relevant documents
              -> Ranking score (doc, rel)  -- ^ ranking
@@ -64,7 +65,7 @@ naiveAvgPrec relThresh totalRel ranking
                               ]
     in Just $! sum precAtRelevantRanks / realToFrac totalRel
 
-avgPrec :: forall rel doc score. (Ord rel)
+avgPrec :: forall rel doc score. (Ord rel, VU.Unbox score)
         => rel       -- ^ threshold of relevance (inclusive)
         -> TotalRel  -- ^ total number of relevant documents
         -> Ranking score (doc, rel)  -- ^ ranking
@@ -77,3 +78,10 @@ avgPrec relThresh totalRel ranking
                        $ zip [1 :: Int ..]
                        $ Ranking.toSortedList ranking
     in Just $ sum precsAtR / realToFrac totalRel
+{-# SPECIALISE
+    avgPrec :: forall rel doc. (Ord rel)
+            => rel
+            -> TotalRel
+            -> Ranking Double (doc, rel)
+            -> Maybe Double
+    #-}
