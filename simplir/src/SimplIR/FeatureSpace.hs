@@ -349,7 +349,8 @@ equivSpace (Space s1 _) fs2@(Space s2 _)
 
 zipWith :: (VU.Unbox a, VU.Unbox b, VU.Unbox c)
         => (a -> b -> c) -> FeatureVec f s a -> FeatureVec f s b -> FeatureVec f s c
-zipWith f (FeatureVec fspace v1) (FeatureVec _ v2) = FeatureVec fspace $ VI.zipWith f v1 v2
+zipWith f v1 v2 =
+    FeatureVec (featureSpace v1) $ VI.zipWith f (getFeatureVec v1) (getFeatureVec v2)
 {-# INLINE zipWith #-}
 
 scale :: (VU.Unbox a, Num a)
@@ -377,16 +378,22 @@ scale x = map (*x)
 {-# INLINEABLE (^-^) #-}
 
 sum :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
-sum (FeatureVec _ v) = VI.sum v
-{-# INLINE sum #-}
+sum = VI.sum . getFeatureVec
+--{-# INLINE sum #-}
 
 dot :: (VU.Unbox a, Num a) => FeatureVec f s a -> FeatureVec f s a -> a
-dot a b = sum $ a ^*^ b
+-- We would like to write the following but sadly GHC can't be convinced to fuse
+-- sum and zipWith:
+-- dot v0 v1 = sum (v0 ^*^ v1)
+dot v1 v2 = VI.sum $ VI.zipWith (*) (getFeatureVec v1) (getFeatureVec v2)
 {-# SPECIALISE dot :: FeatureVec f s Double -> FeatureVec f s Double -> Double #-}
 {-# SPECIALISE dot :: FeatureVec f s Float -> FeatureVec f s Float -> Float #-}
 
 quadrance :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
-quadrance = sum . map (\x -> x*x)
+-- We would like to write the following but sadly GHC can't be convinced to fuse
+-- sum and map:
+--quadrance = sum . map (\x -> x*x)
+quadrance = VI.quadrance . getFeatureVec
 {-# SPECIALISE quadrance :: FeatureVec f s Double -> Double #-}
 {-# SPECIALISE quadrance :: FeatureVec f s Float -> Float #-}
 
