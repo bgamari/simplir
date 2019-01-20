@@ -22,6 +22,7 @@ module SimplIR.Ranking
     , takeTop
     , mapMaybe
     , filter
+    , rescore
     ) where
 
 import Control.DeepSeq
@@ -138,3 +139,10 @@ mapRanking :: (VU.Unbox score, VU.Unbox score', Ord score')
            -> Ranking score  a
            -> Ranking score' b
 mapRanking f (Ranking xs) = Ranking $ sort $ VH.map (uncurry f) xs
+
+-- | Recompute a 'Ranking'\'s scores.
+rescore :: (VU.Unbox score, VU.Unbox score', Ord score')
+        => (a -> (score', b))
+        -> Ranking score  a
+        -> Ranking score' b
+rescore f = mapRanking (const f)

@@ -39,7 +39,6 @@ import Data.Ord
 import Data.List
 import qualified System.Random as Random
 import System.Random.Shuffle
-import Data.Hashable
 import qualified Data.Map.Strict as M
 import Linear.Epsilon
 
@@ -49,7 +48,6 @@ import SimplIR.Types.Relevance
 import SimplIR.Ranking as Ranking
 import SimplIR.Ranking.Evaluation
 import SimplIR.TrainUtils
-import Debug.Trace as Debug
 
 type Score = Double
 
@@ -222,59 +220,79 @@ coordAscent :: forall a f s qid relevance gen.
             -> WeightVec f s            -- ^ initial weights
             -> M.Map qid (FRanking f s relevance a)
             -> [(Score, WeightVec f s)] -- ^ list of iterates
-coordAscent scoreRanking gen0 w0 fRankings
-  | isNaN score0         = error "coordAscent: Initial score is not a number"
+coordAscent scoreRanking gen0 w0
   | null (FS.featureIndexes fspace)  = error "coordAscent: Empty feature space"
-  | otherwise = go gen0 (score0, w0')
+  | otherwise = \fRankings ->
+      let Just w0' = l2NormalizeWeightVec w0
+          score0 = scoreRanking fRankings'
+          fRankings' = fmap (rerank w0' . map (\(doc, feats, rel) -> (((doc, feats), rel), feats))) fRankings
+      in if isNaN score0
+         then error "coordAscent: Initial score is not a number"
+         else go gen0 (score0, w0', fRankings')
   where
-    Just w0' = l2NormalizeWeightVec w0
-    score0 = scoreRanking $ fmap (rerank w0' . map (\(doc, feats, rel) -> ((doc, rel), feats))) fRankings
-
     fspace = FS.featureSpace $ getWeightVec w0
     dim = FS.dimension fspace
 
     zeroStep :: Step s
     zeroStep = Step (head $ FS.featureIndexes fspace) 0
 
-    go :: gen -> (Score, WeightVec f s) -> [(Score, WeightVec f s)]
-    go gen w = w' : go gen' w'
+    go :: gen
+       -> (Score, WeightVec f s, M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance)))
+       -> [(Score, WeightVec f s)]
+    go gen state = (score, w') : go gen' state'
       where
-        !w' = foldl' updateDim w dims
+        state'@(score, !w', _fRankings') = foldl' updateDim state dims
         dims = shuffle' (FS.featureIndexes fspace) dim g
         (g, gen') = Random.split gen
 
-    updateDim :: (Score, WeightVec f s) -> FS.FeatureIndex s -> (Score, WeightVec f s)
-    updateDim (score0, w0) dim
-      | null steps = (score0, w0)
-      | otherwise  = maximumBy (comparing fst) steps
+    updateDim :: (Score, WeightVec f s, M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance)))
+              -> FS.FeatureIndex s
+              -> (Score, WeightVec f s, M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance)))
+    updateDim (score0, w0, fRankings) dim
+      | null steps = (score0, w0, fRankings)
+      | otherwise  = maximumBy (comparing $ \(score,_,_) -> score) steps
       where
-        steps :: [(Score, WeightVec f s)]
+        steps :: [( Score
+                  , WeightVec f s
+                  , M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance))
+                  )]
         steps =
-            [ (scoreStep step, w')  -- possibly l2Normalize  requires to invalidate scoredRaking caches and a full recomputation of the scores
+            [ if isNaN score
+              then error "coordAscent: Score is NaN"
+              else (score, w', rankings)
+              -- possibly l2Normalize requires to invalidate scoredRaking caches
+              -- and a full recomputation of the scores
             | delta <- deltas
             , let step = Step dim delta
             , Just w' <- pure $ l2NormalizeWeightVec $ stepFeature step w0
+            , let !rankings = updateRankings step
+            , let score = scoreRanking rankings
             ]
-        scoreStep :: Step s -> Score
-        scoreStep step
-          | isNaN s   = error "coordAscent: Score is NaN"
-          | otherwise = s
+
+        updateRankings :: Step s
+                       -> M.Map qid (Ranking Score ((a, FeatureVec f s Double), relevance))
+        updateRankings step =
+            fmap (\ranking -> rescore scoreDoc ranking) cachedScoredRankings
           where
-            s = scoreRanking $ fmap (Ranking.fromList . fmap newScorer') cachedScoredRankings
-            newScorer' ::  (a, Step s -> Score, relevance) -> (Score, (a, relevance))
-            newScorer' (doc,scorer,rel) = (scorer step, (doc, rel))
+            scoreDoc :: (Step s -> Score, ((a, FeatureVec f s Double), relevance))
+                     -> (Score, ((a, FeatureVec f s Double), relevance))
+            scoreDoc (stepScorer, item) = (stepScorer step, item)
 
-        cachedScoredRankings :: M.Map qid [(a, Step s -> Score, relevance)]
-        cachedScoredRankings =
-            fmap newScorer fRankings
+        cachedScoredRankings :: M.Map qid (Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance)))
+        !cachedScoredRankings =
+            fmap augment fRankings
           where
-            newScorer :: FRanking f s relevance a -> [(a, Step s -> Score, relevance)]
-            newScorer = docSorted . fmap (middle (\f -> scoreStepOracle w0 f))
-
-            docSorted = sortBy (comparing $ \(_,scoreFun,_) -> Down $ scoreFun zeroStep)
-
-middle :: (b->b') -> (a, b, c) -> (a,b',c)
-middle fun (a, b, c) = (a, fun b, c)
+            -- Attach a step-scorer to each document in a ranking.
+            augment :: Ranking Score ((a, FeatureVec f s Double), relevance)
+                    -> Ranking Score (Step s -> Score, ((a, FeatureVec f s Double), relevance))
+            augment = mapRanking updateScorer
+              where
+                -- Recompute the scoreFun and the document's current score.
+                updateScorer :: Score
+                             -> ((a, FeatureVec f s Double), relevance)
+                             -> (Score, (Step s -> Score, ((a, FeatureVec f s Double), relevance)))
+                updateScorer _ things@((_, fVec), _) = (stepScorer zeroStep, (stepScorer, things))
+                  where !stepScorer = scoreStepOracle w0 fVec
 
 -----------------------
 -- Testing
