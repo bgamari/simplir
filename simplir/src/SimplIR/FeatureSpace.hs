@@ -378,7 +378,7 @@ scale x = map (*x)
 
 sum :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
 sum (FeatureVec _ v) = VI.sum v
-{-# INLINEABLE sum #-}
+{-# INLINE sum #-}
 
 dot :: (VU.Unbox a, Num a) => FeatureVec f s a -> FeatureVec f s a -> a
 dot a b = sum $ a ^*^ b
