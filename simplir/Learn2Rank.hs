@@ -65,7 +65,7 @@ learnMode =
         gen0 <- newStdGen
         SomeFeatureSpace fspace <- pure $ FS.mkFeatureSpace $ M.keysSet runFiles
         let docFeatures = toDocFeatures' fspace runFiles
-            franking =  augmentWithQrels qrel docFeatures Relevant
+            franking =  augmentWithQrels qrel docFeatures
 
             !metric = meanAvgPrec (totalRelevantFromQRels qrel) Relevant
             (model, evalScore) = learnToRank defaultMiniBatchParams (defaultConvergence "" 1e-2 100 2) franking fspace metric gen0

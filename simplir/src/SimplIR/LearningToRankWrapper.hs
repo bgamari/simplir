@@ -144,11 +144,12 @@ augmentWithQrels :: forall docId queryId f s.
                     (Ord queryId, Ord docId)
                  => [QRel.Entry queryId docId IsRelevant]
                  -> M.Map (queryId, docId) (FeatureVec f s Double)
-                 -> IsRelevant
                  -> M.Map queryId [(docId, FeatureVec f s Double, IsRelevant)]
-augmentWithQrels qrel docFeatures rel =
+augmentWithQrels qrel docFeatures =
     let relevance :: M.Map (queryId, docId) IsRelevant
-        relevance = M.fromList [ ((qid, doc), rel) | QRel.Entry qid doc rel <- qrel ]
+        relevance = M.fromList [ ((qid, doc), rel)
+                               | QRel.Entry qid doc rel <- qrel
+                               ]
 
         franking :: M.Map queryId [(docId, FeatureVec f s Double, IsRelevant)]
         franking = M.fromListWith (++)
