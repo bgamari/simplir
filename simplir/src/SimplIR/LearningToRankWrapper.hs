@@ -189,7 +189,7 @@ learnToRank miniBatchParams convergence franking fspace metric gen0 =
     in (Model weights, evalScore)
 
 traceIters :: String -> [(Double, a)] -> [(Double, a)]
-traceIters info xs = zipWith3 g [1..] xs (tail xs)
+traceIters info xs = zipWith3 g [1 :: Integer ..] xs (tail xs)
   where
     g i x@(a,_) (b,_) =
         trace (concat [info, " iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
