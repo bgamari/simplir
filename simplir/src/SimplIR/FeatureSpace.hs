@@ -385,14 +385,14 @@ dot :: (VU.Unbox a, Num a) => FeatureVec f s a -> FeatureVec f s a -> a
 -- We would like to write the following but sadly GHC can't be convinced to fuse
 -- sum and zipWith:
 -- dot v0 v1 = sum (v0 ^*^ v1)
-dot v1 v2 = VI.sum $ VI.zipWith (*) (getFeatureVec v1) (getFeatureVec v2)
+dot v1 v2 = VI.dot (getFeatureVec v1) (getFeatureVec v2)
 {-# SPECIALISE dot :: FeatureVec f s Double -> FeatureVec f s Double -> Double #-}
 {-# SPECIALISE dot :: FeatureVec f s Float -> FeatureVec f s Float -> Float #-}
 
 quadrance :: (VU.Unbox a, Num a) => FeatureVec f s a -> a
 -- We would like to write the following but sadly GHC can't be convinced to fuse
 -- sum and map:
---quadrance = sum . map (\x -> x*x)
+--quadrance = VI.sum . VI.map (\x -> x*x) . getFeatureVec
 quadrance = VI.quadrance . getFeatureVec
 {-# SPECIALISE quadrance :: FeatureVec f s Double -> Double #-}
 {-# SPECIALISE quadrance :: FeatureVec f s Float -> Float #-}
