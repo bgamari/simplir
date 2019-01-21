@@ -190,10 +190,18 @@ learnToRank miniBatchParams convergence evalCutoff franking fspace metric gen0 =
     in (Model weights, evalScore)
 
 traceIters :: String -> [(Double, a)] -> [(Double, a)]
-traceIters info xs = zipWith3 g [1 :: Integer ..] xs (tail xs)
+traceIters info = go (1 :: Int)
   where
-    g i x@(a,_) (b,_) =
-        trace (concat [info, " iteration ", show i, ", score ", show a, " -> ", show b, " rel ", show (relChange a b)]) x
+    go _ [] = []
+    go i (x0:x1:xs) =
+        trace msg (x0 : go (i+1) (x1:xs))
+      where
+        msg = concat [ info, " iteration ", show i
+                     , ", score ", show s0, " -> ", show s1
+                     , " rel ", show (relChange s0 s1)
+                     ]
+        s0 = fst x0
+        s1 = fst x1
 
 defaultConvergence :: String -> Double -> Int -> Int -> [(Double, WeightVec f s)] -> [(Double, WeightVec f s)]
 defaultConvergence info threshold maxIter dropIter =
