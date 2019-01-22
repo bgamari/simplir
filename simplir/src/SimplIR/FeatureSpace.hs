@@ -23,6 +23,8 @@ module SimplIR.FeatureSpace
     , mkFeatureSpace
     , eitherSpaces
     , concatSpaces
+    -- *** Unsafe
+    , unsafeFromFeatureList
     -- ** Queries
     , dimension
     , featureNames
@@ -161,16 +163,16 @@ lookupFeatureName :: HasCallStack => FeatureSpace f s -> FeatureIndex s -> f
 lookupFeatureName (Space v _) = (v VI.!)
 {-# INLINEABLE lookupFeatureName #-}
 
-unsafeFeatureSpaceFromSorted :: (Ord f) => [f] -> FeatureSpace f s
-unsafeFeatureSpaceFromSorted sorted = Space v m
+unsafeFromFeatureList :: (Ord f) => [f] -> FeatureSpace f s
+unsafeFromFeatureList fnames = Space v m
   where
-    m = M.fromAscList $ zip sorted (fmap FeatureIndex [0..])
+    m = M.fromList $ zip fnames (fmap FeatureIndex [0..])
     bs = (FeatureIndex 0, FeatureIndex $ M.size m - 1)
     v = VI.fromList bs $ fmap fst $ M.toAscList m
 
 mkFeatureSpace :: (Ord f, Show f, HasCallStack)
                => S.Set f -> SomeFeatureSpace f
-mkFeatureSpace fs = SomeFeatureSpace $ unsafeFeatureSpaceFromSorted $ S.toAscList fs
+mkFeatureSpace fs = SomeFeatureSpace $ unsafeFromFeatureList $ S.toList fs
 
 data FeatureVec f s a = FeatureVec { featureSpace  :: !(FeatureSpace f s)
                                    , getFeatureVec :: !(VI.Vector VU.Vector (FeatureIndex s) a)
