@@ -12,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
+{-# OPTIONS_GHC -O2 #-}
 
 module SimplIR.FeatureSpace
     ( FeatureIndex
