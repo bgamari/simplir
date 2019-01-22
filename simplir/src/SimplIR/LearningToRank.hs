@@ -123,7 +123,7 @@ data MiniBatchParams = MiniBatchParams { miniBatchParamsBatchSteps :: Int   -- ^
                                        }
                                        deriving Show
 defaultMiniBatchParams :: MiniBatchParams
-defaultMiniBatchParams = MiniBatchParams 4 100 10
+defaultMiniBatchParams = MiniBatchParams 1 100 0
 
 miniBatchedAndEvaluated
     :: forall a f s qid relevance gen.
