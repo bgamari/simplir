@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -O2 #-}
 
 module SimplIR.Ranking
     ( -- * Rankings
