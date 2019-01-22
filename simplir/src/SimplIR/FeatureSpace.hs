@@ -42,12 +42,15 @@ module SimplIR.FeatureSpace
     , fromList
     , aggregateWith
     , mkFeaturesF
+    -- *** Unsafe
+    , unsafeFromVector
     -- *** Stacking
     , Stack
     , FeatureStack(..)
     , stack
     -- ** Destruction
     , toList
+    , toVector
     -- ** Lookups
     , lookup
     , lookupIndex
@@ -242,6 +245,19 @@ fromList' fspace xs = runST $ do
 
 toList :: (VU.Unbox a) => FeatureVec f s a -> [(f, a)]
 toList (FeatureVec fspace v) = zip (featureNames fspace) (VI.elems v)
+
+toVector :: FeatureVec f s a -> VU.Vector a
+toVector = VI.vector . getFeatureVec
+
+-- | The only safe usage is to reconstitute a vector from the result of 'toVector':
+--
+-- >>> unsafeFromVector (featureSpace v) (toVector v) == v
+--
+unsafeFromVector :: (VU.Unbox a) => FeatureSpace f s -> VU.Vector a -> Maybe (FeatureVec f s a)
+unsafeFromVector fspace v
+  | dimension fspace == VU.length v =
+      Just $ FeatureVec fspace $ VI.fromVector (featureIndexBounds fspace) v
+  | otherwise = Nothing
 
 repeat :: (VU.Unbox a) => FeatureSpace f s -> a -> FeatureVec f s a
 repeat fspace x = FeatureVec fspace $ VI.replicate (featureIndexBounds fspace) x
