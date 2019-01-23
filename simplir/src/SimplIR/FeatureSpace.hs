@@ -311,13 +311,16 @@ map :: (VU.Unbox a, VU.Unbox b)
 map f (FeatureVec fspace x) = FeatureVec fspace $ VI.map f x
 {-# INLINE map #-}
 
+-- | @project s1 s2@ returns a constructive proof that vectors of one feature
+-- space @s1@ can be projected into @s2@.
 project :: forall m f s s' a. (VU.Unbox a, Ord f, MonadFail m)
         => FeatureSpace f s -> FeatureSpace f s'
         -> m (FeatureVec f s a -> FeatureVec f s' a)
-project (Space _ s1) s2 =
-  case mapping of
-    Right x  -> pure $ \v -> map (lookupIndex v . coerce) x
-    Left err -> fail err
+project s1'@(Space _ s1) s2
+  | Just f <- s1' `equivSpace` s2 = return f
+  | otherwise = case mapping of
+                  Right x  -> pure $ \v -> map (lookupIndex v . coerce) x
+                  Left err -> fail err
   where
     --mapping :: Either String (FeatureVec f s' (FeatureIndex s))
     mapping :: Either String (FeatureVec f s' Int)
@@ -325,6 +328,15 @@ project (Space _ s1) s2 =
       case coerce $ M.lookup f s1 of
         Just i -> pure i
         Nothing -> throwE $ "project: Feature not present"
+
+-- | Returns a constructive proof that two feature spaces have the same features
+-- in the same order.
+equivSpace :: (VU.Unbox a, Eq f)
+           => FeatureSpace f s -> FeatureSpace f s'
+           -> Maybe (FeatureVec f s a -> FeatureVec f s' a)
+equivSpace (Space s1 _) fs2@(Space s2 _)
+  | VI.vector s1 == VI.vector s2  = Just $ \(FeatureVec _ v) -> FeatureVec fs2 $ VI.fromVector (featureIndexBounds fs2) (VI.vector v)
+  | otherwise = Nothing
 
 data FeatureStack f ss a where
     Stack :: FeatureVec f s a -> FeatureStack f ss a -> FeatureStack f (s ': ss) a
@@ -340,13 +352,6 @@ stack fspace vecs =
     featVecs :: forall ss'. FeatureStack f ss' a -> [VU.Vector a]
     featVecs (Stack f rest) = VI.vector (getFeatureVec f) : featVecs rest
     featVecs StackNil = []
-
-equivSpace :: (VU.Unbox a, Eq f)
-           => FeatureSpace f s -> FeatureSpace f s'
-           -> Maybe (FeatureVec f s a -> FeatureVec f s' a)
-equivSpace (Space s1 _) fs2@(Space s2 _)
-  | VI.vector s1 == VI.vector s2  = Just $ \(FeatureVec _ v) -> FeatureVec fs2 $ VI.fromVector (featureIndexBounds fs2) (VI.vector v)
-  | otherwise = Nothing
 
 zipWith :: (VU.Unbox a, VU.Unbox b, VU.Unbox c)
         => (a -> b -> c) -> FeatureVec f s a -> FeatureVec f s b -> FeatureVec f s c
