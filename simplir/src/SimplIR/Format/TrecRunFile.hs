@@ -36,9 +36,9 @@ instance NFData RankingEntry where
 
 readRunFile :: FilePath -> IO [RankingEntry]
 readRunFile fname = do
-    mapMaybe parse . TL.lines <$> TL.readFile fname
+    catMaybes . flip (zipWith parse) [1 :: Int ..] . TL.lines <$> TL.readFile fname
   where
-    parse x
+    parse x lineNo
       | qid:_reserved:docName:rank:score:methodName:_ <- TL.words x
       = Just RankingEntry { queryId = TL.toStrict qid
                           , documentName = TL.toStrict docName
@@ -47,14 +47,13 @@ readRunFile fname = do
                           , methodName = TL.toStrict methodName
                           }
       | TL.all isSpace x = Nothing
-
-    parse x = error $ "readRunFile: Unrecognized line in "++fname++": "++TL.unpack x
-
-    readError :: String -> TL.Read.Reader a -> TL.Text -> a
-    readError place reader str =
-      case reader str of
-        Left err -> error $ "readRunFile: "++fname++": Error parsing "++place++": "++err++": "++TL.unpack str
-        Right (x,_) -> x
+      | otherwise = error $ "readRunFile: "++fname++" ("++show lineNo++"): Unrecognized line in "++fname++": "++TL.unpack x
+      where
+        readError :: String -> TL.Read.Reader a -> TL.Text -> a
+        readError place reader str =
+          case reader str of
+            Left err -> error $ "readRunFile: "++fname++" ("++show lineNo++"): Error parsing "++place++": "++err++": "++TL.unpack str
+            Right (x,_) -> x
 
 
 writeRunFile :: FilePath -> [RankingEntry] -> IO ()
