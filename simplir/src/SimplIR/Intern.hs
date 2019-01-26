@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE BangPatterns #-}
 
 module SimplIR.Intern
     ( InternM
@@ -47,4 +48,6 @@ internAll :: (Monad m, Eq b, Hashable b)
 internAll t = traverseOf t intern
 
 intern :: (Monad m, Eq a, Hashable a) => a -> InternM a m a
-intern x = InternM $ state $ swap . insert x
+intern x = InternM $ state $ \table ->
+    let (!table', !x') = insert x table
+    in (x', table')
