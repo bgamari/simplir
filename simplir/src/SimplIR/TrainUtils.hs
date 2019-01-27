@@ -131,7 +131,9 @@ miniBatched :: forall d model qid gen.
                -- ^ list of iterates, including all steps within a mini-batch;
                -- doesn't expose the model's score since it won't be comparable
                -- across batches.
-miniBatched batchSteps batchSize optimise gen00 w00 fRankings = go gen00 w00
+miniBatched batchSteps batchSize optimise gen00 w00 fRankings
+  | M.null fRankings = error "SimplIR.TrainUtils.miniBatched: no feature rankings"
+  | otherwise = go gen00 w00
   where
     nQueries = M.size fRankings
 
