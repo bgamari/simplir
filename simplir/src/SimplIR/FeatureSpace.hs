@@ -74,6 +74,8 @@ module SimplIR.FeatureSpace
     , dot
     -- ** Mapping between spaces
     , project
+    , projectBoth
+    , ProjectBothResult(..)
     , equivSpace
     ) where
 
@@ -170,7 +172,7 @@ unsafeFromFeatureList fnames = Space v m
     bs = (FeatureIndex 0, FeatureIndex $ M.size m - 1)
     v = VI.fromList bs $ fmap fst $ M.toAscList m
 
-mkFeatureSpace :: (Ord f, Show f, HasCallStack)
+mkFeatureSpace :: (Ord f, HasCallStack)
                => S.Set f -> SomeFeatureSpace f
 mkFeatureSpace fs = SomeFeatureSpace $ unsafeFromFeatureList $ S.toList fs
 
@@ -346,6 +348,23 @@ project s1'@(Space _ s1) s2
       case coerce $ M.lookup f s1 of
         Just i -> pure i
         Nothing -> throwE $ "project: Feature not present"
+
+data ProjectBothResult f s1 s2 where
+    ProjectBothResult :: { pbrFeatureSpace :: FeatureSpace s f
+                         , pbrFst          :: forall a. VU.Unbox a => FeatureVec f s1 a -> FeatureVec f s a
+                         , pbrSnd          :: forall a. VU.Unbox a => FeatureVec f s2 a -> FeatureVec f s a
+                         } -> ProjectBothResult f s1 s2
+
+-- | @projectBoth s1 s2@ returns a constructive proof that vectors in two vector
+-- spaces can be projected to the intersection of their dimensions.
+projectBoth :: forall f s1 s2. (Ord f)
+            => FeatureSpace f s1 -> FeatureSpace f s2
+            -> ProjectBothResult f s1 s2
+projectBoth s1 s2 =
+  let feats = featureNameSet s1 `S.intersection` featureNameSet s2
+      SomeFeatureSpace s = mkFeatureSpace feats
+      proj a b = fromMaybe (error "projectBoth: impossible") $ project a b
+  in ProjectBothResult s (proj s1 s) (proj s2 s)
 
 -- | Returns a constructive proof that two feature spaces have the same features
 -- in the same order.
