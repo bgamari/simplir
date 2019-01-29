@@ -1,3 +1,4 @@
+{-# LANGUAGE RoleAnnotations #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -107,6 +108,8 @@ import Prelude hiding (map, zipWith, repeat, sum, lookup, fail)
 
 newtype FeatureIndex s = FeatureIndex { getFeatureIndex :: Int }
                        deriving (Show, Ord, Eq, Enum, Ix)
+
+type role FeatureIndex nominal
 
 data SomeFeatureSpace f where
     SomeFeatureSpace :: (forall s. FeatureSpace f s) -> SomeFeatureSpace f
