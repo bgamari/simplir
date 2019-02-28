@@ -6,15 +6,7 @@ let
   inherit (nixpkgs.stdenv) lib;
   inherit (nixpkgs) fetchFromGitHub;
 
-  cabalFilter = path: type:
-    let pathBaseName = baseNameOf path;
-    in !(lib.hasPrefix "dist-newstyle" pathBaseName) &&
-       !(lib.hasPrefix ".git" pathBaseName) &&
-       !(lib.hasPrefix ".ghc.environment" pathBaseName) &&
-       !(lib.hasPrefix ".iml" pathBaseName) &&
-       !(lib.hasPrefix "dist" pathBaseName);
-
-  localDir = builtins.filterSource cabalFilter;
+  localDir = nixpkgs.nix-gitignore.gitignoreSourcePure [ ./.gitignore ];
 
   trec-eval = nixpkgs.enableDebugging (nixpkgs.callPackage ./trec-eval.nix {});
 
