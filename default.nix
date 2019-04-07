@@ -48,7 +48,7 @@ let
         ListLike = doJailbreak super.ListLike;
         text-icu   = dontCheck super.text-icu;
         pipes-zlib = doJailbreak super.pipes-zlib;
-        pipes-text = doJailbreak super.pipes-text;
+        pipes-text = doJailbreak (super.callHackage "pipes-text" "0.0.2.5" {});
         pipes-lzma = doJailbreak super.pipes-lzma;
         pipes-interleave = doJailbreak super.pipes-interleave;
         b-tree = doJailbreak super.b-tree;
@@ -70,7 +70,7 @@ let
       };
     in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 
-  ghcVersion = "ghc863";
+  ghcVersion = "ghc864";
   haskellPackages = nixpkgs.haskell.packages."${ghcVersion}".override {overrides = haskellOverrides;};
 in {
   inherit ghcVersion haskellPackages haskellOverrides;
