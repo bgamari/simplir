@@ -14,9 +14,10 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     SimplIR.DataSource.S3
-  build-depends:       base >=4.9 && <4.12,
+  build-depends:       base >=4.9 && <4.13,
                        text,
                        pipes-safe,
                        pipes-s3,
                        simplir-data-source
   default-language:    Haskell2010
+  buildable: False
