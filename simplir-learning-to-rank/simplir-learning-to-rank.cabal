@@ -1,0 +1,75 @@
+name:                simplir-learning-to-rank
+version:             0.1.0.0
+synopsis:            Learning-to-rank utilities.
+-- description:
+homepage:            https://github.com/bgamari/simplir
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2019 Ben Gamari
+category:            Math
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     SimplIR.FeatureSpace,
+                       SimplIR.FeatureSpace.Normalise,
+                       SimplIR.LearningToRankWrapper,
+                       SimplIR.LearningToRank,
+                       SimplIR.LearningToRank.Tests,
+                       SimplIR.TrainUtils
+  other-extensions:    RoleAnnotations, TupleSections, DataKinds, TypeOperators, BangPatterns, TemplateHaskell, TypeFamilies, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, StandaloneDeriving, ExistentialQuantification, ScopedTypeVariables, RankNTypes, GADTs, DeriveGeneric, PartialTypeSignatures, FlexibleContexts, DerivingStrategies
+  build-depends:       base >=4.12 && <4.13,
+                       deepseq >=1.4 && <1.5,
+                       primitive >=0.6 && <0.7,
+                       transformers >=0.5 && <0.6,
+                       containers >=0.6 && <0.7,
+                       vector >=0.12 && <0.13,
+                       text >=1.2 && <1.3,
+                       unordered-containers >=0.2 && <0.3,
+                       random >=1.1 && <1.2,
+                       parallel >=3.2 && <3.3,
+                       split,
+                       indexed-vector,
+                       foldl,
+                       random-shuffle,
+                       tasty,
+                       tasty-hunit,
+                       linear,
+                       aeson,
+                       simplir
+  hs-source-dirs:      src
+  default-language:    Haskell2010
+
+executable simplir-learn2rank
+  main-is:             Learn2Rank.hs
+  build-depends:
+      base,
+      bytestring,
+      transformers,
+      filepath,
+      random,
+      binary,
+      aeson,
+      vector,
+      text >=1.2 && <1.3,
+      containers,
+      optparse-applicative >= 0.12,
+      log-domain,
+      simplir,
+      simplir-learning-to-rank
+  default-language:    Haskell2010
+  ghc-options:         -rtsopts -Wall
+
+
+test-suite tests
+  type:                exitcode-stdio-1.0
+  main-is:             Main.hs
+  hs-source-dirs:      tests
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+  build-depends:
+    base,
+    tasty,
+    simplir-learning-to-rank
