@@ -3,7 +3,7 @@
 module SimplIR.StopWords where
 
 import qualified Data.Text as T
-import SimplIR.ReadStopWords
+import SimplIR.StopWords.Read
 import qualified Data.HashSet as HS
 
 killStopwords :: StopWords -> [T.Text] -> [T.Text]

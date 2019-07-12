@@ -18,7 +18,6 @@ library
   ghc-options:         -Wall
   hs-source-dirs:      src
   other-modules:
-      SimplIR.ReadStopWords
       Data.SmallNat
       Control.Foldl.Vector
 
@@ -44,7 +43,6 @@ library
       SimplIR.RetrievalModels.TfIdf
       SimplIR.RetrievalModels.BM25
       SimplIR.RetrievalModels.RelevanceModel
-      SimplIR.StopWords
       AccumPostings
       SimplIR.Encoded
       SimplIR.Encoded.Cbor
