@@ -1,0 +1,25 @@
+name:                simplir-pipes-utils
+version:             0.1.0.0
+-- synopsis:
+-- description:
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2019 Ben Gamari
+-- category:
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     SimplIR.Pipes.Progress,
+                       SimplIR.Pipes.Utils
+  other-extensions:    RankNTypes, OverloadedStrings, BangPatterns
+  build-depends:       base >=4.12 && <4.13,
+                       bytestring >=0.10 && <0.11,
+                       pipes,
+                       pipes-bytestring,
+                       aeson,
+                       foldl
+  hs-source-dirs:      src
+  default-language:    Haskell2010

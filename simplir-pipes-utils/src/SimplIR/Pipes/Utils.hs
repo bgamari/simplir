@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 
-module SimplIR.Utils where
+module SimplIR.Pipes.Utils where
 
 import Data.Monoid
 import Control.Monad ((>=>))

@@ -19,7 +19,7 @@ import qualified Control.Foldl as Foldl
 
 import Control.Foldl.Map
 import SimplIR.TopK
-import SimplIR.Utils
+import SimplIR.Pipes.Utils
 import Query (QueryId)
 import Types
 import Parametric

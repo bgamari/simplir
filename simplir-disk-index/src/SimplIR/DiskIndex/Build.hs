@@ -27,7 +27,7 @@ import Pipes.Safe
 import qualified SimplIR.DiskIndex as DiskIdx
 import SimplIR.Types
 import Control.Foldl.Map
-import SimplIR.Utils
+import SimplIR.Pipes.Utils
 
 -- Using m ~ SafeT IO until we are certain that other monads won't be needed.
 

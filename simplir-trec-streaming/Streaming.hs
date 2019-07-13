@@ -48,7 +48,7 @@ import qualified Pipes.Text.Encoding as P.T.E
 import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
-import SimplIR.Utils
+import SimplIR.Pipes.Utils
 import Control.Foldl.Map
 import SimplIR.Types
 import SimplIR.Term as Term

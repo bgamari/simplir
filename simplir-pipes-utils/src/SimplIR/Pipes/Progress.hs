@@ -1,4 +1,4 @@
-module Progress
+module SimplIR.Pipes.Progress
    ( ProgressVar
    , newProgressVar
    , progressPipe

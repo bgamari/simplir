@@ -22,7 +22,7 @@ import Control.Concurrent.Map
 import Control.Foldl.Map
 import qualified Data.SmallUtf8 as Utf8
 import SimplIR.TrecStreaming as Kba
-import SimplIR.Utils
+import SimplIR.Pipes.Utils
 import SimplIR.DataSource
 import SimplIR.Types
 import Types

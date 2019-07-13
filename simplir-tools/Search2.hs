@@ -38,7 +38,7 @@ import qualified Pipes.Prelude as P.P
 import Options.Applicative
 
 import qualified Data.SmallUtf8 as Utf8
-import SimplIR.Utils
+import SimplIR.Pipes.Utils
 import SimplIR.Types
 import Control.Concurrent.Map
 import SimplIR.Term as Term

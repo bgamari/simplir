@@ -73,6 +73,7 @@ library
 
       b-tree,
       simplir,
+      simplir-pipes-utils,
       heaps,
       vector-binary-instances >= 0.2,
 

@@ -49,10 +49,8 @@ library
       SimplIR.EncodedList
       SimplIR.EncodedList.Cbor
       SimplIR.TrecEval
-      Progress
       SimplIR.Tokenise
       SimplIR.TopK
-      SimplIR.Utils
       SimplIR.Utils.Compact
       SimplIR.Types
       SimplIR.Types.Relevance

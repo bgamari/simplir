@@ -43,6 +43,7 @@ let
         simplir-stop-words   = self.callCabal2nix "simplir-stop-words" (localDir ./simplir-stop-words) {};
         simplir-learning-to-rank
                              = self.callCabal2nix "simplir-learning-to-rank" (localDir ./simplir-learning-to-rank) {};
+        simplir-pipes-utils  = self.callCabal2nix "simplir-pipes-utils" (localDir ./simplir-pipes-utils) {};
         http-parsers         = self.callCabal2nix "http-parsers" ./vendor/http-parsers {};
         indexed-vector       = self.callCabal2nix "indexed-vector" ./vendor/indexed-vector {};
         fork-map             = self.callCabal2nix "fork-map" ./vendor/fork-map {};

@@ -40,6 +40,7 @@ executable simplir
       warc,
       b-tree,
       simplir,
+      simplir-pipes-utils,
       simplir-disk-index,
       simplir-trec-streaming,
       simplir-trec
@@ -76,6 +77,7 @@ executable simplir2
       warc,
       b-tree,
       simplir,
+      simplir-pipes-utils,
       simplir-html-clean,
       simplir-data-source,
       simplir-trec-streaming,
