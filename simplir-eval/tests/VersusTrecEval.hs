@@ -1,8 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module SimplIR.Ranking.Evaluation.Tests (tests) where
-
 import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -110,3 +108,9 @@ tests = testGroup "Ranking evaluation"
     [ testProperty "MAP matches trec-eval" mapMatchesTrecEval
     , testProperty "Naive average prec matches optimised average prec" naiveAvgPrecMatchesAvgPrec
     ]
+
+main :: IO ()
+main =
+    defaultMain $ testGroup "tests"
+        [ tests
+        ]

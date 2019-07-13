@@ -1,0 +1,25 @@
+name:                simplir-io
+version:             0.1.0.0
+-- synopsis:
+-- description:
+license:             BSD3
+license-file:        LICENSE
+author:              Ben Gamari
+maintainer:          ben@smart-cactus.org
+copyright:           (c) 2019 Ben Gamari
+category:            Text
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     SimplIR.Format.TrecRunFile,
+                       SimplIR.Format.QRel
+  other-extensions:    RecordWildCards, OverloadedStrings, ScopedTypeVariables, GeneralizedNewtypeDeriving
+  build-depends:       base >=4.12 && <4.13,
+                       deepseq >=1.4 && <1.5,
+                       text >=1.2 && <1.3,
+                       hashable >=1.2 && <1.3,
+                       unordered-containers >=0.2 && <0.3,
+                       simplir
+  hs-source-dirs:      src
+  default-language:    Haskell2010
