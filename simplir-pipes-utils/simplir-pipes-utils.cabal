@@ -14,9 +14,17 @@ cabal-version:       >=1.10
 library
   exposed-modules:     SimplIR.Pipes.Progress,
                        SimplIR.Pipes.Utils
+                       Control.Foldl.Map
+                       Control.Foldl.HashMap
+                       Control.Foldl.Vector
   other-extensions:    RankNTypes, OverloadedStrings, BangPatterns
   build-depends:       base >=4.11 && <4.13,
                        bytestring >=0.10 && <0.11,
+                       vector,
+                       primitive,
+                       containers,
+                       unordered-containers,
+                       hashable,
                        pipes,
                        pipes-bytestring,
                        aeson,
