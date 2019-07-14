@@ -120,7 +120,7 @@ library
       cborg >= 0.2,
       indexed-vector,
 
-      QuickCheck >=2.8 && <2.13,
+      QuickCheck >=2.8 && <2.14,
       tasty,
       tasty-quickcheck,
       tasty-hunit,
