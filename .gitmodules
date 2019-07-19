@@ -36,7 +36,7 @@
 	url = git://github.com/bgamari/indexed-vector
 [submodule "vendor/fork-map"]
 	path = vendor/fork-map
-	url = https://git@git.smart-cactus.org/ben/fork-map
+	url = https://github.com/bgamari/fork-map
 [submodule "vendor/trifecta"]
 	path = vendor/trifecta
 	url = git://github.com/ekmett/trifecta
