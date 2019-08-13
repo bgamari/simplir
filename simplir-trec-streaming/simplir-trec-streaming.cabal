@@ -15,11 +15,21 @@ cabal-version:       >=1.10
 library
   exposed-modules:     SimplIR.TrecStreaming,
                        SimplIR.TrecStreaming.FacAnnotations
+                       ReadKba
+                       Query
+                       Types
+                       Utils
+                       Parametric
+                       Fac.Types
   other-extensions:    GeneralizedNewtypeDeriving, DeriveGeneric, RecordWildCards
   build-depends:       base >=4.9 && <5,
                        bytestring >=0.10 && <0.11,
                        unordered-containers >= 0.2 && < 0.3,
+                       containers,
+                       trifecta >= 1.5,
+                       monad-control,
                        text >=1.2 && <1.3,
+                       bytestring,
                        time >=1.6 && <1.10,
                        pinch >=0.3 && <0.4,
                        binary,
@@ -29,6 +39,12 @@ library
                        attoparsec,
                        pipes-attoparsec,
                        pipes,
+                       pipes-safe,
+                       pipes-bytestring,
+                       vector,
+                       filepath,
+                       log-domain,
+                       simplir-data-source,
                        simplir
   ghc-options:         -Wall
   hs-source-dirs:      src

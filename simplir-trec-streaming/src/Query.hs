@@ -35,7 +35,7 @@ module Query
 
 import Control.Applicative
 import Data.Foldable (fold, toList)
-import Data.Monoid
+--import Data.Monoid
 import Data.Aeson
 import qualified Data.Vector as V
 import qualified Data.Text as T
