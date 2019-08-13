@@ -14,6 +14,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     SimplIR.Format.TrecRunFile,
                        SimplIR.Format.QRel
+                       SimplIR.Types.Relevance
   other-extensions:    RecordWildCards, OverloadedStrings, ScopedTypeVariables, GeneralizedNewtypeDeriving
   build-depends:       base >=4.11 && <4.13,
                        deepseq >=1.4 && <1.5,

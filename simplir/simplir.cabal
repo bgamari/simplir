@@ -45,7 +45,6 @@ library
       SimplIR.TopK
       SimplIR.Utils.Compact
       SimplIR.Types
-      SimplIR.Types.Relevance
       SimplIR.Histogram
       SimplIR.Term
       SimplIR.WarcDocSource
