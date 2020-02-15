@@ -23,7 +23,7 @@ logToScientific d (Exp l) = scientific (round m) p
 {-# SPECIALISE logToScientific :: Int -> Log Double -> Scientific #-}
 {-# SPECIALISE logToScientific :: Int -> Log Float  -> Scientific #-}
 
-scientificToLog :: (Precise a, RealFloat a) => Scientific -> Log a
+scientificToLog :: (RealFloat a) => Scientific -> Log a
 scientificToLog x = realToFrac m * Exp p'
   where
     m = coefficient x
@@ -35,10 +35,10 @@ scientificToLog x = realToFrac m * Exp p'
 instance RealFloat a => ToJSON (Log a) where
     toJSON = Number . logToScientific 14
 
-instance (Precise a, RealFloat a) => FromJSON (Log a) where
+instance (RealFloat a) => FromJSON (Log a) where
     parseJSON = withScientific "log number" $ pure . scientificToLog
 
-instance (Precise a, RealFloat a) => FromJSON (SignedLog a) where
+instance (RealFloat a) => FromJSON (SignedLog a) where
     parseJSON = withScientific "signed log number" $ \x -> pure $
                       let fixSign (Exp l) = SLExp (x >= 0) (abs l)
                       in fixSign $ scientificToLog $ abs x
