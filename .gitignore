@@ -10,3 +10,5 @@ dist-newstyle
 TAGS
 .ghc.environment.*
 cabal.project.local
+result
+result-*
