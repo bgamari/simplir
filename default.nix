@@ -32,7 +32,7 @@ let
         simplir-html-clean   = self.callCabal2nix "simplir-html-clean" (localDir ./simplir-html-clean) {};
         simplir-trec         = self.callCabal2nix "simplir-trec" (localDir ./simplir-trec) {};
         simplir-galago       = self.callCabal2nix "simplir-galago" (localDir ./simplir-galago) {};
-        simplir-tools        = self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {};
+        #simplir-tools        = self.callCabal2nix "simplir-tools" (localDir ./simplir-tools) {};
         simplir-word-embedding = self.callCabal2nix "simplir-word-embedding" (localDir ./simplir-word-embedding) {};
         simplir-trec-streaming = self.callCabal2nix "simplir-trec-streaming" (localDir ./simplir-trec-streaming) {};
         simplir-kyoto-index  = self.callCabal2nix "simplir-kyoto-index" (localDir ./simplir-kyoto-index) {};
@@ -57,17 +57,17 @@ let
         pipes-lzma = doJailbreak super.pipes-lzma;
         pipes-interleave = doJailbreak super.pipes-interleave;
         b-tree = doJailbreak super.b-tree;
+        log-domain = self.callCabal2nix "log-domain" (fetchFromGitHub {
+          owner = "ekmett";
+          repo = "log-domain";
+          rev = "f0b5e8528965ba1cf8a2f47ea8b2750285914b6d";
+          sha256 = "0d46bkymf8sz01cq4pizrs5dn0xn5yd3chqgczbad4yaqjridjl7";
+        }) {};
         warc = self.callCabal2nix "warc" (fetchFromGitHub {
           owner = "bgamari";
           repo = "warc";
           rev = "725d9d1265fda5fe3cb8cc11eff7d9bf2f714356";
           sha256 = "006k5brxxr023i62pq8q4v6sn1svgyg1lyv4b1nll5n5l3bj9jvw";
-        }) {};
-        monoidal-containers = self.callCabal2nix "warc" (fetchFromGitHub {
-          owner = "bgamari";
-          repo = "monoidal-containers";
-          rev = "a34c9fbe191725ef9a9c7783e103c24796bd91e3";
-          sha256 = "1ar2w4rx0mh4nvwzpc125l3hj9xslargl43vnssmh9l6ynhi8ksv";
         }) {};
 
         pinch = doJailbreak (self.callHackage "pinch" "0.3.4.0" {});
@@ -75,7 +75,7 @@ let
       };
     in otherOverrides // simplirPackages // { simplirPackages = simplirPackages; };
 
-  ghcVersion = "ghc864";
+  ghcVersion = "ghc865";
   haskellPackages = nixpkgs.haskell.packages."${ghcVersion}".override {overrides = haskellOverrides;};
 in {
   inherit ghcVersion haskellPackages haskellOverrides;

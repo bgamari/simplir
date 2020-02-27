@@ -80,7 +80,7 @@ library
       serialise,
       cborg,
 
-      QuickCheck >=2.8 && <2.13,
+      QuickCheck >=2.8 && <2.14,
       tasty,
       tasty-quickcheck,
       temporary
